@@ -87,12 +87,12 @@ The change keeps the existing config model, filesystem hardening, and no-live-re
 
 ### Task 2: Implement a focused JSONC preprocessor
 
-- [ ] add `Mahu/ConfigJSONPreprocessor.swift` with a scanner-based helper that strips comments outside string literals
-- [ ] implement support for `//` line comments and `/* ... */` block comments without using naive whole-file regex stripping
-- [ ] implement removal of trailing commas before `}` or `]` outside strings/comments
-- [ ] make malformed JSONC such as unterminated block comments throw a small preprocessor error for `ConfigStore` to treat as invalid config
-- [ ] add focused helper-level tests if useful for edge cases not covered through `ConfigStore` integration tests
-- [ ] run the targeted JSONC/preprocessor tests - must pass before Task 3
+- [x] add `Mahu/ConfigJSONPreprocessor.swift` with a scanner-based helper that strips comments outside string literals
+- [x] implement support for `//` line comments and `/* ... */` block comments without using naive whole-file regex stripping
+- [x] implement removal of trailing commas before `}` or `]` outside strings/comments
+- [x] make malformed JSONC such as unterminated block comments throw a small preprocessor error for `ConfigStore` to treat as invalid config
+- [x] add focused helper-level tests if useful for edge cases not covered through `ConfigStore` integration tests
+- [x] run the targeted JSONC/preprocessor tests - must pass before Task 3
 
 ### Task 3: Wire JSONC preprocessing into ConfigStore load only
 

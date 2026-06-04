@@ -66,6 +66,7 @@
 			A000000000000000000000B7 /* LaunchAtLoginControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */; };
 			A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */; };
 			A000000000000000000000BA /* ConfigStoreJSONCTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BB /* ConfigStoreJSONCTests.swift */; };
+			A000000000000000000000BC /* ConfigJSONPreprocessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BD /* ConfigJSONPreprocessor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -141,6 +142,7 @@
 			A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginControllerTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000BB /* ConfigStoreJSONCTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreJSONCTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000BD /* ConfigJSONPreprocessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigJSONPreprocessor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -187,6 +189,7 @@
 				A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */,
 				A00000000000000000000008 /* AppConfig.swift */,
 				A00000000000000000000009 /* ConfigStore.swift */,
+				A000000000000000000000BD /* ConfigJSONPreprocessor.swift */,
 				A00000000000000000000095 /* StatusDisplayFormatter.swift */,
 				A0000000000000000000000B /* BreakTimer.swift */,
 				A00000000000000000000012 /* BreakOverlayView.swift */,
@@ -384,6 +387,7 @@
 				A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */,
 				A00000000000000000000024 /* AppConfig.swift in Sources */,
 				A00000000000000000000025 /* ConfigStore.swift in Sources */,
+				A000000000000000000000BC /* ConfigJSONPreprocessor.swift in Sources */,
 				A00000000000000000000094 /* StatusDisplayFormatter.swift in Sources */,
 				A00000000000000000000027 /* BreakTimer.swift in Sources */,
 				A0000000000000000000002C /* BreakOverlayView.swift in Sources */,

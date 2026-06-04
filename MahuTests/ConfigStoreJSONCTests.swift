@@ -156,6 +156,46 @@ final class ConfigStoreJSONCTests: XCTestCase {
         XCTAssertEqual(config, .default)
     }
 
+    func testPreprocessorRemovesCommentsAndTrailingCommasOutsideStrings() throws {
+        let processedConfig = try ConfigJSONPreprocessor.preprocess(
+            #"""
+            {
+              "items": [1, 2,],
+              "url": "https://example.com/path//still-string",
+              /* comment */
+              "note": "text /* still string */",
+            }
+            """#
+        )
+
+        XCTAssertEqual(
+            processedConfig,
+            #"""
+            {
+              "items": [1, 2],
+              "url": "https://example.com/path//still-string",
+              
+              "note": "text /* still string */"
+            }
+            """#
+        )
+    }
+
+    func testPreprocessorThrowsForUnterminatedBlockComment() {
+        XCTAssertThrowsError(
+            try ConfigJSONPreprocessor.preprocess(
+                #"""
+                {
+                  "workDurationSeconds": 300,
+                  /* comment never ends
+                }
+                """#
+            )
+        ) { error in
+            XCTAssertEqual(error as? ConfigJSONPreprocessorError, .unterminatedBlockComment)
+        }
+    }
+
     private func makeStore() -> ConfigStore {
         ConfigStore(appSupportDirectory: temporaryDirectoryURL)
     }

@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-04 | Config JSONC preprocessor shape | Implement JSONC tolerance as a small in-repo scanner that strips comments first and then removes trailing commas in a second pass. | This keeps the behavior string-safe and testable without regex corruption risks or prematurely expanding `ConfigStore.swift`. |
 | 2026-06-04 | Config JSONC tolerance | Keep `config.json` as the persisted format, tolerate JSONC-style comments and trailing commas on read, and continue writing strict JSON. | The config is currently user-edited and Zed can insert JSONC comments, but migrating to YAML or adding a parser dependency would add more complexity than needed before the future Settings UI. |
 | 2026-06-03 | Break overlay dormant-session recovery | Preserve a dormant break session even when break start finds zero active displays, and materialize windows later from screen-change events instead of retrying with a new session. | Review found that the zero-display start path dropped session state, delayed recovery until the next tick, and could recapture the wrong previous app once displays returned. |
 | 2026-06-03 | Config write durability sync | Fsync the managed Mahu config directory after `renameat`, and fsync the parent directory too when the Mahu directory was created in the same write. | Review found that atomic temp-file replacement still reported success before the directory entries themselves were durable across crash or power loss. |
@@ -153,6 +154,22 @@
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
 ## 2026-06-04 / Config JSONC Tolerance
+
+## 2026-06-04 / Config JSONC Preprocessor Shape
+
+**Date:** 2026-06-04
+
+**Area:** Config parsing
+
+**Context:** Task 2 needs a dedicated preprocessing seam before `ConfigStore` load wiring lands. `ConfigStore.swift` is already large, and the tolerance layer must preserve string literals such as URLs and comment-looking text while handling comment stripping and trailing-comma cleanup deterministically.
+
+**Decision:** Implement `ConfigJSONPreprocessor` as a small in-repo scanner that first strips `//` and `/* ... */` comments outside strings, preserving newline characters from removed comments, and then removes trailing commas before `}` or `]` in a separate whitespace-aware pass.
+
+**Rationale:** A scanner keeps string handling explicit and avoids the corruption risks of whole-file regex transforms. Splitting comment removal and trailing-comma cleanup into two simple passes keeps the helper small, testable, and independent from the already-large `ConfigStore` file until Task 3 wires the load path.
+
+**Consequences:** The repo now has a focused preprocessing seam with direct helper tests for array/object trailing commas and unterminated block-comment errors. `ConfigStore` integration remains unchanged until the next task, so existing failing JSONC load tests still truthfully signal that wiring has not happened yet.
+
+**Alternatives Considered:** Fold the scanner directly into `ConfigStore.loadRegularConfig(from:)`; rejected because it grows an already large file before the behavior is validated in isolation. Use a single-pass regex-based cleanup; rejected because it is brittle around escaped quotes, URLs, and comment-like text inside strings.
 
 **Date:** 2026-06-04
 
