@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-04 | Tray timer width measurement plan | Plan a conservative status-item width calculation for timer mode that accounts for icon, title, and native padding instead of relying only on `NSStatusBarButton.fittingSize`. | Live menu-bar testing showed `Paused` can truncate to `Pau` after timer mode is enabled, suggesting `fittingSize` can under-measure when the button is already constrained by a previous frozen width. |
 | 2026-06-04 | Config JSONC review hardening | Treat removed block comments as JSON whitespace and preserve standard Unicode JSON text encodings before normalizing preprocessed config back to UTF-8. | Review found the original scanner could silently merge tokens across `/* ... */` and the initial load wiring regressed previously supported UTF-16/BOM-edited configs. |
 | 2026-06-04 | Config JSONC preprocessor shape | Implement JSONC tolerance as a small in-repo scanner that strips comments first and then removes trailing commas in a second pass. | This keeps the behavior string-safe and testable without regex corruption risks or prematurely expanding `ConfigStore.swift`. |
 | 2026-06-04 | Config JSONC tolerance | Keep `config.json` as the persisted format, tolerate JSONC-style comments and trailing commas on read, and continue writing strict JSON. | The config is currently user-edited and Zed can insert JSONC comments, but migrating to YAML or adding a parser dependency would add more complexity than needed before the future Settings UI. |
@@ -153,6 +154,22 @@
 | 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
+
+## 2026-06-04 / Tray Timer Width Measurement Plan
+
+**Date:** 2026-06-04
+
+**Area:** Tray timer display
+
+**Context:** Live menu-bar screenshots showed Mahu's timer-mode status item truncating `Paused` to `Pau`. The issue became visible after config parsing correctly enabled `showStatusItemTimerState`, but the failure is in status item width measurement rather than config loading.
+
+**Decision:** Plan a conservative timer-mode status-item width calculation that accounts for the tray icon, attributed title width, and native padding instead of relying only on `NSStatusBarButton.fittingSize`. Keep the existing freeze-to-widest behavior so the menu-bar item does not shrink or jitter during countdown updates.
+
+**Rationale:** `fittingSize` can under-measure when AppKit has already constrained the status item to a previously frozen countdown width. Measuring a conservative content width keeps layout policy inside `StatusItemController` and avoids pushing AppKit-specific workarounds into coordinator or config code.
+
+**Consequences:** Timer mode may become slightly wider, but `Paused` and countdown text should remain fully visible. Automated tests can cover the width expansion policy, while live menu-bar rendering still requires manual verification because AppKit's system menu bar layout cannot be fully proven in XCTest.
+
+**Alternatives Considered:** Disable tray timer text; rejected because the feature is useful and the bug is layout-specific. Remove width freezing and use `NSStatusItem.variableLength`; rejected because prior decisions intentionally stabilized width to avoid horizontal drift. Add a coordinator workaround; rejected because tray layout belongs at the AppKit status item edge.
 
 ## 2026-06-04 / Config JSONC Tolerance
 
