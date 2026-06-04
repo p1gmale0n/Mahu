@@ -3,6 +3,10 @@ import XCTest
 @testable import Mahu
 
 final class SmokeTests: XCTestCase {
+    private func hostedResourceURL(named name: String, extension ext: String) throws -> URL {
+        try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: ext))
+    }
+
     func testSmokeInstantiatesDefaultTimerState() {
         let timer = BreakTimer()
 
@@ -10,7 +14,7 @@ final class SmokeTests: XCTestCase {
     }
 
     func testHostedAppBundleContainsDecodableBackgroundImageResource() throws {
-        let resourceURL = try XCTUnwrap(Bundle.main.url(forResource: "background", withExtension: "png"))
+        let resourceURL = try hostedResourceURL(named: "background", extension: "png")
         let image = try XCTUnwrap(NSImage(contentsOf: resourceURL))
 
         XCTAssertEqual(resourceURL.lastPathComponent, "background.png")
@@ -19,11 +23,53 @@ final class SmokeTests: XCTestCase {
     }
 
     func testHostedAppBundleBackgroundImageLivesInsideBundleResources() throws {
-        let resourceURL = try XCTUnwrap(Bundle.main.url(forResource: "background", withExtension: "png"))
-        let bundleURL = Bundle.main.bundleURL.resolvingSymlinksInPath()
-        let resolvedResourceURL = resourceURL.resolvingSymlinksInPath()
+        let resourceURL = try hostedResourceURL(named: "background", extension: "png")
 
-        XCTAssertTrue(resolvedResourceURL.path.hasPrefix(bundleURL.path + "/"))
+        XCTAssertTrue(isHostedBundleResource(resourceURL))
+    }
+
+    func testHostedAppBundleContainsBreakCompletionSoundResource() throws {
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+
+        XCTAssertEqual(resourceURL.lastPathComponent, "break-completion.caf")
+    }
+
+    func testHostedAppBundleBreakCompletionSoundLivesInsideBundleResources() throws {
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+
+        XCTAssertTrue(isHostedBundleResource(resourceURL))
+    }
+
+    func testHostedAppBundleBreakCompletionSoundIsNonEmpty() throws {
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+        let fileSize = try XCTUnwrap(
+            (try FileManager.default.attributesOfItem(atPath: resourceURL.path)[.size]) as? NSNumber
+        )
+
+        XCTAssertEqual(resourceURL.lastPathComponent, "break-completion.caf")
+        XCTAssertGreaterThan(fileSize.intValue, 0)
+    }
+
+    func testHostedAppBundleDoesNotContainLegacyBreakCompletionSoundResource() {
+        XCTAssertNil(Bundle.main.url(forResource: "sound", withExtension: "wav"))
+    }
+
+    func testHostedAppBundleContainsSystemBootTimePrivacyManifestReason() throws {
+        let resourceURL = try hostedResourceURL(named: "PrivacyInfo", extension: "xcprivacy")
+        let data = try Data(contentsOf: resourceURL)
+        let plist = try XCTUnwrap(
+            try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+        let accessedAPITypes = try XCTUnwrap(plist["NSPrivacyAccessedAPITypes"] as? [[String: Any]])
+        let systemBootTimeEntry = try XCTUnwrap(
+            accessedAPITypes.first { entry in
+                (entry["NSPrivacyAccessedAPIType"] as? String) == "NSPrivacyAccessedAPICategorySystemBootTime"
+            }
+        )
+        let reasons = try XCTUnwrap(systemBootTimeEntry["NSPrivacyAccessedAPITypeReasons"] as? [String])
+
+        XCTAssertTrue(isHostedBundleResource(resourceURL))
+        XCTAssertEqual(reasons, ["35F9.1"])
     }
 
     func testHostedAppBundleEnablesMenuBarOnlyMode() {
@@ -66,11 +112,14 @@ final class SmokeTests: XCTestCase {
     @MainActor
     func testAppDelegateStartsCoordinatorWhenStartupIsAllowed() {
         var startCallCount = 0
+        weak var coordinatorReference: NSObject?
         let appDelegate = AppDelegate()
         appDelegate.environmentProvider = { [:] }
         appDelegate.coordinatorStarter = {
             startCallCount += 1
-            return NSObject()
+            let coordinator = NSObject()
+            coordinatorReference = coordinator
+            return coordinator
         }
 
         appDelegate.applicationDidFinishLaunching(
@@ -78,6 +127,7 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(startCallCount, 1)
+        XCTAssertNotNil(coordinatorReference)
     }
 
     @MainActor
@@ -105,5 +155,12 @@ final class SmokeTests: XCTestCase {
 
         wait(for: [didDrainRunLoop], timeout: 1)
         XCTAssertEqual(fireCount, fireCountAfterCancellation)
+    }
+
+    private func isHostedBundleResource(_ resourceURL: URL) -> Bool {
+        let bundleURL = Bundle.main.bundleURL.resolvingSymlinksInPath()
+        let resolvedResourceURL = resourceURL.resolvingSymlinksInPath()
+
+        return resolvedResourceURL.path.hasPrefix(bundleURL.path + "/")
     }
 }

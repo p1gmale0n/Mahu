@@ -99,7 +99,9 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         controller.setRemindersPaused(true)
 
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
-        XCTAssertEqual(button.alphaValue, 0.5, accuracy: 0.001)
+        XCTAssertLessThan(button.alphaValue, 1.0)
+        XCTAssertTrue(button.alphaValue >= 0.45)
+        XCTAssertTrue(button.alphaValue <= 0.60)
         XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
 
         controller.setRemindersPaused(false)

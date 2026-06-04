@@ -1,5 +1,14 @@
 # Session Handoff
 
+## 2026-05-28 / Break Completion Sound Close-Out
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Keep bundled `sound.wav` playback scoped to the existing `AppCoordinator -> BreakCompletionSoundPlayer` seam, archive the fully completed sound plan under `docs/plans/completed/`, and record this durable close-out so the active plan queue no longer implies unfinished sound work.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; review of `README.md`, `docs/decisions.md`, and the archived sound plan.
+- Friction/CDD: The sound feature had green code, tests, and README coverage, but the completed plan still sat in active `docs/plans/` and there was no durable handoff entry, which makes the repo look partially unfinished to later agents. Keeping completed-plan archival plus handoff updates in the normal feature close-out checklist would prevent this drift.
+- Next Steps: Let the external review loop re-run from this fix commit; on real hardware, manually verify natural-break audio, `Skip` silence, and muted-output behavior; keep future completed plans moving directly into `docs/plans/completed/`.
+
 ## 2026-05-28 / External Review Close - No Actionable Findings
 
 🏁 Session Handoff:
@@ -242,3 +251,75 @@
 - Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
 - Friction/CDD: The review workflow still asks for lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so lint cannot be validated reproducibly from repository-owned tooling. Manual hardware checks for real active-break tray interaction, fullscreen Spaces, and external-display behavior remain open by design.
 - Next Steps: Let the external review loop run again from this commit; if lint stays part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; when doing manual verification, explicitly test toggling `Pause Reminders` / `Resume Reminders` during an active break and record whether countdown/`Skip` stay unchanged on real hardware.
+
+## 2026-05-28 / Paused Icon Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat paused-icon acceptance as a dimming band rather than the exact current `0.5` alpha so future readability tuning inside the documented `0.45...0.60` range does not look like a regression; record the paused-icon feature closure in `docs/session-handoff.md` because the plan and README were already complete but the durable handoff entry was still missing.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review workflow still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so this pass can only prove XCTest/build/package status. Live tray readability across light, dark, highlighted, and high-contrast menu-bar states remains manual-only validation.
+- Next Steps: Let the external review loop re-run from this fix commit; if lint stays part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; when hardware is available, explicitly verify that the dimmed paused icon still reads clearly while the status item is highlighted/open.
+
+## 2026-05-28 / Paused Icon Plan Archival
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Archive the fully completed paused-icon plan under `docs/plans/completed/` and add the archived paused-icon and pause/resume plan references back into README's project-structure section so the documented plan inventory matches the repo layout again.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review workflow still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so this pass can only prove XCTest/build/package status. README plan references can still drift unless completed-plan moves remain part of the normal close-out checklist.
+- Next Steps: Let the external review loop re-run from this fix commit; if lint remains required, add a repo-owned lint command or provide `swiftlint` in the environment; keep archiving future completed plans immediately so the active `docs/plans/` queue stays trustworthy.
+
+## 2026-05-28 / Paused Icon Wiring Coverage
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Close the remaining paused-icon review gap with one integration-style XCTest that drives real `Pause Reminders` / `Resume Reminders` menu items through `AppCoordinator` into a live `StatusItemController`, and use that same test to prove the existing icon instance survives both transitions instead of only checking alpha and titles in isolation.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review gate still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so this pass can only prove XCTest/build/package status. Live tray readability still cannot be proven by XCTest because AppKit menu-bar rendering remains hardware/manual validation.
+- Next Steps: Let the external review loop re-run from this fix commit; if lint remains required, add a repo-owned lint command or provide `swiftlint` in the environment; during manual tray verification, confirm the dimmed icon still reads clearly while the menu is highlighted/open.
+
+## 2026-05-28 / Review Validation Discipline
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Reject a review-agent patch that changed active-break countdown semantics during zero-display periods, keep the existing pause-while-hidden contract from earlier review fixes and README, and treat parallel `xcodebuild test` plus `xcodebuild build` on shared `DerivedData` as a noisy signal that must be rechecked sequentially before changing runtime behavior.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review gate still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so lint cannot be proven reproducibly from repository-owned tooling. Parallel macOS `test` and `build` runs against the same `DerivedData` can also fabricate failures, so future review loops should keep those validations sequential unless they isolate build artifacts.
+- Next Steps: Let the external review loop run again from this fix commit; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; during manual hardware checks, keep verifying the documented zero-display behavior that hidden active breaks preserve countdown state until an overlay is visible again.
+
+## 2026-05-28 / External Review No-Issue Closure
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat the external review result as a real no-issue pass after re-reading the paused-icon plan, tracing `AppCoordinator -> StatusItemController.setRemindersPaused(_:)`, and confirming the icon dimming plus menu rebuild behavior matches the documented design. Create an empty `fix: address external review findings` commit only to satisfy the external loop's completion contract because there were no tracked code changes left to commit.
+- Validation: `git diff HEAD -- Mahu README.md docs MahuTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO` on 2026-05-28; reviewed `docs/plans/completed/2026-05-28-paused-reminders-dimmed-icon.md`, `Mahu/StatusItemController.swift`, `Mahu/AppCoordinator.swift`, and related tests.
+- Friction/CDD: The external review loop writes untracked `patch_review.txt`, which leaves the worktree visually dirty even when the tracked diff is empty. The completion contract currently assumes there will always be tracked fixes to commit, so clean no-op passes require an empty commit or a clarified policy for zero-diff review rounds.
+- Next Steps: Let the external loop stop on the emitted completion signal. If this workflow keeps producing zero-diff passes, document whether empty completion commits are desired or whether the loop should accept a clean tracked tree without a new commit.
+
+## 2026-05-28 / Break Completion Sound Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Preserve the hidden-break countdown contract, but treat elapsed rest time settled on the overlay-hide boundary as still visible for sound semantics so a break that naturally ends there plays once; in the same pass harden regression coverage around `AppDelegate` startup retention, `BreakOverlayManager` visibility callbacks, nested notification-task cancellation, `BreakCompletionSoundPlayer` metadata/decode error branches, and hosted privacy-manifest packaging; sync `AGENTS.md` and `README.md` with the shipped pause/resume, sound, and test-startup contracts.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review gate still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so this pass can only prove XCTest/build/package status. The nested Codex sub-review adaptation is also noisy because `codex exec` streams full diff/file output instead of compact findings, which makes parallel review slower than it should be.
+- Next Steps: Let the external review loop run again from this fix commit; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; when the next agent reworks the review adapter, prefer output-file capture for sub-review runs so parallel review findings return compactly instead of streaming raw code.
+
+## 2026-05-28 / App Coordinator Refactor Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Archive the completed `AppCoordinatorSupport` refactor plan under `docs/plans/completed/`, add an explicit completed-status marker to the archived plan, replace the brittle per-file README plan inventory with stable `docs/plans/` and `docs/plans/completed/` directory descriptions, and clean up the stray `isolated deinit` indentation artifact left by the refactor.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review loop still asks for lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so lint cannot be proven reproducibly from repository-owned tooling. README plan inventories also drift quickly when they enumerate individual archived files, so directory-level documentation is the safer steady-state.
+- Next Steps: Let the external review loop run again from this fix commit; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; keep manual hardware checks unchanged because this pass was documentation/cleanup only and did not alter runtime behavior.
+
+## 2026-05-28 / App Coordinator Support Review Closure
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat this external review result as a genuine no-issue pass after re-reading `docs/plans/completed/2026-05-28-app-coordinator-support-refactor.md`, confirming the review output itself ends with `NO ISSUES FOUND`, and checking that `git diff` plus `git diff --cached` remain empty for tracked files. Leave the untracked `output.txt` artifact out of the commit because it is only the review adapter's scratch output, not a repository fix.
+- Validation: `git status --short --branch`; `git diff --`; `git diff --cached --`; reviewed `output.txt`, `docs/plans/completed/2026-05-28-app-coordinator-support-refactor.md`, and `docs/session-handoff.md`.
+- Friction/CDD: The external review workflow still drops an untracked output file into the repo root even on clean passes, which makes the worktree look dirty and creates ambiguity around the "commit all fixes" step when there are no tracked fixes left. Either write that artifact under an ignored path or document that clean no-issue rounds should commit only the durable handoff note.
+- Next Steps: Let the external loop stop on the completion signal for this branch state; if later review passes report a concrete defect, limit the next patch to the affected files and rerun the macOS verification commands before another close-out commit.

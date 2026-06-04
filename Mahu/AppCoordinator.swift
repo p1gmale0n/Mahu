@@ -1,53 +1,10 @@
 import Foundation
 
-protocol BreakTimerControlling: AnyObject {
-    var state: BreakTimer.State { get }
-
-    @discardableResult
-    func advance(by elapsedSeconds: TimeInterval) -> BreakTimer.State
-
-    @discardableResult
-    func skipBreak() -> BreakTimer.State
-}
-
-protocol StatusItemControlling: AnyObject {
-    func install()
-    func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void)
-    func setRemindersPaused(_ paused: Bool)
-}
-
-typealias RepeatingTickScheduler = (TimeInterval, @escaping () -> Void) -> () -> Void
-typealias CurrentUptimeProvider = () -> TimeInterval
-typealias OverlayVisibilityChangeHandler = (Bool) -> Void
-
-@MainActor
-protocol BreakOverlayManaging: AnyObject {
-    var hasVisibleOverlayWindows: Bool { get }
-    var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler? { get set }
-    @discardableResult
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool
-    func updateRemainingSeconds(_ remainingSeconds: TimeInterval)
-    func hideBreak()
-}
-
-enum LiveRepeatingScheduler {
-    static func schedule(interval: TimeInterval, action: @escaping () -> Void) -> () -> Void {
-        let timer = Timer(timeInterval: interval, repeats: true) { _ in
-            action()
-        }
-
-        RunLoop.main.add(timer, forMode: .common)
-
-        return {
-            timer.invalidate()
-        }
-    }
-}
-
 @MainActor
 final class AppCoordinator {
     private let statusItemController: StatusItemControlling
     private let overlayManager: BreakOverlayManaging
+    private let breakCompletionSoundPlayer: BreakCompletionSoundPlaying
     private let loadConfig: () -> AppConfig
     private let makeBreakTimer: (AppConfig) -> BreakTimerControlling
     private let scheduleRepeatingTick: RepeatingTickScheduler
@@ -64,6 +21,7 @@ final class AppCoordinator {
     init(
         statusItemController: StatusItemControlling? = nil,
         overlayManager: BreakOverlayManaging? = nil,
+        breakCompletionSoundPlayer: BreakCompletionSoundPlaying? = nil,
         loadConfig: @escaping () -> AppConfig = { ConfigStore().load() },
         makeBreakTimer: @escaping (AppConfig) -> BreakTimerControlling = { BreakTimer(config: $0) },
         scheduleRepeatingTick: @escaping RepeatingTickScheduler = LiveRepeatingScheduler.schedule,
@@ -71,6 +29,7 @@ final class AppCoordinator {
     ) {
         self.statusItemController = statusItemController ?? StatusItemController()
         self.overlayManager = overlayManager ?? BreakOverlayManager()
+        self.breakCompletionSoundPlayer = breakCompletionSoundPlayer ?? BreakCompletionSoundPlayer()
         self.loadConfig = loadConfig
         self.makeBreakTimer = makeBreakTimer
         self.scheduleRepeatingTick = scheduleRepeatingTick
@@ -113,6 +72,8 @@ final class AppCoordinator {
             return
         }
 
+        let allowBreakCompletionSound = isShowingBreak && overlayManager.hasVisibleOverlayWindows
+
         if remindersPaused, breakTimer.state.phase == .work {
             self.lastTickUptime = currentUptime()
             return
@@ -138,12 +99,19 @@ final class AppCoordinator {
         }
 
         pendingElapsedSeconds += elapsedSeconds
-        consumeElapsedTime(using: breakTimer)
+        consumeElapsedTime(
+            using: breakTimer,
+            allowBreakCompletionSound: allowBreakCompletionSound
+        )
     }
 
-    private func consumeElapsedTime(using breakTimer: BreakTimerControlling) {
+    private func consumeElapsedTime(
+        using breakTimer: BreakTimerControlling,
+        allowBreakCompletionSound: Bool = false
+    ) {
         var latestState = breakTimer.state
         var didAdvance = false
+        var shouldPlayBreakCompletionSound = false
 
         while true {
             let elapsedToConsume = elapsedToConsume(for: latestState)
@@ -157,6 +125,7 @@ final class AppCoordinator {
             didAdvance = true
 
             if previousPhase == .rest, latestState.phase == .work {
+                shouldPlayBreakCompletionSound = allowBreakCompletionSound
                 break
             }
 
@@ -170,6 +139,10 @@ final class AppCoordinator {
         }
 
         handle(state: latestState)
+
+        if shouldPlayBreakCompletionSound {
+            breakCompletionSoundPlayer.playBreakCompletionSound()
+        }
     }
 
     private func elapsedToConsume(for state: BreakTimer.State) -> TimeInterval {
@@ -231,7 +204,7 @@ final class AppCoordinator {
         }
 
         pendingElapsedSeconds += elapsedSeconds
-        consumeElapsedTime(using: breakTimer)
+        consumeElapsedTime(using: breakTimer, allowBreakCompletionSound: true)
     }
 
     private func skipBreak() {
@@ -282,14 +255,4 @@ final class AppCoordinator {
     isolated deinit {
         cancelTick?()
     }
-}
-
-extension BreakTimer: BreakTimerControlling {
-}
-
-extension StatusItemController: StatusItemControlling {
-}
-
-@MainActor
-extension BreakOverlayManager: BreakOverlayManaging {
 }

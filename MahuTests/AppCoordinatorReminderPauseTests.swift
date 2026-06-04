@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Mahu
 
@@ -210,5 +211,62 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true, false])
         XCTAssertEqual(initialTimer.advanceCalls, [2])
         XCTAssertEqual(resumedTimer.advanceCalls, [1])
+    }
+
+    func testRealPauseResumeMenuItemsDriveCoordinatorAndPreserveExistingStatusIcon() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let providedIcon = NSImage(size: NSSize(width: 18, height: 18))
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { providedIcon }
+        )
+
+        let coordinator = AppCoordinator(
+            statusItemController: controller,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in FakeBreakTimer(state: .init(phase: .work, remainingSeconds: 300)) },
+            scheduleRepeatingTick: { _, _ in {} }
+        )
+
+        coordinator.start()
+
+        let button = try XCTUnwrap(statusItem.button)
+        let initialImage = try XCTUnwrap(button.image)
+        XCTAssertTrue(initialImage === providedIcon)
+        XCTAssertTrue(initialImage.isTemplate)
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+
+        try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
+
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertLessThan(button.alphaValue, 1.0)
+        XCTAssertTrue(button.alphaValue >= 0.45)
+        XCTAssertTrue(button.alphaValue <= 0.60)
+        XCTAssertTrue(try XCTUnwrap(button.image) === initialImage)
+        XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
+
+        try invokeMenuItem(named: "Resume Reminders", in: statusItem.menu)
+
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertTrue(try XCTUnwrap(button.image) === initialImage)
+        XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
+    }
+
+    private func invokeMenuItem(named title: String, in menu: NSMenu?) throws {
+        let item = try menuItem(named: title, in: menu)
+        let target = try XCTUnwrap(item.target as AnyObject?)
+        let action = try XCTUnwrap(item.action)
+        _ = target.perform(action, with: item)
+    }
+
+    private func menuItem(named title: String, in menu: NSMenu?) throws -> NSMenuItem {
+        let menu = try XCTUnwrap(menu)
+        return try XCTUnwrap(menu.items.first { $0.title == title })
     }
 }

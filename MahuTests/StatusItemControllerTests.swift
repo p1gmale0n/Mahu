@@ -41,6 +41,7 @@ final class StatusItemControllerTests: XCTestCase {
         XCTAssertEqual(statusItem.button?.title, "")
         XCTAssertEqual(statusItem.button?.imagePosition, .imageOnly)
         XCTAssertNotNil(statusItem.button?.image)
+        XCTAssertEqual(statusItem.length, NSStatusItem.squareLength)
         XCTAssertNotNil(statusItem.menu)
         XCTAssertEqual(statusItem.menu?.items.last?.keyEquivalent, "q")
     }

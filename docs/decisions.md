@@ -2,6 +2,22 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-29 | Break completion sound runtime format | Replace the bundled runtime completion sound with `Mahu/Resources/break-completion.caf` and switch playback from `NSSound` to `AVAudioPlayer`. | The new source asset is already CAF, `AVAudioPlayer` is the native local-file playback API for this use case, and a stable runtime filename avoids shipping the human-provided source name with spaces while keeping failure handling localized in the sound player seam. |
+| 2026-05-29 | Break completion sound documentation contract | Document `break-completion.caf` as the only shipped completion-sound filename in README/build verification, while keeping `source-assets/11labs-sound-sample.caf` as a staging/source asset name only. | The repo now has different source and runtime filenames; locking the docs to the bundled name avoids stale `sound.wav` references and prevents humans or future agents from confusing the editable source asset with the app-bundle contract. |
+| 2026-05-29 | Source asset organization and completion sound | Rename the repository staging folder from `images/` to `source-assets/`, use `Warm Focus Nudge 48k 16bit.wav` as the source for the bundled completion audio, and keep the runtime bundle filename as `Mahu/Resources/sound.wav`. | `source-assets/` describes mixed design/audio source material more clearly than `images/`; preserving the stable bundled `sound.wav` name avoids Xcode project churn, spaces in runtime resource names, and unnecessary code/test/Makefile changes. |
+| 2026-05-29 | Native status item layout | Roll back status-item length/render-size experiments and keep the native `NSStatusItem.squareLength` layout with an 18x18 template image. | Manual checks showed the 20pt/18x18 and 18pt/20x20 tuning attempts did not visibly reduce menu-bar spacing; using a custom view would be less native and risk menu-bar behavior for a minor visual deviation, so the safest result is to keep AppKit's standard status-item layout. |
+| 2026-05-28 | Tray icon visual fit | Tighten the status item slot to 18pt and render the existing `TrayIconTemplate` image at 20x20. | The earlier 20pt slot with an 18x18 rendered image did not visibly reduce menu-bar whitespace; increasing rendered glyph size while tightening the slot keeps the same asset and behavior but better matches neighboring menu-bar icons. |
+| 2026-05-28 | Compact status item length | Use an explicit 20pt `NSStatusItem` length for Mahu's icon-only tray control while keeping the `TrayIconTemplate` image at 18x18. | After fixing glyph bounds, the remaining visual imbalance came from the menu-bar slot width rather than the asset itself; tuning the status-item length reduces horizontal padding without degrading the template artwork or changing menu behavior. |
+| 2026-05-28 | Tray icon high-resolution crop | Regenerate `TrayIconTemplate` from the archive's high-resolution transparent source, crop to the visible glyph bounds, and downscale to 18x18/36x36 instead of editing the existing low-resolution tray PNGs. | The live menu-bar icon looked smaller than neighboring icons because the glyph did not fill enough of the template canvas; using the high-resolution archive source avoids compounding low-res artifacts while glyph-bound tests prevent future padded-mask regressions. |
+| 2026-05-28 | Refactor plan archival | Archive completed refactor plans under `docs/plans/completed/` and describe plan directories generically in `README.md` instead of enumerating every archived file. | A completed plan left in the active queue misleads future review loops, and the per-file README inventory had already drifted out of sync with the repository. |
+| 2026-05-28 | App coordinator support refactor | Keep `AppCoordinator` focused on orchestration by moving coordinator-facing protocols, scheduler/typealias support, and concrete conformance glue into `Mahu/AppCoordinatorSupport.swift` without changing runtime behavior. | `AppCoordinator.swift` had crossed the local readability threshold, and extracting support declarations is the smallest refactor that reduces cognitive load while preserving the existing ownership boundaries and regression-proof behavior. |
+| 2026-05-28 | Break completion sound review fixes | Preserve the hidden-break countdown contract, but settle the last visible rest slice at overlay-hide time so a break that naturally ends on that boundary still plays sound once; also harden the false-green test/docs gaps the review exposed. | The review found one real edge-case runtime bug plus several incomplete checks that could let future refactors break shipped behavior or mislead future agents even though current `xcodebuild` runs were green. |
+| 2026-05-28 | Break completion sound close-out | Archive the fully completed break-completion sound plan under `docs/plans/completed/` and record a durable handoff entry for the shipped sound feature. | The repo treats finished plans as archived artifacts, and the task contract requires durable close-out notes; leaving the plan active and the handoff missing makes project state look partially unfinished. |
+| 2026-05-28 | Break completion sound trigger | Trigger the bundled completion sound only from `AppCoordinator` after a natural `rest -> work` transition that occurred while the break overlay was still visible. | This keeps playback semantics tied to the app flow instead of `BreakTimer`, prevents false-positive sounds on `Skip` or hidden/retrying overlays, and preserves a small injectable seam for tests. |
+| 2026-05-28 | Break completion sound seam | Add a dedicated `BreakCompletionSoundPlayer` edge around bundled `sound.wav`, with AppKit playback hidden behind a small protocol and failure-tolerant resource checks. | Audio playback is a side effect that should stay outside `BreakTimer`; a separate seam keeps future coordinator wiring testable and makes missing or broken resources non-fatal. |
+| 2026-05-28 | Paused icon wiring coverage | Add one integration-style XCTest that clicks real pause/resume menu items through `AppCoordinator` with a live `StatusItemController`, instead of relying only on separate fake-coordinator and direct-controller tests. | The previous coverage missed the real menu-to-coordinator-to-status-item wiring path and did not prove that the same icon instance survives pause/resume transitions. |
+| 2026-05-28 | Paused icon plan archival | Move the fully completed paused-icon execution plan into `docs/plans/completed/` and sync README plan references to the archived path. | The repo already treats finished plans as archived artifacts; leaving this one in the active queue creates false ambiguity for future agents and reviewers. |
+| 2026-05-28 | Paused icon acceptance contract | Treat paused-icon acceptance as a visible dimming band, not an exact alpha constant, so tests lock behavior without blocking later menu-bar readability tuning. | The feature contract is "visibly dimmed while still recognizable", and manual tray validation may require adjusting the exact opacity without changing the intended behavior. |
 | 2026-05-28 | Paused reminder icon state | Dim the existing status-item button at runtime to show paused reminders, using the same `TrayIconTemplate` asset and keeping the control enabled. | This keeps the paused cue inside `StatusItemController`, preserves the asset contract, and avoids introducing a second paused icon or disabled-control semantics. |
 | 2026-05-28 | Reminder pause review fixes | Cache the launch-loaded config for resume resets and keep rest-phase pause/resume from touching active-break timing. | Review found hidden live-config reload behavior and active-break timing drift when the tray menu was used during rest. |
 | 2026-05-26 | Reminder pause/resume semantics | Treat the tray menu action as enabling or disabling automatic reminders at the coordinator layer, and make resume start a fresh work interval from the current config instead of continuing partially elapsed work time. | This keeps break countdown behavior unchanged, avoids introducing countdown-pause semantics into `BreakTimer`, and gives users a predictable reset when they re-enable reminders. |
@@ -72,7 +88,133 @@
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
-## 2026-05-25 / Tray Icon Retina Asset Verification
+## 2026-05-28 / Break Completion Sound Seam
+
+## 2026-05-29 / Break Completion Sound Documentation Contract
+
+**Date:** 2026-05-29
+
+**Area:** Break completion sound documentation contract
+
+**Context:** The runtime sound contract now differs from the checked-in source filename: the editable source asset remains `source-assets/11labs-sound-sample.caf`, while the shipped app bundle exposes `Mahu/Resources/break-completion.caf`. README and build-verification text still serve as the human-facing source of truth for that bundle contract.
+
+**Decision:** Document `break-completion.caf` as the only runtime completion-sound filename in README and bundle-verification guidance, and treat the source-asset filename as implementation/staging detail only.
+
+**Rationale:** Keeping one documented runtime name avoids future stale `sound.wav` references and makes it clear which filename must exist inside the app bundle versus which one is only edited in the repository.
+
+**Consequences:** Human verification steps, build notes, and future plan work should reference `break-completion.caf` when talking about shipped behavior. This works for the current single bundled clip; if the app later supports user-selectable sounds, the docs will need to describe configuration rather than a single fixed bundle filename.
+
+**Alternatives Considered:** Document both filenames interchangeably; rejected because it blurs the boundary between source asset and shipped runtime contract. Keep README wording generic without naming the resource; rejected because the repo intentionally uses explicit bundle-resource checks in tests and `make build`.
+
+## 2026-05-29 / Break Completion Sound Runtime Format
+
+**Date:** 2026-05-29
+
+**Area:** Break completion sound runtime format
+
+**Context:** The runtime completion sound is being switched from the earlier bundled WAV contract to a checked-in CAF source file, and Task 3 now converts the playback edge from `NSSound` to AVFoundation while keeping the coordinator seam and non-fatal failure behavior intact. The previous 2026-05-29 source-asset decision kept `sound.wav` only to minimize churn before the newer CAF-specific implementation plan was approved.
+
+**Decision:** Bundle the completion sound as `Mahu/Resources/break-completion.caf`, resolve that filename from `BreakCompletionSoundPlayer`, and use `AVAudioPlayer(contentsOf:)` plus `prepareToPlay()`/`play()` for local playback instead of `NSSound`.
+
+**Rationale:** The source asset is already CAF, so keeping a CAF runtime resource avoids unnecessary transcoding or dual-format maintenance. `AVAudioPlayer` is the standard public API for bundled local audio playback on macOS and gives an explicit initialization failure path that matches the desired warning-only behavior. The stable runtime name `break-completion.caf` keeps the bundle contract clear without exposing the human source filename with spaces.
+
+**Consequences:** Resource lookup, tests, build checks, and docs must now point at `break-completion.caf`, and the earlier "keep runtime sound.wav" decision is superseded for this feature. This works for the current single bundled clip; if Mahu later needs richer playback control or multiple simultaneous sounds, `AVAudioEngine` would be the better alternative.
+
+**Alternatives Considered:** Keep bundling `sound.wav`; rejected because the approved plan now standardizes on CAF and the extra conversion path adds maintenance with no product benefit. Keep `NSSound`; rejected because the current task needs an explicit AVFoundation-backed seam with prepare/init failure coverage.
+
+**Date:** 2026-05-28
+
+**Area:** Break completion sound seam
+
+**Context:** The new break-completion sound must come from bundled `sound.wav`, play only through app-edge code, and never block timer or overlay cleanup if the resource is missing, empty, undecodable, or unplayable. `AppCoordinator.swift` is already near the local readability threshold, and `BreakTimer` must remain a pure state machine without bundle or audio knowledge.
+
+**Decision:** Add a dedicated `BreakCompletionSoundPlayer` type with a small `BreakCompletionSoundPlaying` protocol, keep bundle lookup and `NSSound` playback inside that type, and make the live player fail gracefully through resource-size checks plus decode/play guards instead of surfacing errors into timer state logic.
+
+**Rationale:** This keeps audio as an AppKit edge effect that can be injected into coordinator tests later without spreading playback logic through timer code or view models. The extra seam also gives deterministic, no-speaker unit coverage for missing and broken resource cases.
+
+**Consequences:** Future Task 4 can wire sound playback into `AppCoordinator` with a narrow dependency instead of direct `NSSound` calls. Missing or malformed `sound.wav` will quietly skip playback while logs preserve a debugging signal. Real speaker output still remains manual-only verification.
+
+**Alternatives Considered:** Play `NSSound` directly from `AppCoordinator`; rejected because it would couple timer-flow code to bundle lookup and AppKit playback. Put audio logic in `BreakTimer`; rejected because it breaks the state-machine purity contract.
+
+## 2026-05-28 / Break Completion Sound Trigger
+
+**Date:** 2026-05-28
+
+**Area:** Break completion sound trigger
+
+**Context:** The sound player seam and coordinator semantics tests already existed, but the live app still did not decide exactly when playback should happen. The product contract requires one sound only when a visible break ends naturally, with no sound for `Skip`, work-to-break, pause/resume, failed overlay presentation, or hidden-overlay timing paths.
+
+**Decision:** Let `AppCoordinator` trigger `BreakCompletionSoundPlaying.playBreakCompletionSound()` only after `consumeElapsedTime(...)` crosses from `.rest` to `.work` during a tick that started with a visible overlay, and only after normal overlay teardown has already run.
+
+**Rationale:** `AppCoordinator` already owns the work/rest lifecycle and can distinguish natural completion from `Skip` or retry paths without polluting `BreakTimer` or overlay view types. Playing after `handle(state:)` keeps overlay cleanup first, so audio failure cannot block break teardown.
+
+**Consequences:** Natural visible break completion now produces a single sound through the injected seam, while hidden-overlay and retry paths remain silent. Tests can lock the behavior with fakes and without asserting real speaker output.
+
+**Alternatives Considered:** Trigger sound from `skipBreak()` or generic `.work` handling; rejected because those paths cannot distinguish natural completion from unrelated transitions. Trigger sound before overlay teardown; rejected because it would unnecessarily couple playback timing to UI cleanup order.
+
+## 2026-05-28 / Break Completion Sound Close-Out
+
+**Date:** 2026-05-28
+
+**Area:** Break completion sound close-out
+
+**Context:** The break-completion sound feature already had production code, tests, README updates, and decision history, but the fully checked-off execution plan still lived in the active `docs/plans/` queue and `docs/session-handoff.md` did not contain a durable close-out entry for this shipped feature.
+
+**Decision:** Move the finished sound plan into `docs/plans/completed/`, add a completion status header to the archived plan, sync README's plan inventory to the archived path, and record the feature close-out in `docs/session-handoff.md`.
+
+**Rationale:** This repo already uses archived plan files plus durable handoff notes as the source of truth for finished work. Leaving the plan in the active queue or keeping the close-out only in chat makes the project look partially incomplete to the next agent or reviewer.
+
+**Consequences:** Plan discovery now reflects the real state of the sound feature, and future review loops can treat the feature as fully closed except for the explicitly documented manual audio checks. Runtime behavior and automated validation remain unchanged.
+
+**Alternatives Considered:** Leave the plan in `docs/plans/` with all boxes checked; rejected because it weakens the repo's completed-plan convention. Record closure only in conversation; rejected because the task contract requires a durable artifact.
+
+## 2026-05-28 / Paused Icon Wiring Coverage
+
+**Date:** 2026-05-28
+
+**Area:** Paused icon wiring coverage
+
+**Context:** The paused-icon branch already had direct `StatusItemController` tests and `AppCoordinator` tests with a fake status controller, but nothing exercised the real `NSMenuItem -> AppCoordinator -> StatusItemController.setRemindersPaused(...)` path. That left a gap where callback ordering or wiring regressions could break live pause/resume behavior while unit suites stayed green, and it also left the existing-icon preservation contract unproven across pause/resume transitions.
+
+**Decision:** Add one integration-style XCTest using a real temporary `NSStatusItem`, a live `StatusItemController`, and real pause/resume menu item invocation through `AppCoordinator.start()`, then assert the menu titles, dimming band, and same icon instance across both transitions.
+
+**Rationale:** One focused AppKit-backed test closes the real wiring gap without introducing UI automation, new production seams, or more duplicate assertions in already-covered controller-only tests.
+
+**Consequences:** Review coverage now protects the production menu wiring path and the "dim the existing icon" contract together. The test still cannot prove human-perceived readability in the macOS menu bar, so light/dark/high-contrast validation remains manual-only.
+
+**Alternatives Considered:** Keep relying on separate unit suites; rejected because they do not prove the live menu dispatch path. Add UI automation; rejected because the repo intentionally has no UI E2E harness and the requirement can be covered deterministically in XCTest.
+
+## 2026-05-28 / Paused Icon Plan Archival
+
+**Date:** 2026-05-28
+
+**Area:** Paused icon plan archival
+
+**Context:** The paused-icon implementation plan reached a fully checked-off state and the feature already had code, tests, README updates, decisions, and handoff notes, but the plan file itself still lived under `docs/plans/` instead of the completed archive used by the rest of the repo.
+
+**Decision:** Move `2026-05-28-paused-reminders-dimmed-icon.md` into `docs/plans/completed/`, mark it explicitly as completed in the file header, and update README plan references to the archived location.
+
+**Rationale:** The repo's documentation flow already archives finished implementation plans so the active queue reflects only unfinished work. Keeping a finished plan in the active directory creates avoidable ambiguity for the next agent or reviewer reading the plan list.
+
+**Consequences:** Plan discovery now reflects the true state of the project, and README project-structure references point at the final archived artifact instead of an apparently active task file. The feature behavior, tests, and manual checks remain unchanged.
+
+**Alternatives Considered:** Leave the plan in `docs/plans/` and rely only on checked boxes; rejected because the repo already records a stronger completed-plan convention and prior plan work follows it consistently.
+
+## 2026-05-28 / Paused Icon Acceptance Contract
+
+**Date:** 2026-05-28
+
+**Area:** Paused icon acceptance contract
+
+**Context:** The paused-icon implementation already documents an acceptable dimming range around `0.45...0.60`, but an acceptance test had started asserting the exact current tuning value `0.5`, which would fail on future visual polish even if the feature still met its user-visible contract.
+
+**Decision:** Keep the production alpha tuning local to `StatusItemController`, but make acceptance coverage assert a dimmed range rather than one exact paused alpha constant.
+
+**Rationale:** The feature contract is that the tray icon becomes visibly dimmer while remaining recognizable and usable. Locking the exact implementation constant in acceptance coverage makes later menu-bar readability tuning look like a regression when behavior has not actually changed.
+
+**Consequences:** Future paused-icon tuning can move within the documented band without forcing unrelated acceptance rewrites, while lower-level tests still prove that the icon does become dimmer than its enabled state.
+
+**Alternatives Considered:** Keep the exact `0.5` assertion; rejected because it overfits an implementation detail instead of the behavior promised by the plan and README.
 
 ## 2026-05-28 / Paused Reminder Icon State
 
@@ -89,6 +231,38 @@
 **Consequences:** Pause/resume remains a coordinator-owned semantic change, while tray presentation stays localized to the AppKit edge. Manual menu-bar readability validation is still required because XCTest can prove state transitions, not live menu-bar rendering quality.
 
 **Alternatives Considered:** Add a second paused icon asset; rejected because the plan and product constraints require reusing the existing template asset. Disable the status item button to get a dimmed appearance for free; rejected because it risks breaking click/menu interaction and communicates the wrong UI state.
+
+## 2026-05-28 / App Coordinator Support Refactor
+
+**Date:** 2026-05-28
+
+**Area:** App coordinator support refactor
+
+**Context:** `AppCoordinator.swift` grew past the local readability threshold after pause/resume, paused-icon, and break-completion sound work. The runtime behavior was already correct, but the file mixed orchestration logic with coordinator-facing protocols, scheduler/typealias declarations, and concrete conformance glue that did not need to stay inline.
+
+**Decision:** Extract the coordinator support declarations into `Mahu/AppCoordinatorSupport.swift`, keeping `AppCoordinator.swift` responsible only for orchestration flow, state, and lifecycle methods while leaving timer, status-item, overlay, and sound ownership unchanged.
+
+**Rationale:** This is the smallest behavior-neutral refactor that lowers cognitive load without introducing new abstractions or moving product semantics into the wrong layer. Existing coordinator regression tests already prove the contract better than structure-only assertions would.
+
+**Consequences:** Future coordinator work has a clearer seam: support types live in a focused file, while orchestration changes remain isolated to `AppCoordinator.swift`. This works for the current scope, but if future features push elapsed-time accounting into similar complexity, that logic should be extracted in a separate explicitly planned refactor rather than folded into this one.
+
+**Alternatives Considered:** Leave everything in `AppCoordinator.swift`; rejected because the file had already crossed the local readability threshold. Extract deeper helper objects now; rejected because the current regression-tested behavior does not require more structural change and a larger refactor would increase risk.
+
+## 2026-05-28 / Refactor Plan Archival
+
+**Date:** 2026-05-28
+
+**Area:** Refactor plan archival
+
+**Context:** The `AppCoordinatorSupport` refactor plan had every task checkbox completed, but the file still lived in `docs/plans/` and `README.md` maintained a brittle per-file list of archived plans that had already fallen out of sync with the repository.
+
+**Decision:** Move completed refactor plans into `docs/plans/completed/`, add an explicit completed status line to the archived plan, and document the plan layout in `README.md` at the directory level instead of enumerating every archived plan file.
+
+**Rationale:** Future review loops and agents use `docs/plans/` as the active queue. Leaving completed work there creates false ambiguity. Directory-level README guidance is more stable than a hand-maintained list that drifts every time a plan is archived.
+
+**Consequences:** The active plan queue stays trustworthy, and README no longer needs per-plan churn for every archival move. Readers still know where active and completed execution history lives, but detailed plan discovery moves to the filesystem rather than a fragile static inventory.
+
+**Alternatives Considered:** Keep the plan in `docs/plans/`; rejected because it makes completed work look active. Keep enumerating every archived plan in README; rejected because it had already drifted and creates recurring documentation debt.
 
 ## 2026-05-26 / Reminder Pause/Resume Semantics
 
@@ -1176,6 +1350,22 @@
 
 **Alternatives Considered:** Rebuild all overlay windows on every screen change; rejected because it causes unnecessary churn and increases focus/restore risk. Drive screen changes from `AppCoordinator`; rejected because it couples timer orchestration to AppKit window management. Implement config live reload in the same work; rejected because GUI configuration is planned later and live file watching has separate semantics.
 
+## 2026-05-28 / Break Completion Sound Review Fixes
+
+**Date:** 2026-05-28
+
+**Area:** Break completion sound review fixes
+
+**Context:** External review surfaced one real edge-case runtime bug plus several false-green test and documentation gaps. If an active break reached zero during the visible slice of time that gets settled exactly when overlay visibility flips to hidden, `AppCoordinator` advanced `rest -> work` silently because the visibility-edge accounting path never allowed the completion sound. The same review also exposed weaker-than-needed coverage around `AppDelegate` startup retention, `BreakOverlayManager` visibility callbacks, cancellation of nested notification tasks, `BreakCompletionSoundPlayer` metadata/decode branches, hosted privacy-manifest packaging, and stale `AGENTS.md` menu/deferred-feature guidance.
+
+**Decision:** Preserve the existing hidden-break countdown contract, but treat elapsed rest time settled on the overlay-hide boundary as still visible for sound semantics so a break that naturally ends there plays `sound.wav` once. In the same pass, harden the regression surface with focused XCTest coverage for coordinator retention, visibility-callback sequencing, cancellation no-op guarantees, sound-player metadata/decode branches, and hosted privacy-manifest membership; sync `AGENTS.md` and `README.md` with the shipped pause/resume, completion-sound, and test-startup contracts.
+
+**Rationale:** The sound should track whether the user actually saw the last slice of the break, not which callback happened to account for that time. Settling the final visible second at the visibility edge fixes the real user-facing gap without changing the separate zero-display rule that hidden intervals do not consume break time. The extra tests and doc sync are still the smallest way to prevent future false-green review passes and agent drift around the shipped behavior.
+
+**Consequences:** If every overlay disappears exactly as the visible break reaches zero, Mahu still tears down the break normally and plays the completion sound once; intervals spent fully hidden remain silent and do not consume rest time. Future refactors that drop coordinator retention, stop forwarding overlay visibility changes, loosen observer cancellation, remove the privacy manifest from resources, or bypass the hosted-test startup guard should fail quickly in repository-owned checks. Agent guidance now matches the shipped menu, pause, sound, and test-runner behavior.
+
+**Alternatives Considered:** Keep the old behavior because hidden-overlay timing paths were meant to stay silent; rejected because the elapsed slice in this edge case was still visible to the user right until the hide transition and therefore belongs to the audible natural-completion contract. Leave the suite as-is because current `xcodebuild` is green; rejected because the gaps are specifically about future regressions that present tests would miss. Use the review to simplify unrelated abstractions; rejected because the reported indirection was mostly intentional test seams and changing them would create risk outside the confirmed defects.
+
 ## 2026-05-22 / Overlay Screen Observation Seam
 
 **Date:** 2026-05-22
@@ -1271,3 +1461,19 @@
 **Consequences:** Editing `config.json` while Mahu is running still has no effect until the next launch, and active breaks now keep the same duration even if the user toggles pause/resume or repeats those actions from the tray menu. Regression coverage now includes rest-phase toggles and the real `StatusItemController.configureReminderActions(...)` action path.
 
 **Alternatives Considered:** Re-read config on every resume; rejected because it silently introduces runtime settings reload outside the documented scope. Reset the break baseline on any repeated pause/resume action for simplicity; rejected because it changes active-break duration based on menu interaction timing instead of timer state.
+
+## 2026-05-28 / Review Validation Discipline
+
+**Date:** 2026-05-28
+
+**Area:** Review validation discipline
+
+**Context:** A review-agent patch tried to reinterpret the zero-display break contract after a failing `xcodebuild test` run, but the failure was produced while `xcodebuild test` and `xcodebuild build` were running in parallel against shared `DerivedData`. A sequential rerun of the targeted tests passed on the pre-change behavior, and the repository's README plus earlier review decisions already state that active breaks must not consume hidden rest time while every overlay window is unavailable.
+
+**Decision:** Keep the zero-display contract unchanged: active-break countdown consumption pauses while no overlay windows are visible, and review validation must treat parallel `xcodebuild test` plus `xcodebuild build` on shared `DerivedData` as a potentially noisy harness signal that requires sequential confirmation before changing runtime behavior.
+
+**Rationale:** Changing countdown semantics from a noisy harness failure would create a real product regression. The documented behavior, existing manual-check guidance, and prior review fixes all align on preserving the same countdown state without spending hidden rest time during transient all-display loss.
+
+**Consequences:** `AppCoordinator` keeps its visibility guard and only accounts elapsed rest time at the moment overlays disappear, not while the break remains fully hidden. Future review passes should rerun failing macOS tests sequentially before weakening a runtime contract around display visibility.
+
+**Alternatives Considered:** Keep the review-agent patch that consumes hidden rest time; rejected because it contradicts the documented zero-display behavior and silently extends the feature scope. Trust the first parallel red test run without rerunning sequentially; rejected because this repository has already shown `DerivedData` interference when `test` and `build` overlap.

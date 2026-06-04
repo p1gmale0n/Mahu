@@ -87,6 +87,15 @@ final class FakeStatusItemController: StatusItemControlling {
 }
 
 @MainActor
+final class FakeBreakCompletionSoundPlayer: BreakCompletionSoundPlaying {
+    private(set) var playCallCount = 0
+
+    func playBreakCompletionSound() {
+        playCallCount += 1
+    }
+}
+
+@MainActor
 final class FakeBreakOverlayManager: BreakOverlayManaging {
     enum Event: Equatable {
         case show(TimeInterval)

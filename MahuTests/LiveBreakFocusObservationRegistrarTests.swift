@@ -107,7 +107,11 @@ final class LiveBreakFocusObservationRegistrarTests: XCTestCase {
     }
 
     func testCancelIsIdempotentAndStopsFutureEvents() async {
-        let context = makeRegistrarContext()
+        let unexpectedFocusLoss = expectation(description: "focus loss should stay cancelled")
+        unexpectedFocusLoss.isInverted = true
+        let context = makeRegistrarContext {
+            unexpectedFocusLoss.fulfill()
+        }
 
         context.cancel()
         context.cancel()
@@ -120,7 +124,7 @@ final class LiveBreakFocusObservationRegistrarTests: XCTestCase {
             object: nil,
             userInfo: [TestNotificationKey.processIdentifier: Int32(202)]
         )
-        await Task.yield()
+        await fulfillment(of: [unexpectedFocusLoss], timeout: 0.1)
 
         XCTAssertEqual(context.handlerCallCount(), 0)
     }

@@ -70,7 +70,11 @@ final class LiveBreakScreenObservationRegistrarTests: XCTestCase {
     }
 
     func testCancelIsIdempotentAndStopsFutureEvents() async {
-        let context = makeRegistrarContext()
+        let unexpectedScreenChange = expectation(description: "screen change should stay cancelled")
+        unexpectedScreenChange.isInverted = true
+        let context = makeRegistrarContext {
+            unexpectedScreenChange.fulfill()
+        }
 
         context.cancel()
         context.cancel()
@@ -78,7 +82,7 @@ final class LiveBreakScreenObservationRegistrarTests: XCTestCase {
             name: NSApplication.didChangeScreenParametersNotification,
             object: context.applicationObject
         )
-        await Task.yield()
+        await fulfillment(of: [unexpectedScreenChange], timeout: 0.1)
 
         XCTAssertEqual(context.handlerCallCount(), 0)
     }

@@ -43,27 +43,24 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - While a break is active, display additions, removals, and display-frame changes resync overlay windows without restarting the break or replacing the shared countdown/`Skip` state.
 - While a break is active, Mahu best-effort reasserts its own focus and re-shows existing overlay windows if another app becomes active behind the overlay.
 - When a break ends or `Skip` is pressed, Mahu restores the previously frontmost app when possible.
+- When a visible break ends naturally, Mahu plays bundled `break-completion.caf` once through an AVFoundation-backed player so the user can return attention without watching the screen.
+- Pressing `Skip` closes the break without playing the completion sound.
 - Live config reload is out of scope; runtime settings changes still require editing the config file before launch or between runs.
 
 ## Project Structure
 
-- `Mahu/`: app sources.
+- `Mahu/`: app sources, including `AppCoordinator.swift` for orchestration flow and `AppCoordinatorSupport.swift` for coordinator-facing support declarations.
 - `Mahu/Assets.xcassets/`: app asset catalog, including the macOS `AppIcon` generated from `icon.png`.
 - `Mahu/Assets.xcassets/TrayIconTemplate.imageset/`: tray-optimized transparent template glyph artwork derived from the same source motif as the app icon.
-- `Mahu/Resources/`: bundled app resources, including the break-overlay background image.
+- `Mahu/Resources/`: bundled app resources, including `background.png` for the overlay and `break-completion.caf` for natural break completion.
+- `source-assets/`: source/staging artwork and audio assets used to produce bundled app resources.
 - `Mahu/PrivacyInfo.xcprivacy`: privacy manifest for required-reason APIs used by the app target.
 - `MahuTests/`: unit tests for config, timer, coordinator, status item, and overlay logic.
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
 - `Makefile`: local build shortcut that creates `build/Mahu.app`.
 - `docs/decisions.md`: architectural and process decisions.
-- `docs/plans/completed/2026-05-20-mahu-mvp.md`: completed MVP execution plan and checkbox progress.
-- `docs/plans/completed/2026-05-21-overlay-focus-hardening.md`: overlay focus-hardening implementation log; manual hardware verification remains open there.
-- `docs/plans/completed/2026-05-21-overlay-background.md`: initial overlay-background bundling plan and history; its runtime-loading details were superseded by the follow-up rendering fix.
-- `docs/plans/completed/2026-05-22-tray-icon-template-asset.md`: completed tray-icon asset/fallback plan; tray appearance checks remain manual.
-- `docs/plans/completed/2026-05-25-tray-icon-transparent-glyph.md`: completed transparent tray-glyph refinement plan; live menu-bar readability still remains manual-only.
-- `docs/plans/completed/2026-05-22-overlay-background-rendering-fix.md`: completed runtime rendering fix for explicit bundle loading; manual live-overlay verification remains open there.
-- `docs/plans/completed/2026-05-22-overlay-content-centering-fix.md`: completed centering fix for the built-in display; live display verification still remains manual.
-- `docs/plans/completed/2026-05-22-overlay-display-hotplug.md`: completed active-break display hot-plug plan covering add/remove/resize resync, focus/restore preservation, and remaining manual hardware checks.
+- `docs/plans/`: active implementation plans that are still in progress.
+- `docs/plans/completed/`: archived completed implementation plans, including MVP, overlay refinements, tray icon work, reminder pause/resume, paused-icon, break-completion sound, and app-coordinator support refactor history.
 
 ## Configuration
 
@@ -100,7 +97,7 @@ make build
 ```
 
 This creates `build/Mahu.app` and keeps Xcode intermediate files under `build/DerivedData`.
-It also fails if the built or copied app bundle is missing `background.png`.
+It also fails if the built or copied app bundle is missing `background.png` or `break-completion.caf`.
 
 Raw Xcode build:
 
@@ -113,6 +110,8 @@ Test:
 ```sh
 xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO
 ```
+
+The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If you run hosted XCTest outside that shared scheme, set the same environment variable to avoid launching the production coordinator during tests.
 
 ## Deferred Features
 
@@ -146,6 +145,10 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 - Change display resolution or scaling during an active break and confirm overlay windows resync.
 - Trigger a transient display or fullscreen-Space transition during a break and confirm Mahu keeps the break active across empty-display snapshots; note any cases where AppKit still hides the overlay despite active displays.
 - Test with a fullscreen app or Space and document any limitations separately.
+- Let a break end naturally and confirm the bundled `break-completion.caf` completion sound plays once.
+- Start another break, press `Skip`, and confirm no completion sound plays.
+- Confirm pause/resume reminder toggles do not play the completion sound.
+- Confirm the app still completes/restores focus normally when system audio output is muted or unavailable.
 
 ## UI References
 

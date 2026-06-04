@@ -18,7 +18,8 @@
 - Run as a menu-bar app with no Dock icon: set `LSUIElement = true` and control it through an `NSStatusItem`.
 - Prefer a standard modern Xcode macOS app target with SwiftUI app lifecycle; use AppKit interop for status-item and overlay-window behavior.
 - MVP default schedule is 20-20-20: 20 minutes of work, then a 20-second break.
-- MVP status item is only an icon with a menu containing `Quit`; remaining-time display is deferred.
+- MVP status item is only an icon with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; remaining-time display is deferred.
+- While reminders are paused, keep the same status icon asset but dim it visually without disabling the menu-bar control.
 - When a break starts, create a borderless fullscreen `NSWindow` for every active display, not just the main display.
 - While a break is active, display additions, removals, and display-frame changes must resync overlay windows without restarting the break, recapturing the previous app, or replacing the shared countdown/`Skip` state.
 - Put overlay windows above normal apps, for example with `NSWindow.Level.screenSaver`.
@@ -27,6 +28,7 @@
 - Do not add system-level keyboard/mouse capture unless the product requirement changes; focus stealing plus high-level overlay is the intended behavior.
 - Break screen should be dark and minimal, with a short message like `Время отвлечься`, a countdown until rest ends, and a `Skip` button.
 - Break screen should use the bundled background image with a dark readability layer so title, countdown, and `Skip` remain legible across displays.
+- When a visible break ends naturally, play bundled `sound.wav` once; pressing `Skip` must not play the completion sound.
 - MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
 - Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
 - If the config is missing or invalid, use 20-20-20 defaults and keep the app running.
@@ -37,7 +39,7 @@
 - Launch at login.
 - Settings UI.
 - Remaining-time display in the status item.
-- Pause/resume and manual start-break menu actions.
+- Manual start-break menu action.
 - Sleep/wake timer reconciliation.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
 - Multi-display/fullscreen Spaces hardening.
@@ -58,6 +60,7 @@
 - `build/` is intentionally ignored; use `make build` when a local `.app` artifact is needed, but do not commit build products.
 - Multi-display overlay behavior is automated only through abstraction-level tests in this environment; real display and Space behavior still requires manual validation.
 - Focus retention is best-effort through public notifications only; it can bounce Mahu back after `Cmd+Tab`, but it cannot guarantee blocking system shortcuts or every fullscreen/Spaces transition.
+- The shared test scheme disables production coordinator startup with `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`; if hosted tests are run outside that scheme, set the same environment variable to avoid real menu-bar, timer, and config-file side effects.
 
 ## Decision History
 - Write project decisions to `docs/decisions.md`; keep `AGENTS.md` as operational guidance, not a decision log.

@@ -1,5 +1,7 @@
 # Paused Reminders Dimmed Icon
 
+Status: Completed (2026-05-28)
+
 ## Overview
 
 - Add a visual paused-state cue to Mahu's existing tray/status icon when reminders are paused.

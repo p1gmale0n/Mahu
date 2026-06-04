@@ -79,4 +79,33 @@ final class BreakOverlayDisplayVisibilityTests: XCTestCase {
         XCTAssertEqual(captureCallCount, 1)
         XCTAssertEqual(restoreCallCount, 1)
     }
+
+    func testVisibleOverlayCallbackTracksShowHideAndDisplayRecovery() {
+        let display = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        var displays = [display]
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let screenObserver = FakeBreakScreenObserverRegistrar()
+        let manager = BreakOverlayManager(
+            screenProvider: { displays },
+            windowBuilder: windowBuilder,
+            screenObservationRegistrar: screenObserver.register,
+            appActivator: {}
+        )
+        var visibilityEvents: [Bool] = []
+        manager.onVisibleOverlayWindowsChange = { isVisible in
+            visibilityEvents.append(isVisible)
+        }
+
+        manager.showBreak(remainingSeconds: 20)
+        displays = []
+        screenObserver.fire()
+        displays = [display]
+        screenObserver.fire()
+        manager.hideBreak()
+
+        XCTAssertEqual(visibilityEvents, [true, false, true, false])
+    }
 }
