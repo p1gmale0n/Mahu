@@ -277,7 +277,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([110, 120, 121]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -293,6 +293,51 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
                 .hide
             ]
         )
+        XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
+    }
+
+    func testSleepEntryRestCompletionDoesNotPlayBreakCompletionSoundBeforeLongSleepReset() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let restTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 4),
+            statesToReturn: [.init(phase: .work, remainingSeconds: initialConfig.workDurationSeconds)]
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: initialConfig.workDurationSeconds)
+        )
+        let sleepDates = [
+            Date(timeIntervalSinceReferenceDate: 9_500),
+            Date(timeIntervalSinceReferenceDate: 9_500 + longSleepResetThresholdSeconds + 20)
+        ]
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            breakCompletionSoundPlayer: fakeSoundPlayer,
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: initialConfig),
+            loadConfig: { initialConfig },
+            makeBreakTimer: { _ in
+                timerCreationCount += 1
+                return timerCreationCount == 1 ? restTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([110, 110, 120, 121, 122]),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+
+        XCTAssertEqual(restTimer.advanceCalls, [4, 6])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(4, AppConfig.defaultBreakOverlayMessageText), .hide])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
 
@@ -326,7 +371,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([130, 140, 141]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 

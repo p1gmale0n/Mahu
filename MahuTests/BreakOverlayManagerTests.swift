@@ -82,24 +82,57 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(restoreCallCount, 1)
     }
 
-    func testShowBreakWithoutDisplaysReturnsFalseAndSkipsScreenObservation() {
+    func testShowBreakWithoutDisplaysReturnsFalseButPreservesDormantSessionForDisplayRecovery() {
+        let display = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        var displays: [DisplayDescriptor] = []
         let windowBuilder = FakeOverlayWindowBuilder()
         let screenObserver = FakeBreakScreenObserverRegistrar()
+        var captureCallCount = 0
+        var restoreCallCount = 0
+        var activationCount = 0
         let manager = BreakOverlayManager(
-            screenProvider: { [] },
+            screenProvider: { displays },
             windowBuilder: windowBuilder,
+            previousAppCapture: {
+                captureCallCount += 1
+                return PreviousFrontmostApplication {
+                    restoreCallCount += 1
+                }
+            },
             screenObservationRegistrar: screenObserver.register,
-            appActivator: {}
+            appActivator: { activationCount += 1 }
         )
 
         let didShowBreak = manager.showBreak(remainingSeconds: 20)
-        screenObserver.fireAll()
 
         XCTAssertFalse(didShowBreak)
-        XCTAssertEqual(screenObserver.registrationCount, 0)
+        XCTAssertEqual(captureCallCount, 1)
+        XCTAssertEqual(restoreCallCount, 0)
+        XCTAssertEqual(screenObserver.registrationCount, 1)
         XCTAssertEqual(screenObserver.handledEventCount, 0)
         XCTAssertTrue(windowBuilder.windows.isEmpty)
-        XCTAssertNil(manager.viewModel)
+        XCTAssertNotNil(manager.viewModel)
+        XCTAssertTrue(manager.hasActiveBreakSession)
+        XCTAssertFalse(manager.hasVisibleOverlayWindows)
+        XCTAssertEqual(activationCount, 0)
+
+        displays = [display]
+        screenObserver.fire()
+
+        XCTAssertEqual(screenObserver.handledEventCount, 1)
+        XCTAssertTrue(manager.hasVisibleOverlayWindows)
+        XCTAssertEqual(windowBuilder.createdDisplays, [display])
+        XCTAssertEqual(windowBuilder.windows.count, 1)
+        XCTAssertEqual(windowBuilder.windows[0].showCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[0].closeCallCount, 0)
+        XCTAssertEqual(activationCount, 1)
+
+        manager.hideBreak()
+
+        XCTAssertEqual(restoreCallCount, 1)
     }
 
     func testUpdateRemainingSecondsRefreshesSharedViewModel() {

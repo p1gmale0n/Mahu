@@ -1,26 +1,32 @@
 import Foundation
+import OSLog
 
 @MainActor
 final class AppCoordinator {
+    private static let logger = Logger(subsystem: "Mahu", category: "AppCoordinator")
+
     private let statusItemController: StatusItemControlling
     private let overlayManager: BreakOverlayManaging
     private let breakCompletionSoundPlayer: BreakCompletionSoundPlaying
+    private let makeLaunchAtLoginSettingsStore: @MainActor (AppConfig) -> LaunchAtLoginSettingsStoring
+    private let makeLaunchAtLoginController: @MainActor (LaunchAtLoginSettingsStoring) -> LaunchAtLoginSyncing
     private let loadConfig: () -> AppConfig
     private let makeBreakTimer: (AppConfig) -> BreakTimerControlling
     private let scheduleRepeatingTick: RepeatingTickScheduler
     private let currentUptime: CurrentUptimeProvider
-    private let currentWallClockDate: CurrentWallClockDateProvider
+    private let currentSleepAwareTime: CurrentSleepAwareTimeProvider
     private let sleepWakeRegistrar: SleepWakeObservationRegistrar
 
     private var cancelTick: (() -> Void)?
     private var cancelRuntimeSettingsObservation: (() -> Void)?
     private var cancelSleepWakeObservation: SleepWakeObservationCancellation?
     private var breakTimer: BreakTimerControlling?
+    private var launchAtLoginSettingsStore: LaunchAtLoginSettingsStoring?
     private var runtimeSettingsStore: RuntimeSettingsStoring?
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
-    private var lastSleepStartedAt: Date?
+    private var lastSleepStartedAt: TimeInterval?
     private var pendingElapsedSeconds: TimeInterval = 0
     private var isStartingBreakPresentation = false
 
@@ -28,23 +34,31 @@ final class AppCoordinator {
         statusItemController: StatusItemControlling? = nil,
         overlayManager: BreakOverlayManaging? = nil,
         breakCompletionSoundPlayer: BreakCompletionSoundPlaying? = nil,
+        launchAtLoginSettingsStore: LaunchAtLoginSettingsStoring? = nil,
         runtimeSettingsStore: RuntimeSettingsStoring? = nil,
+        makeLaunchAtLoginSettingsStore: @escaping @MainActor (AppConfig) -> LaunchAtLoginSettingsStoring = { LaunchAtLoginSettingsStore(initialSettings: $0) },
+        makeLaunchAtLoginController: @escaping @MainActor (LaunchAtLoginSettingsStoring) -> LaunchAtLoginSyncing = {
+            LaunchAtLoginController(settingsStore: $0, manager: ServiceManagementLaunchAtLoginManager())
+        },
         loadConfig: @escaping () -> AppConfig = { ConfigStore().load() },
         makeBreakTimer: @escaping (AppConfig) -> BreakTimerControlling = { BreakTimer(config: $0) },
         scheduleRepeatingTick: @escaping RepeatingTickScheduler = LiveRepeatingScheduler.schedule,
         currentUptime: @escaping CurrentUptimeProvider = { ProcessInfo.processInfo.systemUptime },
-        currentWallClockDate: @escaping CurrentWallClockDateProvider = Date.init,
+        currentSleepAwareTime: @escaping CurrentSleepAwareTimeProvider = LiveSleepAwareTimeSource.now,
         sleepWakeRegistrar: @escaping SleepWakeObservationRegistrar = LiveSleepWakeObservationRegistrar.make
     ) {
         self.statusItemController = statusItemController ?? StatusItemController()
         self.overlayManager = overlayManager ?? BreakOverlayManager()
         self.breakCompletionSoundPlayer = breakCompletionSoundPlayer ?? BreakCompletionSoundPlayer()
+        self.launchAtLoginSettingsStore = launchAtLoginSettingsStore
         self.runtimeSettingsStore = runtimeSettingsStore
+        self.makeLaunchAtLoginSettingsStore = makeLaunchAtLoginSettingsStore
+        self.makeLaunchAtLoginController = makeLaunchAtLoginController
         self.loadConfig = loadConfig
         self.makeBreakTimer = makeBreakTimer
         self.scheduleRepeatingTick = scheduleRepeatingTick
         self.currentUptime = currentUptime
-        self.currentWallClockDate = currentWallClockDate
+        self.currentSleepAwareTime = currentSleepAwareTime
         self.sleepWakeRegistrar = sleepWakeRegistrar
         self.overlayManager.onVisibleOverlayWindowsChange = { [weak self] isVisible in
             self?.handleOverlayVisibilityChange(isVisible)
@@ -72,6 +86,10 @@ final class AppCoordinator {
             self?.handleRuntimeSettingsChange(newSettings)
         }
         let config = runtimeSettingsStore.currentSettings
+        let launchAtLoginSettingsStore = launchAtLoginSettingsStore ?? makeLaunchAtLoginSettingsStore(config)
+        self.launchAtLoginSettingsStore = launchAtLoginSettingsStore
+        launchAtLoginSettingsStore.update(config.launchAtLoginEnabled)
+        syncLaunchAtLoginDesiredState(using: launchAtLoginSettingsStore, reason: "startup")
         runtimeSettingsPolicy.reset(startupSettings: config)
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
@@ -91,6 +109,21 @@ final class AppCoordinator {
         cancelTick = scheduleRepeatingTick(1) { [weak self] in
             self?.advanceTimer()
         }
+    }
+
+    private func syncLaunchAtLoginDesiredState(
+        using settingsStore: LaunchAtLoginSettingsStoring,
+        reason: String
+    ) {
+        let result = makeLaunchAtLoginController(settingsStore).syncDesiredState()
+
+        guard let warning = result.warning else {
+            return
+        }
+
+        Self.logger.warning(
+            "Launch-at-login \(reason, privacy: .public) sync completed with warning \(String(describing: warning), privacy: .public); action=\(String(describing: result.action), privacy: .public), status=\(String(describing: result.status), privacy: .public)."
+        )
     }
 
     private func advanceTimer() {
@@ -217,6 +250,7 @@ final class AppCoordinator {
 
     private func handleRuntimeSettingsChange(_ newSettings: AppConfig) {
         statusItemController.setShowsTimerState(newSettings.showStatusItemTimerState)
+        reconcileLaunchAtLoginRuntimeSettingsIfNeeded(newSettings)
 
         let currentPhase = breakTimer?.state.phase
         let changeDirective = runtimeSettingsPolicy.handleChange(newSettings, currentPhase: currentPhase, remindersPaused: remindersPaused)
@@ -230,6 +264,16 @@ final class AppCoordinator {
         let newBreakTimer = makeBreakTimer(updatedSettings)
         breakTimer = newBreakTimer
         handle(state: newBreakTimer.state)
+    }
+
+    private func reconcileLaunchAtLoginRuntimeSettingsIfNeeded(_ newSettings: AppConfig) {
+        guard let launchAtLoginSettingsStore,
+              launchAtLoginSettingsStore.launchAtLoginEnabled != newSettings.launchAtLoginEnabled else {
+            return
+        }
+
+        launchAtLoginSettingsStore.update(newSettings.launchAtLoginEnabled)
+        syncLaunchAtLoginDesiredState(using: launchAtLoginSettingsStore, reason: "runtime-settings")
     }
 
     private func applyPendingRuntimeSettingsIfNeeded(to state: BreakTimer.State) -> BreakTimer.State {
@@ -274,11 +318,11 @@ final class AppCoordinator {
 
     private func handleWillSleep() {
         settleElapsedAwakeTimeBeforeSleep()
-        lastSleepStartedAt = currentWallClockDate()
+        lastSleepStartedAt = currentSleepAwareTime()
     }
 
     private func handleDidWake() {
-        let wokeAt = currentWallClockDate()
+        let wokeAt = currentSleepAwareTime()
         let reconciliationAction = wakeReconciliationAction(
             sleepStartedAt: lastSleepStartedAt,
             wokeAt: wokeAt,
@@ -333,8 +377,8 @@ final class AppCoordinator {
         }
 
         pendingElapsedSeconds += elapsedSeconds
-        let allowBreakCompletionSound = overlayManager.hasActiveBreakSession && overlayManager.hasVisibleOverlayWindows
-        consumeElapsedTime(using: breakTimer, allowBreakCompletionSound: allowBreakCompletionSound)
+        // Sleep-entry settlement must not treat an interrupted break as a natural audible completion.
+        consumeElapsedTime(using: breakTimer, allowBreakCompletionSound: false)
     }
 
     private func skipBreak() {

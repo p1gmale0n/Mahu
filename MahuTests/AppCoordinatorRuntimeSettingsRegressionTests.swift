@@ -255,7 +255,7 @@ final class AppCoordinatorRuntimeSettingsRegressionTests: XCTestCase {
             },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([100, 200, 201]),
-            currentWallClockDate: makeCurrentWallClockDateProvider([
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider([
                 Date(timeIntervalSinceReferenceDate: 11_000),
                 Date(timeIntervalSinceReferenceDate: 11_000 + longSleepResetThresholdSeconds + 5)
             ]),

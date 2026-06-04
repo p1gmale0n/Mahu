@@ -48,5 +48,9 @@ final class StatusDisplayFormatterTests: XCTestCase {
             formatter.string(for: .active(phase: .work, remainingSeconds: .infinity)),
             "00:00"
         )
+        XCTAssertEqual(
+            formatter.string(for: .active(phase: .work, remainingSeconds: .nan)),
+            "00:00"
+        )
     }
 }

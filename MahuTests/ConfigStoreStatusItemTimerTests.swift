@@ -29,6 +29,10 @@ final class ConfigStoreStatusItemTimerTests: XCTestCase {
         XCTAssertEqual(AppConfig.default.breakOverlayMessageText, "Время отвлечься")
     }
 
+    func testDefaultConfigDisablesLaunchAtLogin() {
+        XCTAssertFalse(AppConfig.default.launchAtLoginEnabled)
+    }
+
     func testLoadReturnsIconOnlyModeWhenJSONOmitsStatusItemTimerState() throws {
         let store = makeStore()
         try writeRawConfig(
@@ -72,6 +76,23 @@ final class ConfigStoreStatusItemTimerTests: XCTestCase {
                 breakOverlayMessageText: AppConfig.defaultBreakOverlayMessageText
             )
         )
+    }
+
+    func testLoadReturnsLaunchAtLoginDisabledWhenJSONOmitsField() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              \"workDurationSeconds\": 300,
+              \"breakDurationSeconds\": 45
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertFalse(config.launchAtLoginEnabled)
     }
 
     func testLoadPreservesCustomUnicodeBreakOverlayMessageText() throws {
@@ -146,6 +167,42 @@ final class ConfigStoreStatusItemTimerTests: XCTestCase {
         )
     }
 
+    func testLoadDisablesLaunchAtLoginWhenJSONSetsFalse() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              \"workDurationSeconds\": 300,
+              \"breakDurationSeconds\": 45,
+              \"launchAtLoginEnabled\": false
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertFalse(config.launchAtLoginEnabled)
+    }
+
+    func testLoadEnablesLaunchAtLoginWhenJSONSetsTrue() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              \"workDurationSeconds\": 300,
+              \"breakDurationSeconds\": 45,
+              \"launchAtLoginEnabled\": true
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertTrue(config.launchAtLoginEnabled)
+    }
+
     func testLoadFallsBackToDefaultsWhenStatusItemTimerStateIsNotBoolean() throws {
         let store = makeStore()
         try writeRawConfig(
@@ -172,6 +229,42 @@ final class ConfigStoreStatusItemTimerTests: XCTestCase {
               \"workDurationSeconds\": 300,
               \"breakDurationSeconds\": 45,
               \"showStatusItemTimerState\": null
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsWhenLaunchAtLoginEnabledIsNotBoolean() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              \"workDurationSeconds\": 300,
+              \"breakDurationSeconds\": 45,
+              \"launchAtLoginEnabled\": \"true\"
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsWhenLaunchAtLoginEnabledIsNull() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              \"workDurationSeconds\": 300,
+              \"breakDurationSeconds\": 45,
+              \"launchAtLoginEnabled\": null
             }
             """,
             to: store.configURL
@@ -241,6 +334,17 @@ final class ConfigStoreStatusItemTimerTests: XCTestCase {
             persistedConfig?["breakOverlayMessageText"] as? String,
             AppConfig.defaultBreakOverlayMessageText
         )
+    }
+
+    func testLoadCreatesDefaultConfigFileWithLaunchAtLoginEnabledSetToFalse() throws {
+        let store = makeStore()
+
+        _ = store.load()
+
+        let fileData = try Data(contentsOf: store.configURL)
+        let persistedConfig = try JSONSerialization.jsonObject(with: fileData) as? [String: Any]
+
+        XCTAssertEqual(persistedConfig?["launchAtLoginEnabled"] as? Bool, false)
     }
 
     private func makeStore() -> ConfigStore {

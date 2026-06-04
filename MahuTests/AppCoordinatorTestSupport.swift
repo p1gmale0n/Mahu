@@ -15,18 +15,8 @@ func makeCurrentUptimeProvider(_ values: [TimeInterval]) -> () -> TimeInterval {
     }
 }
 
-func makeCurrentWallClockDateProvider(_ values: [Date]) -> () -> Date {
-    var remainingValues = values
-    var lastValue = values.last ?? Date(timeIntervalSinceReferenceDate: 0)
-
-    return {
-        if let nextValue = remainingValues.first {
-            remainingValues.removeFirst()
-            lastValue = nextValue
-        }
-
-        return lastValue
-    }
+func makeCurrentSleepAwareTimeProvider(_ values: [Date]) -> () -> TimeInterval {
+    makeCurrentUptimeProvider(values.map(\.timeIntervalSinceReferenceDate))
 }
 
 final class CancellationSpy {
@@ -169,6 +159,57 @@ final class FakeBreakTimer: BreakTimerControlling {
     }
 }
 
+@MainActor
+final class FakeLaunchAtLoginSettingsStore: LaunchAtLoginSettingsStoring {
+    private(set) var launchAtLoginEnabled: Bool
+    private(set) var updates: [Bool] = []
+    private var observers: [UUID: (Bool) -> Void] = [:]
+
+    init(launchAtLoginEnabled: Bool = false) {
+        self.launchAtLoginEnabled = launchAtLoginEnabled
+    }
+
+    @discardableResult
+    func addObserver(_ observer: @escaping (Bool) -> Void) -> () -> Void {
+        let observerID = UUID()
+        observers[observerID] = observer
+
+        return { [weak self] in
+            self?.observers.removeValue(forKey: observerID)
+        }
+    }
+
+    func update(_ launchAtLoginEnabled: Bool) {
+        guard launchAtLoginEnabled != self.launchAtLoginEnabled else {
+            return
+        }
+
+        self.launchAtLoginEnabled = launchAtLoginEnabled
+        updates.append(launchAtLoginEnabled)
+        let activeObservers = Array(observers.values)
+        activeObservers.forEach { $0(launchAtLoginEnabled) }
+    }
+}
+
+@MainActor
+final class FakeLaunchAtLoginController: LaunchAtLoginSyncing {
+    var syncResult = LaunchAtLoginSyncResult(action: .none, status: .disabled, warning: nil)
+    private let onSync: () -> Void
+
+    private(set) var syncCallCount = 0
+
+    init(onSync: @escaping () -> Void = {}) {
+        self.onSync = onSync
+    }
+
+    func syncDesiredState() -> LaunchAtLoginSyncResult {
+        syncCallCount += 1
+        onSync()
+        return syncResult
+    }
+}
+
+@MainActor
 final class FakeStatusItemController: StatusItemControlling {
     private let statusDisplayFormatter = StatusDisplayFormatter()
 

@@ -46,7 +46,7 @@ final class AppCoordinatorSleepWakeRuntimeSettingsRegressionTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([10, 10, 20, 21]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -101,7 +101,7 @@ final class AppCoordinatorSleepWakeRuntimeSettingsRegressionTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([30, 30, 40, 41]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 

@@ -25,7 +25,7 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([30, 31.4, 40, 41]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -66,7 +66,7 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([70, 70, 71.4, 80, 81]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -111,7 +111,7 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([50, 51.4, 60, 61]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -122,5 +122,43 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
         scheduledTick?()
 
         XCTAssertEqual(timer.advanceCalls, [])
+    }
+
+    func testLongSleepUsesSleepAwareClockEvenIfWallClockBarelyMoves() {
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: AppConfig.default.workDurationSeconds)
+        )
+        let sleepAwareDates = [
+            Date(timeIntervalSinceReferenceDate: 4_000),
+            Date(timeIntervalSinceReferenceDate: 4_000 + longSleepResetThresholdSeconds + 5)
+        ]
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: .default),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([90, 90]),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepAwareDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+
+        XCTAssertEqual(initialTimer.advanceCalls, [])
+        XCTAssertEqual(timerCreationCount, 2)
+        XCTAssertEqual(resetTimer.state, .init(phase: .work, remainingSeconds: AppConfig.default.workDurationSeconds))
     }
 }

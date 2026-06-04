@@ -2,6 +2,25 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-03 | Break overlay dormant-session recovery | Preserve a dormant break session even when break start finds zero active displays, and materialize windows later from screen-change events instead of retrying with a new session. | Review found that the zero-display start path dropped session state, delayed recovery until the next tick, and could recapture the wrong previous app once displays returned. |
+| 2026-06-03 | Config write durability sync | Fsync the managed Mahu config directory after `renameat`, and fsync the parent directory too when the Mahu directory was created in the same write. | Review found that atomic temp-file replacement still reported success before the directory entries themselves were durable across crash or power loss. |
+| 2026-06-03 | Config write TOCTOU hardening | Write config/default files through directory file descriptors and atomic `renameat` instead of path-based preflight plus `Data.write`. | Review found that symlink checks in `ConfigStore` were still racy between validation and the eventual write path. |
+| 2026-06-03 | Status item main-actor contract | Mark the status-item protocol, implementation, and test doubles as `@MainActor`. | Review found that AppKit menu-bar state was only implicitly main-threaded, leaving future background calls compiler-unchecked. |
+| 2026-06-03 | Sleep/wake wall-clock seam removal | Remove the unused `currentWallClockDate` seam from `AppCoordinator` and its tests. | After long-sleep measurement moved to a sleep-aware monotonic clock, the leftover wall-clock injection only created misleading API and test plumbing. |
+| 2026-06-03 | Launch at Login thrown-error final status reporting | After `register()` or `unregister()` throws, re-read the final Login Item status and report that end state with the appropriate warning. | Review found that thrown ServiceManagement paths could log stale pre-mutation status even when macOS had already moved into a different end state. |
+| 2026-06-03 | Config directory symlink hardening | Refuse config load/save when `~/Library/Application Support/Mahu` itself is a symbolic link or another non-directory object. | Review found that guarding only `config.json` left a parent-directory symlink path that still wrote or read outside the intended Mahu config location. |
+| 2026-06-03 | Sleep/wake long-sleep measurement | Measure recorded sleep duration from a sleep-inclusive monotonic source rather than wall-clock `Date`. | Review found that wall-clock sleep classification can be corrupted by NTP, timezone, or manual clock changes during sleep, which breaks the `>= 300s` reset contract. |
+| 2026-06-03 | Paused status-item icon readability | Dim only the status-item icon image during paused reminders and keep the button/title at full opacity. | Review found that dimming the whole `NSStatusBarButton` also dimmed timer text and `Paused`, violating the tray readability contract during timer mode and active breaks. |
+| 2026-06-03 | Config save symlink hardening | Refuse `ConfigStore.save(_:)` when `~/Library/Application Support/Mahu/config.json` is a symbolic link, while still allowing symlink-based reads. | Review found that preserving symlinks on save created a local file-overwrite primitive outside the Mahu config directory, which is a worse outcome than losing shared-dotfile-style write-through support. |
+| 2026-06-03 | Launch at Login runtime source of truth | Keep `RuntimeSettingsStore` as the authoritative in-process settings source and propagate `launchAtLoginEnabled` changes through the dedicated launch-at-login store/controller on runtime updates. | Second-pass review found that startup-only launch-at-login sync left runtime-edited desired state stale in memory, violating the documented single-source-of-truth invariant for future Settings UI work. |
+| 2026-06-03 | Launch at Login review hardening | Validate the final Login Item status after register/unregister and treat any post-mutation mismatch as a non-fatal warning instead of silent success. | Review found that the startup sync could report success even when `SMAppService` still ended in the wrong state after a mutation, which hides real launch-at-login drift from logs and tests. |
+| 2026-06-03 | Sleep-entry break-completion silence | Keep `willSleep` awake-time settlement silent even if that accounting crosses `rest -> work` before the later long-sleep reset. | The shipped long-sleep active-rest contract requires silent teardown/reset, and review found that sleep-entry accounting could otherwise trigger the natural completion sound in the last-second boundary window. |
+| 2026-06-03 | Launch at Login documentation contract | Document launch-at-login as a shipped config-backed startup reconciliation feature, keep manual config edits launch-loaded only, and leave signed Login Item verification manual-only. | Task 6 needs README and AGENTS to match the implemented `launchAtLoginEnabled` behavior so future agents do not treat the feature as deferred, imply live reload, or overstate unsigned automated proof. |
+| 2026-06-03 | Launch at Login coordinator startup wiring | Seed a dedicated launch-at-login desired-state store from startup config inside `AppCoordinator` and sync it once through an injected controller seam, treating sync warnings as log-only and non-fatal. | Task 4 needs startup reconciliation that follows config-backed intent without putting `SMAppService` calls in coordinator code or letting registration failures block normal timer/status-item startup. |
+| 2026-06-03 | Launch at Login sync policy | Keep `SMAppService` behind a small manager adapter and make a controller return structured sync results with non-fatal warnings for `requiresApproval`, unavailable status, and register/unregister failures. | Task 3 needs deterministic policy tests and startup-safe diagnostics without exposing ServiceManagement enums to coordinator/config code or retrying registration forever when macOS still needs user approval. |
+| 2026-06-03 | Launch at Login desired-state store | Model launch-at-login intent as a dedicated `@MainActor` Bool store with observer callbacks and no filesystem or ServiceManagement dependency. | Task 2 needs a reusable in-memory seam for startup config seeding and future Settings UI updates without conflating desired state with actual macOS Login Item status or expanding `AppCoordinatorSupport.swift`. |
+| 2026-06-03 | Launch at Login config architecture | Plan launch-at-login as config-backed desired state through a dedicated settings store and ServiceManagement controller, with no status-menu item in the MVP. | This preserves the current manual-config workflow while creating a reusable seam for the future Settings UI without putting `SMAppService` logic into `AppCoordinator` or treating config as actual macOS Login Item state. |
+| 2026-06-03 | Launch at Login config contract | Add `launchAtLoginEnabled: Bool` to `AppConfig`, default it to `false`, decode a missing key as `false`, and keep invalid or `null` values on the existing whole-config fallback path. | The launch-at-login feature needs backward-compatible manual-config behavior that matches Mahu's established malformed-config recovery semantics without introducing a second decoding rule. |
 | 2026-06-03 | External review artifact hygiene | Ignore the external review loop's root `output.txt` scratch file and treat clean no-issue closures as documentation-only close-out, not product diffs. | Clean review passes currently leave an untracked repo-root artifact even when the tracked tree is correct, which makes the final commit step ambiguous and noisy. |
 | 2026-06-03 | Sleep/wake cancellation synchronization | Replace the live sleep/wake registrar's shared cancellation `Bool` with a synchronized cancellation state object. | The follow-up review found that the shared mutable local flag was touched from observer callbacks and teardown concurrently, which could reintroduce lifecycle races or Swift exclusivity issues after the earlier synchronous-delivery fix. |
 | 2026-06-03 | Break overlay startup retry preservation | Keep the current break session state alive when startup-time display resync temporarily leaves zero overlay windows, so the next retry reuses the original previous-app capture. | The review found that the zero-window startup path tore down the entire session and lost the pre-break app capture, violating the documented "do not recapture the previous app" invariant under transient display-loss races. |
@@ -131,6 +150,54 @@
 | 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
+
+## 2026-06-03 / Launch at Login Config Architecture
+
+## 2026-06-03 / Launch at Login Documentation Contract
+
+**Date:** 2026-06-03
+
+**Area:** Launch at Login
+
+**Context:** The implementation is already wired through `AppConfig`, a desired-state store, a controller, and `SMAppService.mainApp`, but the product docs still list Launch at Login as deferred and do not explain that manual config edits apply only on the next app launch. Signed Login Item behavior also remains outside what the current automated test/build commands can prove.
+
+**Decision:** Document Launch at Login as a shipped config-backed startup reconciliation feature: `launchAtLoginEnabled` defaults to `false`, manual changes to `config.json` require relaunch, startup sync warnings remain non-fatal, and real System Settings/login persistence checks stay manual-only for a signed app.
+
+**Rationale:** This is the smallest durable documentation change that keeps README and AGENTS aligned with the implemented behavior without implying live reload, a new menu-bar toggle, or stronger automated verification than the repo actually has.
+
+**Consequences:** Future agents will treat Launch at Login as part of the shipped product contract instead of a deferred feature, humans editing `config.json` will know a relaunch is required, and release work can build on explicit manual signed-app validation instead of rediscovering those limits.
+
+**Alternatives Considered:** Leave the docs unchanged and rely on code/tests alone; rejected because this repo uses README and AGENTS as active product and engineering contracts. Add a menu/status-item control to make the feature more discoverable; rejected because the current product scope intentionally defers UI for Launch at Login to a future Settings surface.
+
+**Date:** 2026-06-03
+
+**Area:** Launch at Login
+
+**Context:** Mahu currently uses a manually editable launch-loaded `config.json` as the only settings surface, while a real Settings UI remains deferred. The user explicitly rejected adding a status-menu item for Launch at Login now and wants a config option that can later be surfaced in the Settings window without rewriting the ServiceManagement integration.
+
+**Decision:** Plan Launch at Login as config-backed desired state, not a status-menu control. Add a dedicated launch-at-login settings store for the in-process desired value, a small controller/policy that reconciles desired state with macOS actual Login Item state, and a ServiceManagement adapter around `SMAppService.mainApp`. Keep `SMAppService` calls out of `AppCoordinator`, and do not rewrite `config.json` to `false` when macOS reports `requiresApproval` or a registration error.
+
+**Rationale:** A separate desired-state store is slightly more code than startup-only reconciliation, but it preserves the existing config workflow and gives the future Settings UI a stable seam to update desired state, sync with macOS, and persist through `ConfigStore.save`. Treating config as desired state also avoids lying about the actual Login Item state, which can be changed or blocked by macOS outside Mahu.
+
+**Consequences:** The MVP can ship with only `launchAtLoginEnabled` in `config.json` and startup reconciliation. Future Settings UI work can reuse the same store/controller instead of reimplementing ServiceManagement logic. Real registration behavior still requires signed-app manual verification, and failures remain non-fatal warnings rather than startup blockers.
+
+**Alternatives Considered:** Add a status-menu checkbox now; rejected because the user wants no menu item and prefers a future Settings UI. Use config-only startup reconciliation with no settings store; rejected because it would be smaller today but less ready for Settings UI. Automatically enable Launch at Login by default; rejected because public-release startup behavior should be explicit opt-in.
+
+## 2026-06-03 / Launch at Login Config Contract
+
+**Date:** 2026-06-03
+
+**Area:** Launch at Login
+
+**Context:** Task 1 extends Mahu's manually editable launch-loaded `config.json` before any ServiceManagement integration exists. The new field must preserve old config files, participate in save/load round trips, and follow the repo's current malformed-config fallback behavior instead of introducing special-case per-field recovery.
+
+**Decision:** Add `launchAtLoginEnabled: Bool` to `AppConfig`, default it to `false`, decode a missing key as `false`, and let invalid or `null` values fail through the existing whole-config fallback behavior.
+
+**Rationale:** This is the smallest contract change that keeps older config files working unchanged, preserves the single established recovery rule for malformed manual edits, and gives later launch-at-login tasks a deterministic desired-state input without extra migration logic.
+
+**Consequences:** Default config creation and persistence now include an explicit `launchAtLoginEnabled: false`, focused tests lock the new field's decode and round-trip semantics, and later startup/controller work can build on the field without revisiting config compatibility rules.
+
+**Alternatives Considered:** Add custom per-field fallback for invalid values; rejected because it would diverge from Mahu's current whole-config fallback semantics. Omit the field from encoded defaults until the feature is fully wired; rejected because round-trip persistence and explicit config visibility are part of the manual-config contract.
 
 ## 2026-06-03 / Sleep/Wake Review Hardening
 
@@ -2193,3 +2260,227 @@
 **Consequences:** Timer mode still renders the same title strings, but the menu-bar item no longer shrinks when the countdown crosses minute digit boundaries. Regression tests now lock down both ordinary countdown updates and the `100:00 -> 99:59` edge case directly.
 
 **Alternatives Considered:** Cap supported durations to keep all timer text inside two minute digits; rejected because it would silently narrow Mahu's general schedule contract. Switch to a different display format such as `HH:MM:SS`; rejected because that would expand scope into a user-facing contract change instead of a review hardening fix.
+
+## 2026-06-03 / Launch at Login Desired-State Store
+
+**Date:** 2026-06-03
+
+**Area:** Launch-at-login settings architecture
+
+**Context:** Task 2 of the launch-at-login plan needed a focused store that startup wiring and a future Settings UI can share before the real `SMAppService` adapter exists. The store also had to stay independent from disk persistence and from the actual macOS Login Item status.
+
+**Decision:** Add `LaunchAtLoginSettingsStoring` and `LaunchAtLoginSettingsStore` as a dedicated `@MainActor` in-memory Bool store, seeded either directly from `launchAtLoginEnabled` or from `AppConfig`, with observer callbacks and no-op repeated updates.
+
+**Rationale:** This keeps desired state separate from actual Login Item state, mirrors the existing runtime-settings observer seam closely enough for predictable coordinator wiring, and avoids pulling filesystem or ServiceManagement concerns into the store.
+
+**Consequences:** Later startup reconciliation can consume a small launch-at-login-specific dependency, while future UI work already has observer cancellation and idempotent update behavior locked down by tests.
+
+**Alternatives Considered:** Reuse `RuntimeSettingsStore` for a single Bool field; rejected because it keeps unrelated schedule and overlay settings in scope. Store actual macOS registration/approval state in the same object; rejected because that belongs to the next ServiceManagement layer and would blur intent with external system state.
+
+## 2026-06-03 / Launch at Login Review Hardening
+
+**Date:** 2026-06-03
+
+**Area:** Launch-at-login startup reconciliation
+
+**Context:** Review of the launch-at-login branch found that `LaunchAtLoginController.syncDesiredState()` validated thrown register/unregister errors and a narrow subset of final statuses, but it could still report silent success when `SMAppService` stayed in the wrong end state after a mutation. The same pass also showed the targeted tests covered only pre-mutation approval/unavailable states and thrown errors, leaving post-mutation mismatch paths unguarded.
+
+**Decision:** After `register()` or `unregister()`, always re-read the final manager status and treat any end state that still contradicts the desired launch-at-login value as a non-fatal warning. Keep `.requiresApproval` and `.unavailable` as explicit status-driven warnings, and map all other mismatches onto the existing registration/unregistration failure warnings.
+
+**Rationale:** This is the smallest fix that preserves the current controller contract and diagnostics surface while making startup sync truthful about end-state drift instead of only about thrown errors.
+
+**Consequences:** Mahu now logs/report warnings when macOS leaves the Login Item disabled after a requested enable, or enabled/requires-approval after a requested disable, even if the ServiceManagement call itself returned normally. Regression tests now lock the previously uncovered post-mutation approval, unavailable, and mismatch branches directly.
+
+**Alternatives Considered:** Add a brand-new `stateMismatch` warning enum; rejected because the existing registration/unregistration failure warnings already communicate the actionable outcome without widening the public contract. Keep treating non-throwing mutations as success; rejected because that hides real launch-at-login drift from both logs and tests.
+
+## 2026-06-03 / Sleep-Entry Break-Completion Silence
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake active-rest reconciliation
+
+**Context:** Review found a boundary case in `AppCoordinator.settleElapsedAwakeTimeBeforeSleep()`: if Mahu settled the last visible seconds of an active break exactly as the machine was entering sleep, the shared elapsed-time path could cross `rest -> work` and trigger the natural completion sound before the later long-sleep reset. That contradicts the documented contract that long sleep during an active break tears down silently into a fresh work interval.
+
+**Decision:** Keep `willSleep` awake-time settlement for timer truth, but force that path to stay silent even if it completes the current break before the later wake reconciliation resets Mahu to work.
+
+**Rationale:** This is the smallest local change that preserves short-sleep accounting and the existing break timer flow while making sleep-interrupted breaks consistently silent.
+
+**Consequences:** A break that reaches zero during sleep-entry bookkeeping now tears down without playing `break-completion.caf`, and new regression coverage exercises the exact `rest -> work` transition at sleep entry. Natural visible break completion outside the sleep path still follows the existing one-shot sound contract.
+
+**Alternatives Considered:** Skip `willSleep` settlement entirely for active breaks; rejected because short sleep would then lose already-earned awake time. Keep the audible completion because the elapsed slice was technically visible; rejected because sleep entry is an interruption boundary and the shipped long-sleep contract is explicitly silent reset, not natural completion.
+
+## 2026-06-03 / Launch at Login Runtime Source of Truth
+
+**Date:** 2026-06-03
+
+**Area:** Runtime settings / Launch at Login
+
+**Context:** The launch-at-login plan introduced a dedicated desired-state store plus startup reconciliation through `LaunchAtLoginController`, while the broader runtime-settings foundation already documented `RuntimeSettingsStore` as Mahu's single in-process source of truth for future Settings UI work. A second review pass found that `AppCoordinator` seeded the launch-at-login store only once at startup and never forwarded later runtime edits of `AppConfig.launchAtLoginEnabled`, so in-app settings changes could diverge from the Login Item state in memory.
+
+**Decision:** Keep `RuntimeSettingsStore` authoritative for the in-process `AppConfig`, but continue using the dedicated launch-at-login Bool store/controller seam by reconciling it from `handleRuntimeSettingsChange(_:)` whenever `launchAtLoginEnabled` changes at runtime.
+
+**Rationale:** This is the smallest safe fix for the review finding. It preserves the existing launch-at-login-specific seam for future Settings UI and ServiceManagement integration, while restoring the already documented single-source-of-truth contract without a wider refactor during the review loop.
+
+**Consequences:** Runtime settings updates that flip `launchAtLoginEnabled` now update the dedicated launch-at-login store and immediately trigger the same sync/controller path used at startup. Focused coordinator regression tests now guard both enable and disable runtime transitions plus the no-op case when unrelated runtime settings change.
+
+**Alternatives Considered:** Collapse launch-at-login intent directly into `RuntimeSettingsStore` and remove the dedicated Bool store; rejected because it would be a broader architectural rewrite during a review-fix pass and would blur the seam intentionally reserved for future Settings UI. Leave launch-at-login startup-only and defer runtime propagation to the future Settings UI feature; rejected because it violates the current runtime-settings invariant and would preserve a known divergence bug in shipped coordinator behavior.
+
+## 2026-06-03 / Config Save Symlink Hardening
+
+**Date:** 2026-06-03
+
+**Area:** Config persistence security
+
+**Context:** A follow-up review found that the earlier "preserve `config.json` symlinks on save" behavior resolved the link target and wrote through it. If `~/Library/Application Support/Mahu/config.json` is replaced with a symlink to another user-writable file, the next config save becomes an arbitrary local file overwrite outside the Mahu config directory.
+
+**Decision:** Refuse `ConfigStore.save(_:)` when the configured `config.json` path itself is a symbolic link. Continue allowing `load()` to read symlink targets so manual compatibility stays intact, but require writes to target the real Mahu config path directly.
+
+**Rationale:** This is the smallest safe fix for a real local-write primitive. Losing write-through support for shared-dotfile-style symlink setups is acceptable here because Mahu has no shipped Settings UI yet, and silent arbitrary-file overwrite is the higher-risk behavior.
+
+**Consequences:** Saving through a symlinked `config.json` now returns `false`, logs a warning, leaves the symlink untouched, and does not mutate the linked target file. Symlink-based reads still work, so existing manual setups keep launch-time compatibility until a future write path explicitly chooses a safer supported model.
+
+**Alternatives Considered:** Keep resolving and writing through symlinks; rejected because it preserves the overwrite primitive. Allow symlink saves only when the resolved target stays inside the Mahu config directory; rejected for now because it is more code and complexity during a review-fix pass, while outright refusal closes the security gap immediately.
+
+## 2026-06-03 / Config Directory Symlink Hardening
+
+**Date:** 2026-06-03
+
+**Area:** Config persistence security
+
+**Context:** The earlier review fix refused writes only when the final `config.json` path itself was a symbolic link. A follow-up review showed that `~/Library/Application Support/Mahu` could still be replaced with a symlink to another directory, which made both `load()` and `save()` follow that redirected parent path and bypass the intended direct-path safety contract.
+
+**Decision:** Treat `~/Library/Application Support/Mahu` as part of the trusted managed path: require it to be either missing or a real directory, reject loads when it is a symlink or another filesystem object, and refuse saves before directory creation when that managed directory path is not direct.
+
+**Rationale:** This is the smallest targeted hardening that closes the concrete parent-directory bypass without widening the config format or adding heavier fd-based path-walking in the middle of a review-fix pass.
+
+**Consequences:** Symlink-based reads remain supported only at the final `config.json` entry itself; redirecting the whole Mahu support directory no longer works for reads or writes. Review coverage now locks both the old final-file symlink refusal and the new parent-directory guard.
+
+**Alternatives Considered:** Leave parent-directory symlinks untouched and document the risk; rejected because it preserves the same local path-redirection primitive through one level up the tree. Rebuild config I/O around `openat`/`O_NOFOLLOW` for every path component; rejected for now because it is a larger low-level rewrite than needed to close the confirmed bypass in this pass.
+
+## 2026-06-03 / Sleep/Wake Long-Sleep Measurement
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** The shipped sleep/wake policy classified “long sleep” from `Date` values recorded at `willSleep` and `didWake`. Review pointed out that wall-clock deltas can move independently of actual elapsed sleep because of NTP correction, timezone changes, DST shifts, or manual clock edits while the Mac is asleep.
+
+**Decision:** Keep public `NSWorkspace` lifecycle notifications, but measure the elapsed sleep interval from a sleep-inclusive monotonic provider backed by `ContinuousClock` instead of wall-clock `Date`.
+
+**Rationale:** The product contract is about real elapsed sleep reaching the 300-second threshold, not about wall-clock drift. A monotonic source is the smallest truthful measurement change that preserves the rest of the coordinator flow and existing fake-lifecycle tests.
+
+**Consequences:** Long-sleep resets now follow actual recorded elapsed sleep even if the wall clock barely moves or jumps unexpectedly during sleep. Tests gained a focused regression that proves wake reconciliation prefers the monotonic source over a misleading wall-clock delta.
+
+**Alternatives Considered:** Keep wall-clock `Date` because the edge case is rare; rejected because it makes the reset contract nondeterministic under legitimate system time changes. Switch the whole coordinator to a new clock abstraction everywhere; rejected because only long-sleep classification needed the stronger clock source in this pass.
+
+## 2026-06-03 / Config Write TOCTOU Hardening
+
+**Date:** 2026-06-03
+
+**Area:** Config persistence security
+
+**Context:** Earlier review fixes refused obvious symlinked `config.json` and symlinked `~/Library/Application Support/Mahu` paths, but `ConfigStore.save(_:)` and missing-config default creation still validated the path and then wrote through `FileManager`/`Data.write` separately. That left a local race window where another process could swap `Mahu/` or `config.json` between the check and the actual write.
+
+**Decision:** Move config writes onto checked directory file descriptors: create or open the managed Mahu directory with `mkdirat`/`openat(..., O_NOFOLLOW)`, write a temporary file inside that directory, and atomically replace `config.json` with `renameat`. Reuse the same path for default-config creation so the load-on-missing path does not retain the old race.
+
+**Rationale:** This is the smallest truthful hardening that closes the confirmed TOCTOU gap without changing the shipped config-file contract or removing supported final-file symlink reads.
+
+**Consequences:** Saving or creating the default config no longer depends on a path-based preflight remaining true until a later write. The repo keeps the current asymmetric contract: symlinked `config.json` still loads, but writes require the managed Mahu path to be direct and are now race-resistant inside that directory.
+
+**Alternatives Considered:** Keep the existing preflight and only re-check just before `Data.write`; rejected because it still leaves a race between the second check and the actual write. Reject all symlink-based config reads too; rejected because the current product contract intentionally preserves final-file symlink compatibility for launch-time manual setups.
+
+## 2026-06-03 / Status Item Main-Actor Contract
+
+**Date:** 2026-06-03
+
+**Area:** Menu-bar UI threading
+
+**Context:** `StatusItemController` owns `NSStatusItem`, `NSMenu`, and `NSStatusBarButton`, but its protocol surface and fake test double were not explicitly main-actor isolated. Current call sites happen to be on the main actor via `AppCoordinator`, yet nothing in the type system prevented a future background call from mutating AppKit state.
+
+**Decision:** Mark `StatusItemControlling`, `StatusItemController`, and the fake status-item controller used in tests as `@MainActor`, and keep default AppKit-dependent closures resolved from inside actor-isolated initializers/methods rather than from nonisolated default arguments.
+
+**Rationale:** AppKit is a main-thread API surface. Encoding that contract in the type system is the smallest way to prevent future background-call regressions without changing any user-visible behavior.
+
+**Consequences:** Compiler checking now protects the menu-bar controller boundary, and test doubles follow the same threading contract as production code. Existing coordinator wiring stays synchronous because it already runs on the main actor.
+
+**Alternatives Considered:** Leave the contract implicit and rely on current call sites; rejected because it makes future regressions easy and compiler-silent. Remove AppKit access from the controller entirely; rejected because it is a larger architectural rewrite than needed for this review fix.
+
+## 2026-06-03 / Sleep/Wake Wall-Clock Seam Removal
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** After the long-sleep policy switched from wall-clock `Date` to a sleep-aware monotonic time provider, `AppCoordinator.init` and multiple tests still carried an unused `currentWallClockDate` seam. That API surface now implied a dependency the production code no longer had.
+
+**Decision:** Remove `CurrentWallClockDateProvider`, the `currentWallClockDate` initializer parameter, and the corresponding test-only helpers/arguments.
+
+**Rationale:** Dead seams increase cognitive load and mislead future reviews into thinking wall-clock time still influences wake reconciliation. Removing the seam is smaller and safer than keeping fake coverage for a path that no longer exists.
+
+**Consequences:** `AppCoordinator` now exposes only the clocks it actually uses, and the sleep/wake tests no longer carry irrelevant wall-clock plumbing. The existing monotonic-clock regression coverage remains intact through the sleep-aware provider seam.
+
+**Alternatives Considered:** Keep the unused seam “just in case” wall-clock logic returns later; rejected because it adds confusion now and can be reintroduced intentionally if product requirements change.
+
+## 2026-06-03 / Launch at Login Thrown-Error Final Status Reporting
+
+**Date:** 2026-06-03
+
+**Area:** Launch-at-login startup reconciliation
+
+**Context:** `LaunchAtLoginController.syncDesiredState()` already re-read final status after successful register/unregister calls, but the thrown-error branches still returned the pre-mutation status. A review pointed out that ServiceManagement can fail after partially changing the Login Item end state, which made the warning truthful but the reported status stale.
+
+**Decision:** After a thrown register/unregister attempt, re-read the final manager status and return that end state together with the most specific warning available: prefer `.requiresApproval` or `.unavailable` when those are the actual end states, otherwise keep the existing registration/unregistration failure warning.
+
+**Rationale:** This preserves the current warning contract while making diagnostics and tests truthful about the end state Mahu actually observed after the failed call.
+
+**Consequences:** Review and runtime logs can now distinguish “failed but now requires approval” from “failed and still disabled”, or “failed but actually ended disabled” from “failed and still enabled”. Focused tests now cover thrown-error paths where the fake manager changes status before throwing.
+
+**Alternatives Considered:** Keep returning the pre-mutation status on thrown errors; rejected because it hides real end-state drift. Add new warning enum cases for every thrown-plus-final-state combination; rejected because the current warning surface already conveys the actionable outcome without growing the contract unnecessarily.
+
+## 2026-06-03 / Paused Status-Item Icon Readability
+
+**Date:** 2026-06-03
+
+**Area:** Status item timer presentation
+
+**Context:** The paused-reminder implementation dimmed `NSStatusBarButton.alphaValue`, which visually affected both the icon and any timer/`Paused` text. Review found that this contradicted the shipped timer-mode contract that break countdown text should remain readable while only the tray icon conveys the paused cue.
+
+**Decision:** Keep using the same tray icon asset, but render a dimmed copy only for the image slot while leaving the status-item button and text at full opacity.
+
+**Rationale:** This is the smallest AppKit-only fix that restores the documented readability contract without adding a second paused asset or disabling the menu-bar control.
+
+**Consequences:** Paused reminders still look visibly dimmed, but timer-mode text and `Paused` stay fully legible during work and active breaks. Controller and acceptance tests now assert full button opacity plus image-data changes instead of the old whole-button alpha band.
+
+**Alternatives Considered:** Keep dimming the entire button; rejected because it obscures live countdown text. Add a separate paused icon asset; rejected because the product contract already requires reusing the existing tray glyph.
+
+## 2026-06-03 / Break Overlay Dormant-Session Recovery
+
+**Date:** 2026-06-03
+
+**Area:** Break overlay lifecycle
+
+**Context:** Review found one remaining zero-display race at break start. If `screenProvider()` returned no displays on the first entry into `rest`, `BreakOverlayManager.showBreak()` returned `false` before creating any shared session state. That meant there was no `viewModel`, no previous-app capture, and no screen observer, so recovery waited for the next timer tick and could recapture a different frontmost app after displays returned.
+
+**Decision:** Preserve a dormant break session even when break start sees zero active displays: create the shared `viewModel`, capture the previous app once, register screen/focus observation, and only skip activation until windows can be materialized on a later screen-change event.
+
+**Rationale:** This is the smallest fix that restores the documented “do not recapture the previous app during an active break” invariant and lets display recovery happen immediately from screen notifications rather than from the next scheduled tick.
+
+**Consequences:** Break start can now return `false` while still keeping a live dormant session. When a display reappears, the existing break state becomes visible without rebuilding the session or changing the shared countdown/Skip state.
+
+**Alternatives Considered:** Keep the current retry-on-next-tick path; rejected because it delays recovery and can restore the wrong application. Treat zero displays as a hard failure that cancels the break; rejected because it silently loses an already-started rest interval during transient display races.
+
+## 2026-06-03 / Config Write Durability Sync
+
+**Date:** 2026-06-03
+
+**Area:** Config persistence durability
+
+**Context:** Earlier hardening moved config writes onto directory file descriptors and `renameat`, but review found the success path still stopped after fsyncing the temporary file. Without also syncing the containing directory entries, `save()` could return `true` even though a crash or power loss might still lose the renamed `config.json` or a just-created `Mahu/` directory.
+
+**Decision:** After a successful `renameat`, fsync the managed Mahu config directory. If the write created the `Mahu/` directory in the same call, fsync the parent Application Support directory as well before reporting success.
+
+**Rationale:** Atomic replacement alone protects against torn files, but directory fsync is what makes the rename and directory creation durable. This is the smallest truthful fix that closes the remaining data-integrity gap without redesigning the storage layer.
+
+**Consequences:** Successful config saves now mean both file bytes and directory entries were flushed through the same write path. Tests can verify the extra sync contract deterministically through the injected sync hook without depending on power-failure simulation.
+
+**Alternatives Considered:** Leave durability to the filesystem and accept occasional post-crash config loss; rejected because it makes `save()` overclaim success. Introduce a full file-operations abstraction for every POSIX call; rejected because the targeted sync hook covers this fix with much less churn.

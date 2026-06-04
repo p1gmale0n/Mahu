@@ -78,6 +78,150 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(fakeSleepWakeRegistrar.registrationCount, 1)
     }
 
+    func testStartSeedsLaunchAtLoginDesiredStateFromStartupConfigBeforeSync() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            launchAtLoginEnabled: true
+        )
+        let fakeLaunchAtLoginStore = FakeLaunchAtLoginSettingsStore(launchAtLoginEnabled: false)
+        var syncedDesiredStates: [Bool] = []
+        let fakeLaunchAtLoginController = FakeLaunchAtLoginController {
+            syncedDesiredStates.append(fakeLaunchAtLoginStore.launchAtLoginEnabled)
+        }
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: FakeBreakOverlayManager(),
+            launchAtLoginSettingsStore: fakeLaunchAtLoginStore,
+            makeLaunchAtLoginController: { _ in fakeLaunchAtLoginController },
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in
+                FakeBreakTimer(state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds))
+            },
+            scheduleRepeatingTick: { _, _ in {} }
+        )
+
+        coordinator.start()
+
+        XCTAssertEqual(fakeLaunchAtLoginStore.updates, [true])
+        XCTAssertEqual(syncedDesiredStates, [true])
+        XCTAssertEqual(fakeLaunchAtLoginController.syncCallCount, 1)
+    }
+
+    func testStartSyncsLaunchAtLoginUsingConfigBackedDesiredState() {
+        do {
+            let startupConfig = AppConfig(
+                workDurationSeconds: 300,
+                breakDurationSeconds: 20,
+                launchAtLoginEnabled: true
+            )
+            let fakeLaunchAtLoginStore = FakeLaunchAtLoginSettingsStore(launchAtLoginEnabled: false)
+            var syncedDesiredStates: [Bool] = []
+            let fakeLaunchAtLoginController = FakeLaunchAtLoginController {
+                syncedDesiredStates.append(fakeLaunchAtLoginStore.launchAtLoginEnabled)
+            }
+            fakeLaunchAtLoginController.syncResult = LaunchAtLoginSyncResult(action: .register, status: .enabled, warning: nil)
+
+            let coordinator = AppCoordinator(
+                statusItemController: FakeStatusItemController(),
+                overlayManager: FakeBreakOverlayManager(),
+                launchAtLoginSettingsStore: fakeLaunchAtLoginStore,
+                makeLaunchAtLoginController: { _ in fakeLaunchAtLoginController },
+                loadConfig: { startupConfig },
+                makeBreakTimer: { _ in
+                    FakeBreakTimer(state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds))
+                },
+                scheduleRepeatingTick: { _, _ in {} }
+            )
+
+            coordinator.start()
+
+            XCTAssertEqual(syncedDesiredStates, [true])
+            XCTAssertEqual(fakeLaunchAtLoginController.syncCallCount, 1)
+        }
+
+        do {
+            let startupConfig = AppConfig(
+                workDurationSeconds: 300,
+                breakDurationSeconds: 20,
+                launchAtLoginEnabled: false
+            )
+            let fakeLaunchAtLoginStore = FakeLaunchAtLoginSettingsStore(launchAtLoginEnabled: true)
+            var syncedDesiredStates: [Bool] = []
+            let fakeLaunchAtLoginController = FakeLaunchAtLoginController {
+                syncedDesiredStates.append(fakeLaunchAtLoginStore.launchAtLoginEnabled)
+            }
+            fakeLaunchAtLoginController.syncResult = LaunchAtLoginSyncResult(action: .unregister, status: .disabled, warning: nil)
+
+            let coordinator = AppCoordinator(
+                statusItemController: FakeStatusItemController(),
+                overlayManager: FakeBreakOverlayManager(),
+                launchAtLoginSettingsStore: fakeLaunchAtLoginStore,
+                makeLaunchAtLoginController: { _ in fakeLaunchAtLoginController },
+                loadConfig: { startupConfig },
+                makeBreakTimer: { _ in
+                    FakeBreakTimer(state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds))
+                },
+                scheduleRepeatingTick: { _, _ in {} }
+            )
+
+            coordinator.start()
+
+            XCTAssertEqual(syncedDesiredStates, [false])
+            XCTAssertEqual(fakeLaunchAtLoginController.syncCallCount, 1)
+        }
+    }
+
+    func testLaunchAtLoginSyncWarningsDoNotPreventStatusItemInstallOrTimerStartup() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            launchAtLoginEnabled: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeLaunchAtLoginStore = FakeLaunchAtLoginSettingsStore(launchAtLoginEnabled: false)
+        let fakeLaunchAtLoginController = FakeLaunchAtLoginController()
+        fakeLaunchAtLoginController.syncResult = LaunchAtLoginSyncResult(
+            action: .register,
+            status: .disabled,
+            warning: .registrationFailed
+        )
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds - 1)]
+        )
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            launchAtLoginSettingsStore: fakeLaunchAtLoginStore,
+            makeLaunchAtLoginController: { _ in fakeLaunchAtLoginController },
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+
+        XCTAssertEqual(fakeLaunchAtLoginController.syncCallCount, 1)
+        XCTAssertEqual(fakeStatusItemController.installCallCount, 1)
+        XCTAssertEqual(fakeTimer.advanceCalls, [1])
+        XCTAssertEqual(
+            fakeStatusItemController.statusDisplayStates,
+            [
+                .active(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+                .active(phase: .work, remainingSeconds: startupConfig.workDurationSeconds - 1)
+            ]
+        )
+    }
+
     func testDidWakeWithoutRecordedWillSleepDoesNotResetTimerDestructively() {
         let fakeStatusItemController = FakeStatusItemController()
         let fakeOverlayManager = FakeBreakOverlayManager()
@@ -168,7 +312,7 @@ final class AppCoordinatorTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 200, 200]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -216,7 +360,7 @@ final class AppCoordinatorTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([10, 20, 21, 22, 23, 24]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -259,7 +403,7 @@ final class AppCoordinatorTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([30, 30, 40, 41]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -300,7 +444,7 @@ final class AppCoordinatorTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([70, 70, 70, 80, 81]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 
@@ -347,7 +491,7 @@ final class AppCoordinatorTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([90, 90, 90, 100]),
-            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register
         )
 

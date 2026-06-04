@@ -189,10 +189,6 @@ final class BreakOverlayManager {
         onSkip: @escaping () -> Void = {}
     ) -> Bool {
         let displays = screenProvider()
-        guard displays.isEmpty == false else {
-            return false
-        }
-
         let previousFrontmostApplication = viewModel == nil ? previousAppCapture() : self.previousFrontmostApplication
         tearDownActiveBreak(restorePreviousApplication: false)
 

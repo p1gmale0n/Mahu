@@ -60,6 +60,11 @@
 			A000000000000000000000AB /* LiveSleepWakeObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */; };
 			A000000000000000000000AD /* AppCoordinatorSleepWakeAccountingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */; };
 			A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */; };
+			A000000000000000000000B1 /* LaunchAtLoginSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B0 /* LaunchAtLoginSettingsStore.swift */; };
+			A000000000000000000000B3 /* LaunchAtLoginSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B2 /* LaunchAtLoginSettingsStoreTests.swift */; };
+			A000000000000000000000B5 /* LaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B4 /* LaunchAtLoginController.swift */; };
+			A000000000000000000000B7 /* LaunchAtLoginControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */; };
+			A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -129,6 +134,11 @@
 			A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSleepWakeObservationRegistrarTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorSleepWakeAccountingTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000B0 /* LaunchAtLoginSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsStore.swift; sourceTree = "<group>"; };
+			A000000000000000000000B2 /* LaunchAtLoginSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsStoreTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000B4 /* LaunchAtLoginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginController.swift; sourceTree = "<group>"; };
+			A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginControllerTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -169,6 +179,8 @@
 				A00000000000000000000002 /* AppDelegate.swift */,
 				A0000000000000000000000D /* AppCoordinator.swift */,
 				A0000000000000000000005B /* AppCoordinatorSupport.swift */,
+				A000000000000000000000B4 /* LaunchAtLoginController.swift */,
+				A000000000000000000000B0 /* LaunchAtLoginSettingsStore.swift */,
 				A000000000000000000000A6 /* SleepWakeObservation.swift */,
 				A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */,
 				A00000000000000000000008 /* AppConfig.swift */,
@@ -215,6 +227,9 @@
 				A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
 				A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
 				A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
+				A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */,
+				A000000000000000000000B2 /* LaunchAtLoginSettingsStoreTests.swift */,
+				A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */,
 					A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */,
 					A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */,
 					A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */,
@@ -360,6 +375,8 @@
 				A00000000000000000000021 /* AppDelegate.swift in Sources */,
 				A00000000000000000000029 /* AppCoordinator.swift in Sources */,
 				A0000000000000000000005C /* AppCoordinatorSupport.swift in Sources */,
+				A000000000000000000000B5 /* LaunchAtLoginController.swift in Sources */,
+				A000000000000000000000B1 /* LaunchAtLoginSettingsStore.swift in Sources */,
 				A000000000000000000000A7 /* SleepWakeObservation.swift in Sources */,
 				A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */,
 				A00000000000000000000024 /* AppConfig.swift in Sources */,
@@ -394,6 +411,9 @@
 				A0000000000000000000005D /* ConfigStoreSizeLimitTests.swift in Sources */,
 				A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
 				A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
+				A000000000000000000000B7 /* LaunchAtLoginControllerTests.swift in Sources */,
+				A000000000000000000000B3 /* LaunchAtLoginSettingsStoreTests.swift in Sources */,
+				A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */,
 					A000000000000000000000A9 /* FakeSleepWakeObserverRegistrarTests.swift in Sources */,
 					A000000000000000000000AD /* AppCoordinatorSleepWakeAccountingTests.swift in Sources */,
 					A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */,

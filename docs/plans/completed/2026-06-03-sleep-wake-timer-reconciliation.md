@@ -2,7 +2,7 @@
 
 ## Status
 
-Completed on 2026-06-03. Pending archive after external review.
+Completed on 2026-06-03. Archived under `docs/plans/completed/` after external review follow-up fixes.
 This change set addresses Tasks 1-9 in this plan.
 
 ## Overview

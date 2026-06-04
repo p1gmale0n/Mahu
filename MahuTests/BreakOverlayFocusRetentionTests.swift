@@ -26,7 +26,7 @@ final class BreakOverlayFocusRetentionTests: XCTestCase {
         XCTAssertNotNil(screenObserver.handler)
     }
 
-    func testShowBreakWithoutDisplaysSkipsFocusObserverAndActivation() {
+    func testShowBreakWithoutDisplaysKeepsDormantSessionWithoutActivatingApp() {
         let windowBuilder = FakeOverlayWindowBuilder()
         let focusObserver = FakeBreakFocusObserverRegistrar()
         let screenObserver = FakeBreakScreenObserverRegistrar()
@@ -44,8 +44,10 @@ final class BreakOverlayFocusRetentionTests: XCTestCase {
         focusObserver.fireAll()
 
         XCTAssertFalse(didShowBreak)
-        XCTAssertEqual(focusObserver.registrationCount, 0)
-        XCTAssertEqual(screenObserver.registrationCount, 0)
+        XCTAssertEqual(focusObserver.registrationCount, 1)
+        XCTAssertEqual(focusObserver.cancelCount, 1)
+        XCTAssertEqual(screenObserver.registrationCount, 1)
+        XCTAssertEqual(screenObserver.cancelCount, 1)
         XCTAssertEqual(focusObserver.handledEventCount, 0)
         XCTAssertEqual(screenObserver.handledEventCount, 0)
         XCTAssertEqual(activationCount, 0)

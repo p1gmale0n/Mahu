@@ -70,12 +70,17 @@ final class BreakOverlayViewTests: XCTestCase {
     func testSafeDisplayWholeSecondsCapsOverflowValuesWithoutTrapping() {
         XCTAssertEqual(AppConfig.safeDisplayWholeSeconds(.greatestFiniteMagnitude), Int64.max)
         XCTAssertEqual(AppConfig.safeDisplayWholeSeconds(.infinity), 0)
+        XCTAssertEqual(AppConfig.safeDisplayWholeSeconds(.nan), 0)
     }
 
     func testViewModelTreatsNonFiniteCountdownValuesAsZero() {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 5)
 
         viewModel.updateRemainingSeconds(.infinity)
+
+        XCTAssertEqual(viewModel.countdownText, "00:00")
+
+        viewModel.updateRemainingSeconds(.nan)
 
         XCTAssertEqual(viewModel.countdownText, "00:00")
     }

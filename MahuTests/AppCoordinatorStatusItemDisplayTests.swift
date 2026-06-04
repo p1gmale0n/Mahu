@@ -320,7 +320,7 @@ final class AppCoordinatorStatusItemDisplayTests: XCTestCase {
             },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([50, 50, 501]),
-            currentWallClockDate: makeCurrentWallClockDateProvider([
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider([
                 Date(timeIntervalSinceReferenceDate: 12_000),
                 Date(timeIntervalSinceReferenceDate: 12_000 + longSleepResetThresholdSeconds + 3)
             ]),

@@ -27,6 +27,38 @@ final class LiveSleepWakeObservationRegistrarTests: XCTestCase {
         XCTAssertEqual(context.didWakeCallCount(), 1)
     }
 
+    func testBackgroundPostedNotificationsSynchronouslyHopToMainActorBeforeReturning() async {
+        let orderLock = NSLock()
+        var eventOrder: [String] = []
+        let context = makeRegistrarContext(
+            willSleep: {
+                orderLock.lock()
+                eventOrder.append("handler")
+                orderLock.unlock()
+            },
+            didWake: {}
+        )
+        defer { context.cancel() }
+
+        let completion = expectation(description: "background post completed")
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            context.notificationCenter.post(name: NSWorkspace.willSleepNotification, object: nil)
+            orderLock.lock()
+            eventOrder.append("post-returned")
+            orderLock.unlock()
+            completion.fulfill()
+        }
+
+        await fulfillment(of: [completion], timeout: 1.0)
+
+        orderLock.lock()
+        defer { orderLock.unlock() }
+        XCTAssertEqual(eventOrder, ["handler", "post-returned"])
+        XCTAssertEqual(context.willSleepCallCount(), 1)
+        XCTAssertEqual(context.didWakeCallCount(), 0)
+    }
+
     func testCancelIsIdempotentAndStopsFutureEvents() async {
         let unexpectedSleepOrWake = expectation(description: "sleep wake should stay cancelled")
         unexpectedSleepOrWake.isInverted = true

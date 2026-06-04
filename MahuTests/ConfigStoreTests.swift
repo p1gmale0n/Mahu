@@ -79,6 +79,26 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(config, customConfig)
     }
 
+    func testLoadFallsBackToDefaultsWhenMahuConfigDirectoryIsASymlink() throws {
+        let store = makeStore()
+        let sharedDirectoryURL = temporaryDirectoryURL.appendingPathComponent("shared-config-directory", isDirectory: true)
+        try FileManager.default.createDirectory(at: sharedDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent().deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(
+            at: store.configURL.deletingLastPathComponent(),
+            withDestinationURL: sharedDirectoryURL
+        )
+        let data = try JSONEncoder().encode(AppConfig(workDurationSeconds: 300, breakDurationSeconds: 45))
+        try data.write(to: sharedDirectoryURL.appendingPathComponent("config.json"), options: .atomic)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
     func testLoadFallsBackToDefaultsWhenConfigSymlinkTargetIsMissing() throws {
         let store = makeStore()
         let missingConfigURL = temporaryDirectoryURL.appendingPathComponent("missing-config.json", isDirectory: false)

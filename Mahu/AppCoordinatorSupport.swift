@@ -11,6 +11,7 @@ protocol BreakTimerControlling: AnyObject {
     func skipBreak() -> BreakTimer.State
 }
 
+@MainActor
 protocol StatusItemControlling: AnyObject {
     func install()
     func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void)
@@ -31,10 +32,23 @@ protocol RuntimeSettingsStoring: AnyObject {
 
 typealias RepeatingTickScheduler = (TimeInterval, @escaping () -> Void) -> () -> Void
 typealias CurrentUptimeProvider = () -> TimeInterval
-typealias CurrentWallClockDateProvider = () -> Date
+typealias CurrentSleepAwareTimeProvider = () -> TimeInterval
 typealias OverlayVisibilityChangeHandler = (Bool) -> Void
 
 let longSleepResetThresholdSeconds: TimeInterval = 300
+
+enum LiveSleepAwareTimeSource {
+    private static let clock = ContinuousClock()
+    private static let baseline = clock.now
+
+    static func now() -> TimeInterval {
+        let elapsed = baseline.duration(to: clock.now)
+        let components = elapsed.components
+
+        return TimeInterval(components.seconds) +
+            (TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000)
+    }
+}
 
 enum RuntimeSettingsScheduleUpdateAction {
     case none
@@ -174,8 +188,8 @@ func elapsedTimeToConsume(
 }
 
 func wakeReconciliationAction(
-    sleepStartedAt: Date?,
-    wokeAt: Date,
+    sleepStartedAt: TimeInterval?,
+    wokeAt: TimeInterval,
     currentState: BreakTimer.State?,
     remindersPaused: Bool,
     longSleepThresholdSeconds: TimeInterval = longSleepResetThresholdSeconds
@@ -185,7 +199,7 @@ func wakeReconciliationAction(
         return .none
     }
 
-    guard max(0, wokeAt.timeIntervalSince(sleepStartedAt)) >= longSleepThresholdSeconds else {
+    guard max(0, wokeAt - sleepStartedAt) >= longSleepThresholdSeconds else {
         return .none
     }
 

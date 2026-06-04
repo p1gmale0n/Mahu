@@ -11,24 +11,28 @@ struct AppConfig: Codable, Equatable {
     let breakDurationSeconds: TimeInterval
     let showStatusItemTimerState: Bool
     let breakOverlayMessageText: String
+    let launchAtLoginEnabled: Bool
 
     static let `default` = AppConfig(
         workDurationSeconds: 1_200,
         breakDurationSeconds: 20,
         showStatusItemTimerState: false,
-        breakOverlayMessageText: defaultBreakOverlayMessageText
+        breakOverlayMessageText: defaultBreakOverlayMessageText,
+        launchAtLoginEnabled: false
     )
 
     init(
         workDurationSeconds: TimeInterval,
         breakDurationSeconds: TimeInterval,
         showStatusItemTimerState: Bool = false,
-        breakOverlayMessageText: String = AppConfig.defaultBreakOverlayMessageText
+        breakOverlayMessageText: String = AppConfig.defaultBreakOverlayMessageText,
+        launchAtLoginEnabled: Bool = false
     ) {
         self.workDurationSeconds = workDurationSeconds
         self.breakDurationSeconds = breakDurationSeconds
         self.showStatusItemTimerState = showStatusItemTimerState
         self.breakOverlayMessageText = Self.normalizedBreakOverlayMessageText(breakOverlayMessageText)
+        self.launchAtLoginEnabled = launchAtLoginEnabled
     }
 
     var hasSupportedDurations: Bool {
@@ -66,6 +70,7 @@ struct AppConfig: Codable, Equatable {
         case breakDurationSeconds
         case showStatusItemTimerState
         case breakOverlayMessageText
+        case launchAtLoginEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -84,6 +89,12 @@ struct AppConfig: Codable, Equatable {
             )
         } else {
             breakOverlayMessageText = Self.defaultBreakOverlayMessageText
+        }
+
+        if container.contains(.launchAtLoginEnabled) {
+            launchAtLoginEnabled = try container.decode(Bool.self, forKey: .launchAtLoginEnabled)
+        } else {
+            launchAtLoginEnabled = false
         }
     }
 }

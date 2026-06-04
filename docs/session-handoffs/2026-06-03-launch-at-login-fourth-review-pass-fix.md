@@ -1,0 +1,10 @@
+# Session Handoff
+
+## 2026-06-03 / Launch at Login Fourth Review Pass Fix
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Preserve a dormant break session when a break starts during a zero-display race so display recovery reuses the original break state and previous-app capture; fsync the managed config directory after `renameat`, and fsync the parent directory too when the `Mahu/` config directory is created in the same write.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/ConfigStorePersistenceTests -only-testing:MahuTests/BreakOverlayManagerTests -only-testing:MahuTests/BreakOverlayDisplayVisibilityTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/BreakOverlayFocusRetentionTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md` (no repo-owned lint target found).
+- Friction/CDD: The review gate still implies lint proof, but this repo still has neither `swiftlint` in the environment nor a tracked lint target, so deterministic evidence remains XCTest/build/package plus diff hygiene. `Mahu/AppCoordinator.swift` is still above the local readability threshold, so future lifecycle fixes will keep concentrating in a high-cognitive-load file until it is split.
+- Next Steps: Let the external review loop rerun from the new fix commit. If lint must remain mandatory, add a repo-owned lint target or provision `swiftlint` in the environment. Before the next overlay lifecycle change, keep shrinking coordinator-owned state and preserve the dormant-session contract in any future multi-display refactor.

@@ -109,7 +109,7 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 200, 201]),
-            currentWallClockDate: makeCurrentWallClockDateProvider([
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider([
                 Date(timeIntervalSinceReferenceDate: 4_000),
                 Date(timeIntervalSinceReferenceDate: 4_000 + longSleepResetThresholdSeconds + 1)
             ]),
@@ -156,7 +156,7 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 1_000, 1_000, 1_001, 1_002]),
-            currentWallClockDate: makeCurrentWallClockDateProvider([
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider([
                 Date(timeIntervalSinceReferenceDate: 5_000),
                 Date(timeIntervalSinceReferenceDate: 5_000 + longSleepResetThresholdSeconds + 10)
             ]),
@@ -216,7 +216,7 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([50, 500, 500, 501, 502]),
-            currentWallClockDate: makeCurrentWallClockDateProvider([
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider([
                 Date(timeIntervalSinceReferenceDate: 6_000),
                 Date(timeIntervalSinceReferenceDate: 6_000 + longSleepResetThresholdSeconds + 30)
             ]),
@@ -375,7 +375,7 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }
 
-        let providedIcon = NSImage(size: NSSize(width: 18, height: 18))
+        let providedIcon = makeOpaqueStatusIcon()
         let controller = StatusItemController(
             statusItem: statusItem,
             applicationTerminator: {},
@@ -396,23 +396,22 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         let initialImage = try XCTUnwrap(button.image)
         XCTAssertTrue(initialImage === providedIcon)
         XCTAssertTrue(initialImage.isTemplate)
+        let initialImageData = try XCTUnwrap(initialImage.tiffRepresentation)
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
 
         try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
 
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
-        XCTAssertLessThan(button.alphaValue, 1.0)
-        XCTAssertTrue(button.alphaValue >= 0.45)
-        XCTAssertTrue(button.alphaValue <= 0.60)
-        XCTAssertTrue(try XCTUnwrap(button.image) === initialImage)
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertNotEqual(try XCTUnwrap(button.image?.tiffRepresentation), initialImageData)
         XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
 
         try invokeMenuItem(named: "Resume Reminders", in: statusItem.menu)
 
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
-        XCTAssertTrue(try XCTUnwrap(button.image) === initialImage)
+        XCTAssertEqual(try XCTUnwrap(button.image?.tiffRepresentation), initialImageData)
         XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
     }
 
@@ -426,5 +425,14 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
     private func menuItem(named title: String, in menu: NSMenu?) throws -> NSMenuItem {
         let menu = try XCTUnwrap(menu)
         return try XCTUnwrap(menu.items.first { $0.title == title })
+    }
+
+    private func makeOpaqueStatusIcon() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.lockFocus()
+        NSColor.labelColor.setFill()
+        NSBezierPath(rect: NSRect(x: 2, y: 2, width: 14, height: 14)).fill()
+        image.unlockFocus()
+        return image
     }
 }
