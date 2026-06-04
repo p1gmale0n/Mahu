@@ -26,6 +26,10 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(resolvedResourceURL.path.hasPrefix(bundleURL.path + "/"))
     }
 
+    func testHostedAppBundleEnablesMenuBarOnlyMode() {
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool, true)
+    }
+
     func testRuntimeDetectionRecognizesXCTestMarkers() {
         XCTAssertTrue(AppRuntime.isRunningTests(environment: [
             "XCTestConfigurationFilePath": "/tmp/session.xctestconfiguration",

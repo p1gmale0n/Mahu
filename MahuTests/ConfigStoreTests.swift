@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 @testable import Mahu
@@ -59,6 +60,73 @@ final class ConfigStoreTests: XCTestCase {
         let config = store.load()
 
         XCTAssertEqual(config, customConfig)
+    }
+
+    func testLoadReturnsCustomConfigFromRegularFileSymlink() throws {
+        let store = makeStore()
+        let customConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 45)
+        let realConfigURL = temporaryDirectoryURL.appendingPathComponent("shared-config.json", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder().encode(customConfig)
+        try data.write(to: realConfigURL, options: .atomic)
+        try FileManager.default.createSymbolicLink(at: store.configURL, withDestinationURL: realConfigURL)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, customConfig)
+    }
+
+    func testLoadFallsBackToDefaultsWhenConfigSymlinkTargetIsMissing() throws {
+        let store = makeStore()
+        let missingConfigURL = temporaryDirectoryURL.appendingPathComponent("missing-config.json", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(at: store.configURL, withDestinationURL: missingConfigURL)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsWhenConfigSymlinkTargetIsDirectory() throws {
+        let store = makeStore()
+        let sharedDirectoryURL = temporaryDirectoryURL.appendingPathComponent("shared-config", isDirectory: true)
+        try FileManager.default.createDirectory(at: sharedDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(at: store.configURL, withDestinationURL: sharedDirectoryURL)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsWhenConfigSymlinkTargetCannotBeRead() throws {
+        let store = makeStore()
+        let customConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 45)
+        let realConfigURL = temporaryDirectoryURL.appendingPathComponent("protected-config.json", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try JSONEncoder().encode(customConfig).write(to: realConfigURL, options: .atomic)
+        XCTAssertEqual(chmod(realConfigURL.path, 0o000), 0)
+        defer {
+            _ = chmod(realConfigURL.path, 0o600)
+        }
+
+        try FileManager.default.createSymbolicLink(at: store.configURL, withDestinationURL: realConfigURL)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
     }
 
     func testLoadFallsBackToDefaultsForInvalidConfig() throws {
@@ -144,6 +212,32 @@ final class ConfigStoreTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try FileManager.default.createDirectory(at: store.configURL, withIntermediateDirectories: true)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsWhenConfigExceedsSizeLimit() throws {
+        let store = makeStore()
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data(repeating: 0x61, count: 70_000).write(to: store.configURL, options: .atomic)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsWhenConfigPathIsNamedPipe() throws {
+        let store = makeStore()
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        XCTAssertEqual(mkfifo(store.configURL.path, 0o600), 0)
 
         let config = store.load()
 

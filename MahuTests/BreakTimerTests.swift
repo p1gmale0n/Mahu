@@ -97,6 +97,15 @@ final class BreakTimerTests: XCTestCase {
         )
     }
 
+    func testAdvanceIgnoresNonFiniteElapsedTime() {
+        let timer = BreakTimer(workDurationSeconds: 10, breakDurationSeconds: 4)
+
+        timer.advance(by: .infinity)
+        timer.advance(by: .nan)
+
+        XCTAssertEqual(timer.state, .init(phase: .work, remainingSeconds: 10))
+    }
+
     func testAdvanceWithBothZeroDurationsReturnsStableWorkState() {
         let timer = BreakTimer(workDurationSeconds: 0, breakDurationSeconds: 0)
 

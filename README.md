@@ -23,9 +23,12 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 ## Current Behavior
 
 - Menu-bar-only app with `LSUIElement = true`.
-- Icon-only status item with a menu containing `Quit`.
-- The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
+- Icon-only status item with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`.
+- The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset: a transparent, glyph-only template silhouette derived from the app icon motif, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
 - Work timer starts automatically on launch.
+- Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
+- Choosing `Resume Reminders` re-enables reminders and starts a fresh full work interval from the config that Mahu loaded on launch instead of resuming a partially elapsed one.
+- Pause state is runtime-only; Mahu always launches with reminders enabled.
 - Default schedule is 20 minutes of work and 20 seconds of break.
 - Timers advance only while the Mac is awake; elapsed sleep time is not reconciled yet, so the current interval resumes after wake.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
@@ -34,7 +37,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Break overlay explicitly loads bundled `background.png` from the app bundle, applies a dark readability treatment, shows `Время отвлечься`, displays a countdown, and includes `Skip`.
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
-- If Mahu cannot yet show any overlay window when a break starts, it retries presentation without consuming visible break time; transient empty-display snapshots during an active break do not end the break.
+- If Mahu starts a break while no active displays are available, it retries presentation without consuming break time; if an active break temporarily loses every display, Mahu closes the hidden overlay windows, preserves the same countdown/`Skip` state, and resumes the break without consuming rest time once a display returns.
 - Overlay windows are raised above normal apps and the app is activated when the break starts.
 - While a break is active, display additions, removals, and display-frame changes resync overlay windows without restarting the break or replacing the shared countdown/`Skip` state.
 - While a break is active, Mahu best-effort reasserts its own focus and re-shows existing overlay windows if another app becomes active behind the overlay.
@@ -45,8 +48,9 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 
 - `Mahu/`: app sources.
 - `Mahu/Assets.xcassets/`: app asset catalog, including the macOS `AppIcon` generated from `icon.png`.
-- `Mahu/Assets.xcassets/TrayIconTemplate.imageset/`: tray-optimized template artwork derived from the same source image as the app icon.
+- `Mahu/Assets.xcassets/TrayIconTemplate.imageset/`: tray-optimized transparent template glyph artwork derived from the same source motif as the app icon.
 - `Mahu/Resources/`: bundled app resources, including the break-overlay background image.
+- `Mahu/PrivacyInfo.xcprivacy`: privacy manifest for required-reason APIs used by the app target.
 - `MahuTests/`: unit tests for config, timer, coordinator, status item, and overlay logic.
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
 - `Makefile`: local build shortcut that creates `build/Mahu.app`.
@@ -54,6 +58,8 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `docs/plans/completed/2026-05-20-mahu-mvp.md`: completed MVP execution plan and checkbox progress.
 - `docs/plans/completed/2026-05-21-overlay-focus-hardening.md`: overlay focus-hardening implementation log; manual hardware verification remains open there.
 - `docs/plans/completed/2026-05-21-overlay-background.md`: initial overlay-background bundling plan and history; its runtime-loading details were superseded by the follow-up rendering fix.
+- `docs/plans/completed/2026-05-22-tray-icon-template-asset.md`: completed tray-icon asset/fallback plan; tray appearance checks remain manual.
+- `docs/plans/completed/2026-05-25-tray-icon-transparent-glyph.md`: completed transparent tray-glyph refinement plan; live menu-bar readability still remains manual-only.
 - `docs/plans/completed/2026-05-22-overlay-background-rendering-fix.md`: completed runtime rendering fix for explicit bundle loading; manual live-overlay verification remains open there.
 - `docs/plans/completed/2026-05-22-overlay-content-centering-fix.md`: completed centering fix for the built-in display; live display verification still remains manual.
 - `docs/plans/completed/2026-05-22-overlay-display-hotplug.md`: completed active-break display hot-plug plan covering add/remove/resize resync, focus/restore preservation, and remaining manual hardware checks.
@@ -76,6 +82,7 @@ Notes:
 
 - `1200` seconds = 20 minutes.
 - Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
+- Mahu reads `config.json` only when the configured path is a regular file or a symlink resolving to one. Directories, pipes, broken symlinks, unreadable targets, and files larger than 64 KiB are ignored, and Mahu falls back to the default schedule.
 - Use shorter values locally if you want to manually exercise the overlay flow faster.
 
 ## Setup
@@ -111,7 +118,7 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 - Launch at login.
 - Settings UI.
 - Remaining-time display in the status item.
-- Pause/resume and manual start-break menu actions.
+- Manual start-break menu action.
 - Sleep/wake timer reconciliation.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
 - Multi-display and fullscreen Spaces hardening.
@@ -119,7 +126,13 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 ## Manual Checks
 
 - Confirm the app has no Dock icon.
-- Confirm the status item appears and `Quit` exits the app.
+- Confirm the status item appears and initially shows `Pause Reminders` plus `Quit`.
+- Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders` and that no break overlay appears once the previously running work interval would have elapsed.
+- Choose `Resume Reminders`, then confirm the next break appears only after a full fresh work interval from the config loaded when Mahu launched.
+- During an active break, toggle `Pause Reminders` and `Resume Reminders`, then confirm the existing countdown and `Skip` behavior stay unchanged.
+- Confirm `Quit` still exits the app.
+- Confirm the status item visually uses the transparent tray glyph rather than the old SF Symbol or a visible square app-icon raster.
+- Check the tray icon in light mode, dark mode, and the highlighted menu-bar state; this readability proof is still manual-only. If the tray asset is unavailable during local debugging, confirm Mahu still shows a non-empty fallback icon.
 - Temporarily shorten config durations and confirm the overlay appears.
 - Confirm `Время отвлечься`, the countdown, and `Skip` stay horizontally and vertically centered on the built-in display.
 - Confirm the overlay background comes from the bundled `background.png`, not a repository-root or user-supplied file.
@@ -130,7 +143,7 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 - Start a break on the built-in display, then connect an external monitor and confirm an overlay appears on the new display without restarting the break.
 - Start a break with an external monitor connected, then disconnect it and confirm stale overlay windows close while the remaining display keeps the same countdown and `Skip` state.
 - Change display resolution or scaling during an active break and confirm overlay windows resync.
-- Trigger a transient display or fullscreen-Space transition during a break and confirm Mahu does not silently finish or abandon the break while no overlay is visible.
+- Trigger a transient display or fullscreen-Space transition during a break and confirm Mahu keeps the break active across empty-display snapshots; note any cases where AppKit still hides the overlay despite active displays.
 - Test with a fullscreen app or Space and document any limitations separately.
 
 ## UI References

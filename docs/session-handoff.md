@@ -1,5 +1,32 @@
 # Session Handoff
 
+## 2026-05-28 / External Review Close - No Actionable Findings
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Leave tracked product code unchanged because the external review output explicitly reported no actionable findings, the pause/resume plan already documents the shipped semantics, `git diff` and `git diff --cached` were empty, and the latest branch state already contains the prior review-fix commit for this area. Record closure through a durable handoff note instead of inventing a synthetic code change.
+- Validation: `git status --short`; `git diff`; `git diff --cached`; `git diff --name-only main...HEAD`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- Friction/CDD: The external loop still requires a close-out commit even when the worktree is already clean and the review output is effectively a no-op, so the only truthful artifact in this state is a handoff-only commit. This works for low-risk closure, but it will create noisy history if the loop keeps repeating without new findings.
+- Next Steps: Let the external review loop finish from this close-out commit; if a later pass reports a concrete defect, limit the next patch to the affected files and rerun the macOS test suite before another review-close signal.
+
+## 2026-05-25 / Review Fixes - Retina Tray Asset
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Accept the review finding as valid because the shipped `tray-icon-template@2x.png` kept the 1x glyph bounds on a 36x36 canvas; regenerate a real Retina mask and move source-asset assertions into focused `TrayIconAssetTests.swift` so raw-pixel scale checks do not push `StatusItemControllerTests.swift` past the local readability threshold.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `swiftlint`, but the command is not available in this environment.
+- Friction/CDD: The review gate still implies lint proof, but the repo has no tracked lint command and `swiftlint` is not installed here, so lint cannot be proven reproducibly in this environment. Real tray readability on the live Retina menu bar remains manual-only validation even after deterministic raster checks.
+- Next Steps: Let the external review loop run again from the fix commit; if lint remains part of the gate, add a repo-owned lint command or install `swiftlint`; keep manual tray-icon appearance checks open for light/dark/high-contrast states.
+
+## 2026-05-23 / Tray Icon Review Close
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat the tray-icon review finding as valid because `TrayIconTemplate` lives in `Assets.xcassets` and the shipped contract in the completed plan already calls for `NSImage(named: "TrayIconTemplate")`; keep the fix scoped to `StatusItemController.makeTrayTemplateStatusIcon()` and leave the unrelated untracked `images/` workspace artifact out of the review-close commit.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The repo still has no tracked lint command and `swiftlint` is not installed in this environment, so this pass can only prove XCTest/build evidence. `xcodebuild` still emits the environment-level multiple-destinations warning for `platform=macOS`.
+- Next Steps: Let the external review loop finish from this commit; manual menu-bar appearance checks for the tray icon in light/dark/high-contrast states still remain manual-only.
+
 ## 2026-05-22 / Second Review Pass 4 Fixes
 
 🏁 Session Handoff:
@@ -179,3 +206,39 @@
 - Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `HOME="$(mktemp -d)" xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO` followed by checking that `~/Library/Application Support/Mahu/config.json` was not created
 - Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this review gate can only prove build/test green status. The XCTest runtime guard depends on standard XCTest environment markers; if the project later adopts a nonstandard hosted runner, that launch path should be revalidated explicitly.
 - Next Steps: Run the next external review iteration against this branch; if hosted integration/UI tests are added later, give them an explicit opt-in startup path instead of removing the XCTest guard; keep manual external-display/fullscreen-Space verification open until hardware validation is recorded.
+
+## 2026-05-23 / Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Guard `BreakTimer.advance(by:)` against non-finite elapsed time; bound `config.json` reads to 64 KiB via chunked `FileHandle` loading before decode; add `PrivacyInfo.xcprivacy` for `ProcessInfo.processInfo.systemUptime` with Apple’s `NSPrivacyAccessedAPICategorySystemBootTime` reason `35F9.1`; replace fake overlay/status-item assertions with structured SwiftUI view-tree checks, accessibility identifiers, and a real menu-bar-only smoke check; archive the completed tray-icon plan and narrow README wording to the zero-display retry contract the code actually enforces.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The review workflow still asks for lint evidence, but the repo has no tracked lint target and `swiftlint` is not installed here, so lint cannot be proven reproducibly from repository-owned tooling alone. `xcodebuild` continues to emit the environment-level multi-destination warning for `platform=macOS`; pinning a concrete destination would make local and CI logs quieter.
+- Next Steps: Run the next external review iteration against this branch; if lint remains part of the gate, add a repo-owned lint command or provision `swiftlint` in the execution environment; keep tray-icon appearance, fullscreen Space behavior, and external-display verification as explicit manual checks.
+
+## 2026-05-23 / Second Review Pass 2 Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat `config.json` as valid only when it is a regular file or a symlink resolving to one, keep filesystem error details private in OSLog, pause active-break countdown consumption while every display is unavailable, preserve the same shared overlay state across zero-display snapshots, and move display reconciliation into `BreakOverlaySupport.swift` so `BreakOverlayManager.swift` drops back under the local readability threshold.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review gate still implies lint proof, but the repo still has no tracked lint command and `swiftlint` is not installed here, so lint cannot be validated reproducibly from repository-owned tooling. Real monitor/fullscreen-Space behavior remains manual-only even though the zero-display retry/pause contract is now covered by XCTest.
+- Next Steps: Run the next external review iteration against this branch; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; manually verify a real monitor or fullscreen-Space transition that temporarily produces zero active displays.
+
+## 2026-05-25 / Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Account active-break time at overlay visibility transitions so zero-display gaps that begin and end between timer ticks no longer consume hidden rest time; make `makeTrayTemplateStatusIcon(bundle:)` actually resolve images from the supplied bundle and prove it with custom-bundle tests; archive the fully completed transparent tray-glyph plan under `docs/plans/completed/` and sync README with the config-file and plan-status contracts already implemented in code.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is still unavailable in this environment.
+- Friction/CDD: The review gate still implies lint proof, but the repo still has no tracked lint command and `swiftlint` is not installed here, so lint cannot be validated reproducibly from repository-owned tooling. Real tray-icon readability and fullscreen-Space/external-display behavior remain manual-only despite stronger deterministic coverage.
+- Next Steps: Let the external review loop run again; if lint remains required, add a repo-owned lint command or install `swiftlint` in the execution environment; keep manual checks for tray readability and real display transitions open until someone records hardware-backed evidence.
+
+## 2026-05-28 / Reminder Pause Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Reuse the config snapshot loaded during `AppCoordinator.start()` when `Resume Reminders` resets a work interval, so pause/resume does not become hidden live config reload; treat tray pause/resume interactions during an active break as menu-state-only so repeated pause/resume cannot extend the current break; collapse reminder-menu acceptance checks into a dedicated small test file that exercises the real `configureReminderActions(...)` path instead of growing `StatusItemControllerTests.swift` further.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The review workflow still asks for lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so lint cannot be validated reproducibly from repository-owned tooling. Manual hardware checks for real active-break tray interaction, fullscreen Spaces, and external-display behavior remain open by design.
+- Next Steps: Let the external review loop run again from this commit; if lint stays part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; when doing manual verification, explicitly test toggling `Pause Reminders` / `Resume Reminders` during an active break and record whether countdown/`Skip` stay unchanged on real hardware.

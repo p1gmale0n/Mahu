@@ -2,9 +2,23 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-28 | Reminder pause review fixes | Cache the launch-loaded config for resume resets and keep rest-phase pause/resume from touching active-break timing. | Review found hidden live-config reload behavior and active-break timing drift when the tray menu was used during rest. |
+| 2026-05-26 | Reminder pause/resume semantics | Treat the tray menu action as enabling or disabling automatic reminders at the coordinator layer, and make resume start a fresh work interval from the current config instead of continuing partially elapsed work time. | This keeps break countdown behavior unchanged, avoids introducing countdown-pause semantics into `BreakTimer`, and gives users a predictable reset when they re-enable reminders. |
+| 2026-05-26 | Reminder menu status-item API | Keep pause/resume menu wiring inside `StatusItemController` with injected callbacks plus a `setRemindersPaused(_:)` view-state method, leaving reminder semantics in `AppCoordinator`. | The tray layer should only own AppKit menu construction and dispatch, while coordinator-level reminder state and timer resets remain testable outside AppKit. |
+| 2026-05-25 | Overlay visibility pause accounting | Account for active-break elapsed time at overlay visibility edges and freeze the uptime baseline whenever zero-display transitions hide or re-show the overlay between timer ticks. | Tick-only visibility checks miss transient no-display windows that begin and end between scheduler callbacks, which silently consumes hidden rest time. |
+| 2026-05-25 | Bundle-aware tray icon loading | Make `StatusItemController.makeTrayTemplateStatusIcon(bundle:)` load the tray image from the supplied bundle and prove that path with custom-bundle tests. | A bundle parameter that still performs global image lookup is a fake seam; explicit bundle lookup keeps the tray-icon path testable and resilient if the asset ever moves out of the main bundle. |
+| 2026-05-25 | Tray icon documentation contract | Define `TrayIconTemplate` as transparent glyph-only template artwork, document live menu-bar readability as manual-only, and record that a directly drawn simplified lotus silhouette is acceptable when automated extraction from `icon.png` produces an unreadable or empty tray mask. | The shipped contract is about a transparent template-friendly tray silhouette, not about preserving a specific generation script. Locking the visual/runtime contract and the fallback generation constraint prevents future regressions back to opaque square rasters or brittle empty-mask pipelines. |
+| 2026-05-25 | Tray icon contract verification | Freeze Task 3 as verification-only code proof: keep `StatusItemController` behavior unchanged and extend XCTest coverage to assert the menu-bar-only `LSUIElement` plist contract alongside the existing icon provider, resize/template, and Quit-menu checks. | The tray asset itself was already regenerated in Task 2, so the smallest correct Task 3 change is stronger automated proof of the shipped contract rather than touching working status-item behavior and risking regressions. |
+| 2026-05-25 | Tray icon glyph regeneration | Replace the opaque tray raster with a simplified lotus-shaped monochrome glyph on transparent background, and verify source tray assets by decoded bitmap dimensions plus transparency rather than `NSImage.size` point semantics on `@2x` filenames. | The menu-bar icon needs a template-friendly non-square mask, and source-file regression proof should follow real pixel data because Cocoa's logical image size varies with Retina filename conventions. |
+| 2026-05-25 | Tray icon retina asset verification | Verify tray source PNGs from raw raster metrics and require the `@2x` glyph mask to scale beyond the 1x bounds instead of only checking canvas size and transparent corners. | A 36x36 PNG can still carry a 1x-sized glyph on a larger canvas, which looks broken on Retina menu bars while passing the earlier transparency-only regression test. |
+| 2026-05-25 | Tray icon transparency regression | Prove `TrayIconTemplate` asset correctness with a direct XCTest that reads the source PNGs, locks 18x18/36x36 dimensions, requires transparent corners/background, and requires non-empty glyph pixels even before regenerating the artwork. | Task 1 must fail on the current opaque-square assets before any redraw work begins, so the smallest truthful proof lives at the asset-file level rather than in status-item runtime behavior. |
+| 2026-05-23 | Review-pass hardening | Treat `config.json` as loadable only when it is a regular file (or a symlink resolving to one), pause active-break countdown consumption while all displays are unavailable, and move overlay display reconciliation into shared support instead of further growing `BreakOverlayManager.swift`. | The second review pass found a startup hang path through special files at the config location and an invisible-break path when active overlays lose every display; fixing both while respecting the local file-size guard requires tighter file validation plus a small overlay-layer refactor. |
 | 2026-05-22 | Tray status icon contract | Document the shipped status-item icon contract as `TrayIconTemplate` first, then a copied/resized compiled app icon fallback, both forced to an 18x18 template image. | The menu bar needs compact tray-specific artwork for readability, but Mahu still must avoid an empty status item if the tray asset lookup fails at runtime. |
 | 2026-05-22 | Status item icon fallback | Make the production status-item icon provider prefer `TrayIconTemplate`, then fall back to a copied/resized app icon, with both paths returning an 18x18 template image copy. | This removes the old SF Symbol, keeps the menu bar icon path resilient if the tray asset is missing, and avoids mutating shared `NSImage` cache instances while staying inside `StatusItemController`. |
 | 2026-05-22 | Tray icon asset packaging | Add a dedicated `TrayIconTemplate` asset catalog image set derived from `icon.png`, plus a small loader that marks loaded images as template images. | The menu bar icon needs asset-backed proof before replacing the SF Symbol, and forcing template behavior in code keeps tintability explicit regardless of asset naming. |
+| 2026-05-22 | Config file load hardening | Stream-read `config.json` with a 64 KiB cap before decoding and fall back to defaults when the file exceeds that limit. | The config file is user-editable, so launch should not allocate unbounded memory or hang on an oversized local file. |
+| 2026-05-22 | Privacy manifest coverage | Add `PrivacyInfo.xcprivacy` declaring `NSPrivacyAccessedAPICategorySystemBootTime` with reason `35F9.1` for `ProcessInfo.processInfo.systemUptime`. | Mahu uses monotonic uptime for in-app timer calculations, and Apple requires a matching privacy manifest declaration for that API category. |
+| 2026-05-22 | Structured overlay UI assertions | Verify overlay foreground content through recursive SwiftUI view-tree assertions plus stable accessibility identifiers instead of `String(describing:)` snapshots of SwiftUI internals. | The previous tests could stay green while the view tree lost required text or button identity, so review-proof coverage needs to inspect structured SwiftUI data rather than debug strings. |
 | 2026-05-20 | Agent instructions | Keep `AGENTS.md` compact and omit unverifiable build/test commands until project manifests exist. | At the time of the decision, the repository had no app sources, manifests, README, or CI; speculative commands would mislead future agents. |
 | 2026-05-20 | Documentation | Keep a basic README as the human-facing project overview and update it with behavior, setup, structure, and verification changes. | The user wants README to stay current, and future agents need a stable source for project status without reading only agent instructions. |
 | 2026-05-20 | MVP scope | Build the first version around 20-20-20 defaults, icon-only status menu with Quit, config-file settings, fullscreen break overlay, countdown, and Skip. | This keeps the first implementation small while preserving extension seams for settings UI, launch at login, sleep/wake handling, and App Store release work. |
@@ -57,6 +71,86 @@
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
+## 2026-05-25 / Tray Icon Retina Asset Verification
+
+## 2026-05-26 / Reminder Pause/Resume Semantics
+
+**Date:** 2026-05-26
+
+**Area:** Reminder pause/resume semantics
+
+**Context:** The new tray-menu controls needed a precise behavioral contract before documentation could be finalized: users asked for pause/resume reminders, but the product still should not gain a break-phase pause mechanism, persisted reminder-disable state, or a partial-countdown continuation on resume.
+
+**Decision:** Model the feature as a runtime-only reminder-enabled flag owned by `AppCoordinator`. While paused, work-phase ticks become a no-op and no new break overlay can start. When the user resumes during the work phase, Mahu rebuilds `BreakTimer` from the current config and starts a fresh full work interval instead of continuing the old remainder.
+
+**Rationale:** This keeps the AppKit menu layer dumb, preserves the existing break overlay and `Skip` contract, and gives the user predictable semantics that do not depend on remembering partially elapsed background time. It also avoids pushing reset/pause behavior into `BreakTimer`, whose responsibility remains work/rest countdown progression.
+
+**Consequences:** README and tests now describe pause/resume as reminder disable/enable semantics rather than timer suspension. Pause state is intentionally lost on restart, and active breaks continue unchanged if the tray action is used during rest.
+
+**Alternatives Considered:** Pause and later continue the partially elapsed work countdown; rejected because it creates more stateful semantics with less predictable UX and complicates coordinator/test behavior. Add a true break-pause feature or persist the paused flag; rejected because both are outside MVP scope.
+
+**Date:** 2026-05-25
+
+**Area:** Tray icon retina asset verification
+
+**Context:** The second external review pass found that `tray-icon-template@2x.png` was a 36x36 canvas carrying the same 1x-sized glyph pixels as the non-Retina asset, so the menu bar still shipped a visibly undersized Retina icon while the existing regression test stayed green.
+
+**Decision:** Regenerate `tray-icon-template@2x.png` as a genuinely larger glyph mask, move tray-asset assertions into a focused `TrayIconAssetTests.swift` file, and validate raw raster metrics via `CGImageSource` plus explicit `@2x`-vs-`1x` glyph-scale checks instead of relying on `NSImage`-derived bitmap data alone.
+
+**Rationale:** Canvas size and transparent corners prove only that the file is a transparent PNG, not that it is a real Retina asset. Raw decoded pixels are the durable contract, and the dedicated test file keeps `StatusItemControllerTests.swift` under the local readability threshold while strengthening the review-proof coverage.
+
+**Consequences:** Future regressions where a Retina tray asset silently contains a 1x mask on a larger canvas will fail deterministically in XCTest. Final menu-bar readability still remains a manual hardware-backed check because XCTest cannot prove WindowServer rendering quality.
+
+**Alternatives Considered:** Keep the old test and rely on manual menu-bar inspection; rejected because the broken `@2x` asset already escaped once. Add the new assertions to `StatusItemControllerTests.swift`; rejected because that file was already near the local 300-line cognitive-load threshold.
+
+## 2026-05-25 / Tray Icon Documentation Contract
+
+**Date:** 2026-05-25
+
+**Area:** Tray icon documentation contract
+
+**Context:** The tray asset work is functionally complete, but Task 5 still needs the durable documentation to match what actually shipped: the menu-bar icon is now a transparent glyph-only template image, and the implementation had to fall back from automated mask extraction to a directly drawn simplified silhouette when that pipeline produced an empty tray PNG in this environment.
+
+**Decision:** Document `TrayIconTemplate` as transparent-background glyph-only template artwork with manual-only readability verification in the real menu bar, and explicitly allow a directly drawn simplified lotus silhouette derived from the app icon motif when auto-extracting a tray mask from `icon.png` fails or becomes unreadable at 18 pt.
+
+**Rationale:** The product contract is about the resulting menu-bar silhouette and transparent alpha behavior, not about preserving one fragile generation method. Capturing the fallback generation constraint prevents future agents from reintroducing an opaque square raster or wasting time trying to force a brittle asset script that emits an empty mask.
+
+**Consequences:** README and plan guidance now match the shipped tray icon behavior and the known generation edge case. Automated tests continue proving dimensions and transparency, while final legibility across light, dark, and highlighted menu-bar states remains manual validation.
+
+**Alternatives Considered:** Require regeneration strictly from an automated transform of the full `icon.png`; rejected because that pipeline already produced empty output here and the contract does not depend on the generator. Reuse the scaled app icon raster; rejected because it reintroduces the visible square background regression.
+
+## 2026-05-25 / Tray Icon Glyph Regeneration
+
+## 2026-05-25 / Tray Icon Contract Verification
+
+**Date:** 2026-05-25
+
+**Area:** Tray icon contract verification
+
+**Context:** Task 3 is explicitly about proving that the tray-icon contract did not drift after the asset regeneration. The code already preserved the desired behavior, but the automated checks still lacked direct proof that the app remains menu-bar-only via `LSUIElement` in `Info.plist`.
+
+**Decision:** Keep `StatusItemController` implementation unchanged for this task and extend the XCTest suite with a direct `Info.plist` assertion for `LSUIElement = true`, relying on the existing tests for tray-asset preference, 18x18 template resizing, icon-only installation, and Quit-only menu behavior.
+
+**Rationale:** The smallest truthful change is stronger proof, not more runtime code. Touching the already-correct status-item implementation would add regression risk without improving the shipped contract.
+
+**Consequences:** Task 3 now has deterministic coverage for both runtime status-item behavior and the no-Dock menu-bar app plist flag. Visual appearance in the real menu bar is still manual-only verification.
+
+**Alternatives Considered:** Add new production code to re-enforce the same contract at runtime; rejected because the current implementation already satisfies the requirements and extra code would duplicate behavior without adding real resilience.
+
+**Date:** 2026-05-25
+
+**Area:** Tray icon glyph regeneration
+
+**Context:** Task 2 needed to replace the opaque square tray raster with transparent template artwork. While doing that, the direct XCTest revealed that standalone `@2x` PNG files can report loader-dependent `NSImage.size` values that do not reflect the real source raster stored on disk.
+
+**Decision:** Use a simplified monochrome lotus glyph on transparent background for `TrayIconTemplate`, keep the asset-catalog metadata unchanged, and treat decoded bitmap dimensions plus alpha coverage as the durable proof for the source tray PNGs instead of relying on Cocoa point-size semantics for the raw `@2x` file.
+
+**Rationale:** The status item needs a small, template-friendly non-square silhouette derived from the app icon motif. For source-asset regression coverage, real pixel raster and transparency are the stable contract; `NSImage.size` on raw Retina-named PNG files is a presentation detail of the loader, not the underlying asset quality the plan is trying to preserve.
+
+**Consequences:** The tray icon update stays asset-only and keeps `StatusItemController` unchanged, while the regression test now proves the right thing about the source files. Final readability in the actual menu bar still requires manual checking across light, dark, and highlighted states.
+
+**Alternatives Considered:** Keep extracting a mask automatically from the full-color icon; rejected because repeated generator variants produced unstable empty output at 18 pt in this environment. Keep the original `NSImage.size` assertion for the raw `@2x` file; rejected because it can fail or pass based on filename/loader semantics even when the actual 36x36 raster is correct.
+
 ## 2026-05-22 / Overlay Content Centering Implementation
 
 **Date:** 2026-05-22
@@ -74,6 +168,22 @@
 **Alternatives Considered:** Add hardcoded offsets for the MacBook display; rejected because that would likely regress other aspect ratios. Change `BreakOverlayManager` or `NSHostingView` sizing; rejected because the SwiftUI-only fix is smaller and matches the observed failure mode.
 
 ## 2026-05-22 / Overlay Active Window Tracking
+
+## 2026-05-23 / Review-Pass Hardening
+
+**Date:** 2026-05-23
+
+**Area:** Review-pass hardening
+
+**Context:** The second tray-icon review pass surfaced two verified runtime problems outside the icon asset itself: `ConfigStore` could still open special filesystem objects at the user config path and block startup, and an active break could lose every visible overlay during a transient zero-display transition while the timer kept consuming hidden rest time. The same pass also hit the local readability guard because `BreakOverlayManager.swift` was already above the 300-line refactor signal.
+
+**Decision:** Accept `config.json` only when the path is a regular file or a symlink that resolves to a regular file, treat all other filesystem objects as invalid config with fallback defaults, keep filesystem error details private in logs, pause active-break timer consumption whenever the overlay layer has no visible windows, close current overlay windows while preserving the shared break state during zero-display snapshots, recreate them from the same `BreakOverlayViewModel` when a display returns, and move display-reconciliation helpers into `BreakOverlaySupport.swift` instead of adding more lifecycle code directly to `BreakOverlayManager.swift`.
+
+**Rationale:** Named pipes, devices, directories, and bad symlink targets are all invalid config surfaces for a user-edited JSON file and can wedge launch if treated like ordinary files. During an active break, invisible countdown consumption breaks the product contract more severely than briefly pausing the timer until a display returns. Extracting reconciliation logic keeps the fix reviewable and avoids pushing an already-large file further past the local cognitive-load guard.
+
+**Consequences:** Startup now falls back cleanly on special-file config paths, sensitive filesystem diagnostics no longer leak through public OSLog interpolation, and transient all-display loss preserves the same break countdown and `Skip` state until overlays are visible again. Future overlay changes should continue to keep display-window diffing in shared support rather than re-expanding `BreakOverlayManager.swift`.
+
+**Alternatives Considered:** Reject all symlinks outright; rejected because a symlink to a regular user-owned config file is still a reasonable local setup and can be validated safely enough for this app. Keep consuming rest time while no displays exist; rejected because it allows a whole break to finish without ever being shown. Add the zero-display pause entirely inside `AppCoordinator`; rejected because the overlay layer already knows when no windows are visible and the user requirement is specifically about display-driven overlay behavior.
 
 **Date:** 2026-05-22
 
@@ -168,6 +278,54 @@
 **Consequences:** README and future reviews should describe the tray icon as bundled artwork rather than an SF Symbol, while still calling out that the app icon path is only a runtime resilience fallback. The status-item layer remains the single owner of image loading, copying, resizing, and template enforcement.
 
 **Alternatives Considered:** Switch back to the old SF Symbol when asset loading fails; rejected because it would reintroduce unrelated artwork and hide tray-asset packaging regressions. Use the compiled app icon as the primary menu-bar image; rejected because the plan already identified readability and contrast issues at menu-bar size.
+
+## 2026-05-22 / Config File Load Hardening
+
+**Date:** 2026-05-22
+
+**Area:** Config file load hardening
+
+**Context:** Review found that `ConfigStore.load()` read the user-edited `~/Library/Application Support/Mahu/config.json` with `Data(contentsOf:)` on the launch path, which allowed a very large local file to inflate memory usage before any validation happened.
+
+**Decision:** Read `config.json` through `FileHandle` in bounded chunks, cap accepted file size at 64 KiB, and fall back to default config when the file exceeds that limit.
+
+**Rationale:** Mahu only expects two numeric fields, so a small size cap is plenty for legitimate config while preventing a trivial oversized-file denial of service from stalling or bloating app startup.
+
+**Consequences:** Launch remains synchronous and simple, but oversized config files now log a warning and cleanly fall back to defaults instead of reading the whole file into memory first.
+
+**Alternatives Considered:** Keep `Data(contentsOf:)` and trust the local file size; rejected because the config path is user-editable. Use filesystem metadata to preflight the size; rejected because chunked reads solve the same problem without broadening the required-reason API surface.
+
+## 2026-05-22 / Privacy Manifest Coverage
+
+**Date:** 2026-05-22
+
+**Area:** Privacy manifest coverage
+
+**Context:** Mahu measures elapsed awake time with `ProcessInfo.processInfo.systemUptime` to keep timer drift low, and Apple treats system boot time access as a required-reason API category for shipping binaries.
+
+**Decision:** Add `Mahu/PrivacyInfo.xcprivacy` to the app target resources with `NSPrivacyAccessedAPICategorySystemBootTime` declared for reason `35F9.1`.
+
+**Rationale:** Mahu uses system uptime only to measure elapsed time between in-app events and drive timers, which matches Apple's approved reason for the system boot time category.
+
+**Consequences:** The app target now carries an explicit privacy manifest for App Store compliance without changing timer behavior or introducing a weaker time source.
+
+**Alternatives Considered:** Replace `systemUptime` with a different clock; rejected because the current awake-time semantics are already intentional and well-tested. Leave the manifest out until release packaging; rejected because the compliance requirement is tied to the shipped binary, not only to later release docs.
+
+## 2026-05-22 / Structured Overlay UI Assertions
+
+**Date:** 2026-05-22
+
+**Area:** Structured overlay UI assertions
+
+**Context:** Review found several `BreakOverlayViewTests` cases proving SwiftUI structure through `String(describing:)`, which could stay green even if the break overlay body lost required foreground content or stable identifiers.
+
+**Decision:** Add stable accessibility identifiers to the overlay title, countdown, and skip button, and assert those values by recursively inspecting the structured SwiftUI view tree that drives the overlay foreground in tests.
+
+**Rationale:** The overlay already exposes a deterministic SwiftUI view tree, so recursive view inspection is a stronger lightweight proof than debug-string matching and does not require a third-party inspection framework.
+
+**Consequences:** Overlay UI tests now fail when the foreground view tree drops required text or accessibility identifiers, while still avoiding a new third-party SwiftUI inspection dependency.
+
+**Alternatives Considered:** Keep the `String(describing:)` checks; rejected because they are too easy to satisfy without preserving the intended body structure. Add a third-party inspection framework; rejected because the body tree already carries the required data and the dependency surface would grow for one narrow test need.
 
 ## 2026-05-22 / Overlay Hot-Plug Acceptance Verification
 
@@ -921,6 +1079,38 @@
 
 **Alternatives Considered:** Add `ViewInspector`, keep the existing fake tests, or move entirely to manual-only verification; rejected because they respectively add a new dependency, leave confirmed blind spots, or give up deterministic regression coverage.
 
+## 2026-05-25 / Overlay Visibility Pause Accounting
+
+**Date:** 2026-05-25
+
+**Area:** Active-break timing integrity
+
+**Context:** Review found that Mahu only paused rest-time consumption when a timer tick happened while `hasVisibleOverlayWindows == false`. If every display disappeared and returned entirely between two ticks, the next tick still spent the hidden interval because `lastTickUptime` had never been frozen at the visibility edges.
+
+**Decision:** Add an internal overlay-visibility callback from `BreakOverlayManager` to `AppCoordinator`, settle any visible rest time immediately when overlays become hidden, and reset the uptime baseline again when overlays become visible so zero-display intervals never count against the break.
+
+**Rationale:** The timer policy depends on whether the break was actually visible to the user, not on whether a scheduler callback happened to sample the hidden state. Visibility-edge accounting is the smallest fix that preserves the existing `BreakTimer` model and the overlay manager's ownership of screen-change events.
+
+**Consequences:** Transient hot-plug or fullscreen-Space no-display windows no longer steal hidden rest time even when they start and end between timer callbacks, and a deterministic coordinator test now covers that precise edge case with a real `BreakTimer`.
+
+**Alternatives Considered:** Keep the tick-only check, or move visibility semantics into `BreakTimer`; rejected because the former preserves the bug and the latter mixes AppKit/UI policy into the pure timer state machine.
+
+## 2026-05-25 / Bundle-Aware Tray Icon Loading
+
+**Date:** 2026-05-25
+
+**Area:** Tray icon loading seam
+
+**Context:** Review found that `StatusItemController.makeTrayTemplateStatusIcon(bundle:)` accepted a bundle parameter but ignored it, always using global `NSImage` lookup. That made the seam untestable outside `Bundle.main` and hid failures if the tray asset were ever loaded from another bundle.
+
+**Decision:** Resolve `TrayIconTemplate` through `bundle.image(forResource:)`, keep the default call path on `.main`, and add XCTest coverage for both a custom bundle that contains `TrayIconTemplate.png` and one that does not.
+
+**Rationale:** A seam should either be real or removed. Explicit bundle-aware loading preserves the existing API surface while making the tray asset path deterministic and testable without depending on global image caches.
+
+**Consequences:** The tray icon loader now behaves correctly in test bundles or future extracted modules, and regressions in custom-bundle lookup are caught without changing the menu-bar runtime contract.
+
+**Alternatives Considered:** Remove the `bundle` parameter or keep global `NSImage(named:)`; rejected because the code already exposed the bundle seam and review proved that the existing behavior was misleading rather than intentionally fixed to `Bundle.main`.
+
 ## 2026-05-22 / Break Completion Baseline Protection
 
 **Date:** 2026-05-22
@@ -1032,3 +1222,35 @@
 **Consequences:** The app now builds with a packaged `AppIcon`; if the source artwork changes later, regenerate all appiconset PNG sizes together. The original image was non-square, so generation center-cropped it to a square before resizing.
 
 **Alternatives Considered:** Use a raw PNG or hand-built `.icns`; rejected because the target already expects an asset-catalog `AppIcon` and asset catalogs are easier to validate through `xcodebuild`.
+
+## 2026-05-26 / Reminder Menu Status-Item API
+
+**Date:** 2026-05-26
+
+**Area:** Reminder menu status-item API
+
+**Context:** Task 2 needed the tray menu to switch between `Pause Reminders` and `Resume Reminders` and invoke dedicated handlers, while the implementation plan explicitly kept reminder semantics and timer resets out of the AppKit status-item layer.
+
+**Decision:** Extend `StatusItemController` with injected `pauseRemindersHandler` and `resumeRemindersHandler` callbacks plus a `setRemindersPaused(_:)` view-state method that rebuilds the menu title, while preserving icon loading, icon-only button presentation, and the existing `Quit` action.
+
+**Rationale:** `StatusItemController` should own menu construction and target-action wiring, but not reminder lifecycle policy. A tiny paused-state API is enough to keep AppKit behavior localized and leaves `AppCoordinator` free to implement pause/resume semantics in later tasks without leaking timer logic into the tray layer.
+
+**Consequences:** The status item can now reflect enabled vs paused reminder state and dispatch pause/resume actions deterministically in tests. Future coordinator work can wire the callbacks and state updates without reshaping the status-item abstraction again.
+
+**Alternatives Considered:** Move pause/resume state management into `AppCoordinator` only and have it rebuild AppKit menus directly; rejected because that would blur UI ownership boundaries and make tests depend more heavily on AppKit objects. Add a broader protocol or menu view model now; rejected because Task 2 only needs a minimal seam.
+
+## 2026-05-28 / Reminder Pause Review Fixes
+
+**Date:** 2026-05-28
+
+**Area:** Reminder pause review fixes
+
+**Context:** Review found two contract violations in the shipped pause/resume work. `Resume Reminders` reread `config.json` at runtime even though live config reload remains out of scope, and repeated pause/resume interactions during an active break could reset the uptime baseline and silently extend the break.
+
+**Decision:** Cache the validated config loaded during `start()` and reuse that snapshot for fresh work resets on resume. Treat pause/resume interactions during `.rest` as menu-state-only changes that must not reset `lastTickUptime`, clear break progress, or recreate the timer.
+
+**Rationale:** Pause/reminder toggles should not behave like a hidden runtime settings reload, and tray-menu interaction during a break must not mutate the existing countdown or `Skip` contract.
+
+**Consequences:** Editing `config.json` while Mahu is running still has no effect until the next launch, and active breaks now keep the same duration even if the user toggles pause/resume or repeats those actions from the tray menu. Regression coverage now includes rest-phase toggles and the real `StatusItemController.configureReminderActions(...)` action path.
+
+**Alternatives Considered:** Re-read config on every resume; rejected because it silently introduces runtime settings reload outside the documented scope. Reset the break baseline on any repeated pause/resume action for simplicity; rejected because it changes active-break duration based on menu interaction timing instead of timer state.

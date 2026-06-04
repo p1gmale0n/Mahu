@@ -34,6 +34,11 @@
 			A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */; };
 			A0000000000000000000003B /* BreakOverlaySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001F /* BreakOverlaySupport.swift */; };
 			A0000000000000000000003C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000046 /* Assets.xcassets */; };
+			A0000000000000000000003D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000047 /* PrivacyInfo.xcprivacy */; };
+			A00000000000000000000049 /* BreakOverlayDisplayVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000048 /* BreakOverlayDisplayVisibilityTests.swift */; };
+			A0000000000000000000004A /* TrayIconAssetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004B /* TrayIconAssetTests.swift */; };
+			A0000000000000000000004D /* AppCoordinatorReminderPauseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004C /* AppCoordinatorReminderPauseTests.swift */; };
+			A0000000000000000000004F /* StatusItemMenuAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,6 +82,11 @@
 			A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBreakScreenObservationRegistrarTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000001F /* BreakOverlaySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakOverlaySupport.swift; sourceTree = "<group>"; };
 			A00000000000000000000046 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+			A00000000000000000000047 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+			A00000000000000000000048 /* BreakOverlayDisplayVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakOverlayDisplayVisibilityTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000004B /* TrayIconAssetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayIconAssetTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000004C /* AppCoordinatorReminderPauseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorReminderPauseTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemMenuAcceptanceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,12 +132,13 @@
 				A00000000000000000000012 /* BreakOverlayView.swift */,
 				A00000000000000000000013 /* BreakOverlayManager.swift */,
 				A0000000000000000000001D /* BreakScreenObservation.swift */,
-				A0000000000000000000001F /* BreakOverlaySupport.swift */,
-				A0000000000000000000000E /* StatusItemController.swift */,
-				A00000000000000000000046 /* Assets.xcassets */,
-				A00000000000000000000045 /* Resources */,
-				A00000000000000000000005 /* Info.plist */,
-			);
+					A0000000000000000000001F /* BreakOverlaySupport.swift */,
+					A0000000000000000000000E /* StatusItemController.swift */,
+					A00000000000000000000047 /* PrivacyInfo.xcprivacy */,
+					A00000000000000000000046 /* Assets.xcassets */,
+					A00000000000000000000045 /* Resources */,
+					A00000000000000000000005 /* Info.plist */,
+				);
 		};
 		A00000000000000000000045 /* Resources */ = {
 			isa = PBXGroup;
@@ -144,16 +155,20 @@
 			children = (
 				A00000000000000000000003 /* SmokeTests.swift */,
 				A0000000000000000000000F /* AppCoordinatorTests.swift */,
+				A0000000000000000000004C /* AppCoordinatorReminderPauseTests.swift */,
 				A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */,
 				A00000000000000000000016 /* AppCoordinatorTestSupport.swift */,
 				A0000000000000000000000A /* ConfigStoreTests.swift */,
 				A0000000000000000000000C /* BreakTimerTests.swift */,
 					A00000000000000000000017 /* BreakOverlayTestSupport.swift */,
 					A00000000000000000000014 /* BreakOverlayManagerTests.swift */,
+					A00000000000000000000048 /* BreakOverlayDisplayVisibilityTests.swift */,
 					A00000000000000000000018 /* BreakOverlayFocusRetentionTests.swift */,
 					A0000000000000000000001B /* LiveBreakFocusObservationRegistrarTests.swift */,
 					A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */,
 					A00000000000000000000019 /* BreakOverlayViewTests.swift */,
+					A0000000000000000000004B /* TrayIconAssetTests.swift */,
+					A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */,
 					A00000000000000000000015 /* StatusItemControllerTests.swift */,
 			);
 		};
@@ -263,12 +278,13 @@
 		A00000000000000000000052 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				A0000000000000000000003C /* Assets.xcassets in Resources */,
-				A00000000000000000000036 /* background.png in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+				files = (
+					A0000000000000000000003C /* Assets.xcassets in Resources */,
+					A00000000000000000000036 /* background.png in Resources */,
+					A0000000000000000000003D /* PrivacyInfo.xcprivacy in Resources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -296,16 +312,20 @@
 			files = (
 				A00000000000000000000022 /* SmokeTests.swift in Sources */,
 				A0000000000000000000002B /* AppCoordinatorTests.swift in Sources */,
+				A0000000000000000000004D /* AppCoordinatorReminderPauseTests.swift in Sources */,
 				A00000000000000000000038 /* AppCoordinatorBreakPresentationTests.swift in Sources */,
 				A00000000000000000000032 /* AppCoordinatorTestSupport.swift in Sources */,
 				A00000000000000000000033 /* BreakOverlayTestSupport.swift in Sources */,
 				A00000000000000000000026 /* ConfigStoreTests.swift in Sources */,
-				A00000000000000000000028 /* BreakTimerTests.swift in Sources */,
-				A0000000000000000000002E /* BreakOverlayManagerTests.swift in Sources */,
-				A00000000000000000000034 /* BreakOverlayFocusRetentionTests.swift in Sources */,
-				A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */,
-				A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */,
+					A00000000000000000000028 /* BreakTimerTests.swift in Sources */,
+					A0000000000000000000002E /* BreakOverlayManagerTests.swift in Sources */,
+					A00000000000000000000049 /* BreakOverlayDisplayVisibilityTests.swift in Sources */,
+					A00000000000000000000034 /* BreakOverlayFocusRetentionTests.swift in Sources */,
+					A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */,
+					A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */,
 				A00000000000000000000035 /* BreakOverlayViewTests.swift in Sources */,
+				A0000000000000000000004A /* TrayIconAssetTests.swift in Sources */,
+				A0000000000000000000004F /* StatusItemMenuAcceptanceTests.swift in Sources */,
 				A0000000000000000000002F /* StatusItemControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

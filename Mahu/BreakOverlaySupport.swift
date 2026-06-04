@@ -32,6 +32,87 @@ protocol BreakOverlayWindowBuilding {
     func makeWindow(for display: DisplayDescriptor, viewModel: BreakOverlayViewModel) -> BreakOverlayWindowing
 }
 
+struct ActiveOverlay {
+    let display: DisplayDescriptor
+    let window: BreakOverlayWindowing
+}
+
+struct BreakOverlayReconciliation {
+    let activeOverlays: [ActiveOverlay]
+    let didChangeWindows: Bool
+}
+
+@MainActor
+enum BreakOverlayReconciler {
+    static func reconcile(
+        activeOverlays: [ActiveOverlay],
+        displays: [DisplayDescriptor],
+        viewModel: BreakOverlayViewModel,
+        windowBuilder: BreakOverlayWindowBuilding
+    ) -> BreakOverlayReconciliation {
+        var overlaysByDisplayID = activeOverlaysByDisplayID(activeOverlays)
+        var nextActiveOverlays: [ActiveOverlay] = []
+        var didChangeWindows = false
+
+        for display in displays {
+            guard let existingOverlay = takeActiveOverlay(for: display, from: &overlaysByDisplayID) else {
+                let window = windowBuilder.makeWindow(for: display, viewModel: viewModel)
+                window.show()
+                nextActiveOverlays.append(ActiveOverlay(display: display, window: window))
+                didChangeWindows = true
+                continue
+            }
+
+            guard existingOverlay.display == display else {
+                existingOverlay.window.close()
+                let replacementWindow = windowBuilder.makeWindow(for: display, viewModel: viewModel)
+                replacementWindow.show()
+                nextActiveOverlays.append(ActiveOverlay(display: display, window: replacementWindow))
+                didChangeWindows = true
+                continue
+            }
+
+            nextActiveOverlays.append(existingOverlay)
+        }
+
+        if overlaysByDisplayID.isEmpty == false {
+            overlaysByDisplayID.values.flatMap { $0 }.forEach { $0.window.close() }
+            didChangeWindows = true
+        }
+
+        return BreakOverlayReconciliation(
+            activeOverlays: nextActiveOverlays,
+            didChangeWindows: didChangeWindows
+        )
+    }
+
+    private static func activeOverlaysByDisplayID(_ activeOverlays: [ActiveOverlay]) -> [String: [ActiveOverlay]] {
+        activeOverlays.reduce(into: [:]) { partialResult, overlay in
+            partialResult[overlay.display.id, default: []].append(overlay)
+        }
+    }
+
+    private static func takeActiveOverlay(
+        for display: DisplayDescriptor,
+        from overlaysByDisplayID: inout [String: [ActiveOverlay]]
+    ) -> ActiveOverlay? {
+        guard var overlays = overlaysByDisplayID[display.id], overlays.isEmpty == false else {
+            return nil
+        }
+
+        let matchingIndex = overlays.firstIndex { $0.display == display } ?? overlays.startIndex
+        let overlay = overlays.remove(at: matchingIndex)
+
+        if overlays.isEmpty {
+            overlaysByDisplayID.removeValue(forKey: display.id)
+        } else {
+            overlaysByDisplayID[display.id] = overlays
+        }
+
+        return overlay
+    }
+}
+
 enum LiveScreenProvider {
     static func activeDisplays() -> [DisplayDescriptor] {
         NSScreen.screens.enumerated().map { ordinal, screen in

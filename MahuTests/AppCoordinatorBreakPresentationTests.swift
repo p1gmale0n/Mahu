@@ -62,4 +62,77 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         XCTAssertEqual(fakeTimer.advanceCalls, [1, 1, 1])
         XCTAssertEqual(fakeOverlayManager.events, [.show(1), .hide])
     }
+
+    func testHiddenActiveBreakPausesCountdownUntilOverlayBecomesVisibleAgain() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 20),
+                .init(phase: .rest, remainingSeconds: 19)
+            ]
+        )
+        var scheduledTick: (() -> Void)?
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 102, 103, 104])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        fakeOverlayManager.hasVisibleOverlayWindows = false
+        scheduledTick?()
+        fakeOverlayManager.hasVisibleOverlayWindows = true
+        scheduledTick?()
+
+        XCTAssertEqual(fakeTimer.advanceCalls, [1, 1])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20), .update(19)])
+    }
+
+    func testBreakOnlyConsumesVisibleRestTimeWhenDisplaysDisappearBetweenTicks() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let breakTimer = BreakTimer(workDurationSeconds: 1, breakDurationSeconds: 20)
+        var scheduledTick: (() -> Void)?
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in breakTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 101, 101.4, 102.4, 103.4])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        fakeOverlayManager.hasVisibleOverlayWindows = false
+        fakeOverlayManager.hasVisibleOverlayWindows = true
+        scheduledTick?()
+
+        guard case .show(let initialBreakSeconds)? = fakeOverlayManager.events.first else {
+            return XCTFail("Expected the break overlay to be shown once before visibility transitions.")
+        }
+
+        let updateEvents = fakeOverlayManager.events.compactMap { event -> TimeInterval? in
+            guard case .update(let remainingSeconds) = event else {
+                return nil
+            }
+
+            return remainingSeconds
+        }
+
+        XCTAssertEqual(initialBreakSeconds, 20, accuracy: 0.0001)
+        XCTAssertEqual(updateEvents.count, 2)
+        XCTAssertEqual(updateEvents[0], 19.6, accuracy: 0.0001)
+        XCTAssertEqual(updateEvents[1], 18.6, accuracy: 0.0001)
+    }
 }

@@ -33,6 +33,12 @@ final class BreakOverlayViewModel: ObservableObject {
     }
 }
 
+enum BreakOverlayAccessibilityID {
+    static let title = "break-overlay-title"
+    static let countdown = "break-overlay-countdown"
+    static let skipButton = "break-overlay-skip"
+}
+
 struct BreakOverlayView: View {
     @ObservedObject var viewModel: BreakOverlayViewModel
     let backgroundImage: NSImage?
@@ -61,11 +67,13 @@ struct BreakOverlayView: View {
             Text(viewModel.titleText)
                 .font(.system(size: 42, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
+                .accessibilityIdentifier(BreakOverlayAccessibilityID.title)
 
             Text(viewModel.countdownText)
                 .font(.system(size: 72, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white)
+                .accessibilityIdentifier(BreakOverlayAccessibilityID.countdown)
 
             Button("Skip") {
                 viewModel.skip()
@@ -74,6 +82,7 @@ struct BreakOverlayView: View {
             .controlSize(.large)
             .tint(.white.opacity(0.18))
             .foregroundStyle(.white)
+            .accessibilityIdentifier(BreakOverlayAccessibilityID.skipButton)
         }
     }
 

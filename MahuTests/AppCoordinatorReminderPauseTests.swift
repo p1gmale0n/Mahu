@@ -1,0 +1,214 @@
+import XCTest
+@testable import Mahu
+
+@MainActor
+final class AppCoordinatorReminderPauseTests: XCTestCase {
+    func testPauseDisablesTimerAdvancementEvenWhileScheduledTicksContinueFiring() throws {
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        var scheduledTick: (() -> Void)?
+        let currentUptime = makeCurrentUptimeProvider([10, 11, 12])
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: currentUptime
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+
+        pauseReminders()
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertTrue(fakeTimer.advanceCalls.isEmpty)
+    }
+
+    func testResumeStartsFreshWorkIntervalFromConfigLoadedAtLaunch() throws {
+        let startupConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let runtimeEditedConfig = AppConfig(workDurationSeconds: 600, breakDurationSeconds: 45)
+        let fakeStatusItemController = FakeStatusItemController()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds)
+        )
+        let resumedTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds)
+        )
+        var createdConfigs: [AppConfig] = []
+        var loadConfigCallCount = 0
+        var scheduledTick: (() -> Void)?
+        var uptime = 20.0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: {
+                defer { loadConfigCallCount += 1 }
+                return loadConfigCallCount == 0 ? startupConfig : runtimeEditedConfig
+            },
+            makeBreakTimer: { config in
+                createdConfigs.append(config)
+                return createdConfigs.count == 1 ? initialTimer : resumedTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: { uptime }
+        )
+
+        coordinator.start()
+        uptime = 25
+        scheduledTick?()
+
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+        let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
+
+        pauseReminders()
+        resumeReminders()
+        uptime = 26
+        scheduledTick?()
+
+        XCTAssertEqual(loadConfigCallCount, 1)
+        XCTAssertEqual(createdConfigs, [startupConfig, startupConfig])
+        XCTAssertEqual(initialTimer.advanceCalls, [5])
+        XCTAssertEqual(resumedTimer.advanceCalls, [1])
+    }
+
+    func testPauseAndResumeUpdateStatusMenuStateExactlyOncePerEffectiveStateChange() throws {
+        let fakeStatusItemController = FakeStatusItemController()
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in FakeBreakTimer() },
+            scheduleRepeatingTick: { _, _ in {} }
+        )
+
+        coordinator.start()
+
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+        let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
+
+        pauseReminders()
+        resumeReminders()
+
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true, false])
+    }
+
+    func testRepeatedPauseAndResumeDuringActiveBreakDoNotResetBreakTimingOrSkipHandler() throws {
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 20),
+            statesToReturn: [.init(phase: .rest, remainingSeconds: 14)],
+            skipState: .init(phase: .work, remainingSeconds: 300)
+        )
+        var timerCreationCount = 0
+        var scheduledTick: (() -> Void)?
+        var uptime = 100.0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: fakeOverlayManager,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in
+                timerCreationCount += 1
+                return fakeTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: { uptime }
+        )
+
+        coordinator.start()
+
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+        let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
+
+        pauseReminders()
+        uptime = 103
+        pauseReminders()
+        resumeReminders()
+        resumeReminders()
+        uptime = 106
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 1)
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true, false])
+        XCTAssertEqual(fakeTimer.advanceCalls, [6])
+        XCTAssertEqual(
+            fakeOverlayManager.events.filter {
+                if case .show = $0 {
+                    return true
+                }
+                return false
+            }.count,
+            1
+        )
+
+        let skipHandler = try XCTUnwrap(fakeOverlayManager.skipHandler)
+        skipHandler()
+
+        XCTAssertEqual(fakeTimer.skipBreakCallCount, 1)
+        XCTAssertTrue(fakeOverlayManager.events.contains(.hide))
+    }
+
+    func testRepeatedPauseAndResumeAreIdempotentAndDoNotResetWorkTwice() throws {
+        let expectedConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let fakeStatusItemController = FakeStatusItemController()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: expectedConfig.workDurationSeconds)
+        )
+        let resumedTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: expectedConfig.workDurationSeconds)
+        )
+        var timerCreationCount = 0
+        var scheduledTick: (() -> Void)?
+        let currentUptime = makeCurrentUptimeProvider([40, 42, 42, 42, 43])
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { expectedConfig },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : resumedTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: currentUptime
+        )
+
+        coordinator.start()
+        scheduledTick?()
+
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+        let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
+
+        pauseReminders()
+        pauseReminders()
+        resumeReminders()
+        resumeReminders()
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 2)
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true, false])
+        XCTAssertEqual(initialTimer.advanceCalls, [2])
+        XCTAssertEqual(resumedTimer.advanceCalls, [1])
+    }
+}

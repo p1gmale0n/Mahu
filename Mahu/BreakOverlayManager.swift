@@ -99,11 +99,6 @@ final class FocusLossNotificationCoalescer {
 
 @MainActor
 final class BreakOverlayManager {
-    private struct ActiveOverlay {
-        let display: DisplayDescriptor
-        let window: BreakOverlayWindowing
-    }
-
     private static let logger = Logger(subsystem: "Mahu", category: "BreakOverlayManager")
 
     private let screenProvider: () -> [DisplayDescriptor]
@@ -118,6 +113,11 @@ final class BreakOverlayManager {
     private var previousFrontmostApplication: PreviousFrontmostApplication?
     private var focusObservationCancellation: BreakFocusObservationCancellation?
     private var screenObservationCancellation: BreakScreenObservationCancellation?
+    var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler?
+
+    var hasVisibleOverlayWindows: Bool {
+        activeOverlays.isEmpty == false
+    }
 
     init(
         screenProvider: @escaping () -> [DisplayDescriptor],
@@ -169,7 +169,7 @@ final class BreakOverlayManager {
             return false
         }
 
-        let previousFrontmostApplication = activeOverlays.isEmpty ? previousAppCapture() : self.previousFrontmostApplication
+        let previousFrontmostApplication = viewModel == nil ? previousAppCapture() : self.previousFrontmostApplication
         tearDownActiveBreak(restorePreviousApplication: false)
 
         let viewModel = BreakOverlayViewModel(remainingSeconds: remainingSeconds) { [weak self] in
@@ -183,7 +183,7 @@ final class BreakOverlayManager {
         }
 
         self.viewModel = viewModel
-        self.activeOverlays = activeOverlays
+        replaceActiveOverlays(with: activeOverlays)
         self.previousFrontmostApplication = previousFrontmostApplication
         replaceFocusObservation(focusObservationRegistrar { [weak self] in
             self?.handleFocusLoss()
@@ -214,7 +214,7 @@ final class BreakOverlayManager {
         replaceFocusObservation(nil)
         replaceScreenObservation(nil)
         activeOverlays.forEach { $0.window.close() }
-        activeOverlays.removeAll()
+        replaceActiveOverlays(with: [])
         viewModel = nil
         self.previousFrontmostApplication = nil
         previousFrontmostApplication?.reactivate()
@@ -245,6 +245,11 @@ final class BreakOverlayManager {
         }
 
         let displays = screenProvider()
+        guard displays.isEmpty == false else {
+            closeVisibleOverlaysPreservingBreakState()
+            return
+        }
+
         reconcileActiveOverlays(for: displays, using: viewModel, activateOnChange: true)
     }
 
@@ -253,70 +258,37 @@ final class BreakOverlayManager {
         using viewModel: BreakOverlayViewModel,
         activateOnChange: Bool
     ) {
-        guard displays.isEmpty == false else {
-            return
-        }
+        let reconciliation = BreakOverlayReconciler.reconcile(
+            activeOverlays: activeOverlays,
+            displays: displays,
+            viewModel: viewModel,
+            windowBuilder: windowBuilder
+        )
+        replaceActiveOverlays(with: reconciliation.activeOverlays)
 
-        var overlaysByDisplayID = activeOverlaysByDisplayID()
-        var nextActiveOverlays: [ActiveOverlay] = []
-        var didChangeWindows = false
-
-        for display in displays {
-            guard let existingOverlay = takeActiveOverlay(for: display, from: &overlaysByDisplayID) else {
-                let window = windowBuilder.makeWindow(for: display, viewModel: viewModel)
-                window.show()
-                nextActiveOverlays.append(ActiveOverlay(display: display, window: window))
-                didChangeWindows = true
-                continue
-            }
-
-            guard existingOverlay.display != display else {
-                nextActiveOverlays.append(existingOverlay)
-                continue
-            }
-
-            existingOverlay.window.close()
-            let replacementWindow = windowBuilder.makeWindow(for: display, viewModel: viewModel)
-            replacementWindow.show()
-            nextActiveOverlays.append(ActiveOverlay(display: display, window: replacementWindow))
-            didChangeWindows = true
-        }
-
-        if overlaysByDisplayID.isEmpty == false {
-            overlaysByDisplayID.values.flatMap { $0 }.forEach { $0.window.close() }
-            didChangeWindows = true
-        }
-
-        activeOverlays = nextActiveOverlays
-
-        if didChangeWindows && activateOnChange {
+        if reconciliation.didChangeWindows && activateOnChange {
             appActivator()
         }
     }
 
-    private func activeOverlaysByDisplayID() -> [String: [ActiveOverlay]] {
-        activeOverlays.reduce(into: [:]) { partialResult, overlay in
-            partialResult[overlay.display.id, default: []].append(overlay)
+    private func closeVisibleOverlaysPreservingBreakState() {
+        guard activeOverlays.isEmpty == false else {
+            return
         }
+
+        activeOverlays.forEach { $0.window.close() }
+        replaceActiveOverlays(with: [])
     }
 
-    private func takeActiveOverlay(
-        for display: DisplayDescriptor,
-        from overlaysByDisplayID: inout [String: [ActiveOverlay]]
-    ) -> ActiveOverlay? {
-        guard var overlays = overlaysByDisplayID[display.id], overlays.isEmpty == false else {
-            return nil
+    private func replaceActiveOverlays(with newActiveOverlays: [ActiveOverlay]) {
+        let wasVisible = activeOverlays.isEmpty == false
+        activeOverlays = newActiveOverlays
+        let isVisible = newActiveOverlays.isEmpty == false
+
+        guard wasVisible != isVisible else {
+            return
         }
 
-        let matchingIndex = overlays.firstIndex { $0.display == display } ?? overlays.startIndex
-        let overlay = overlays.remove(at: matchingIndex)
-
-        if overlays.isEmpty {
-            overlaysByDisplayID.removeValue(forKey: display.id)
-        } else {
-            overlaysByDisplayID[display.id] = overlays
-        }
-
-        return overlay
+        onVisibleOverlayWindowsChange?(isVisible)
     }
 }

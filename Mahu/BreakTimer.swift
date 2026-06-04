@@ -35,7 +35,7 @@ final class BreakTimer {
             return state
         }
 
-        guard elapsedSeconds > 0 else {
+        guard elapsedSeconds.isFinite, elapsedSeconds > 0 else {
             return state
         }
 

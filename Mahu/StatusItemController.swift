@@ -2,16 +2,22 @@ import AppKit
 
 final class StatusItemController: NSObject {
     private static let menuBarIconSize = NSSize(width: 18, height: 18)
+    private static let pauseRemindersTitle = "Pause Reminders"
+    private static let resumeRemindersTitle = "Resume Reminders"
 
     private let statusItem: NSStatusItem
+    private var pauseRemindersHandler: (() -> Void)?
+    private var resumeRemindersHandler: (() -> Void)?
     private let applicationTerminator: () -> Void
     private let statusIconProvider: () -> NSImage?
+
+    private var remindersPaused = false
 
     init(
         statusItem: NSStatusItem? = nil,
         statusBar: NSStatusBar = .system,
         applicationTerminator: @escaping () -> Void = { NSApp.terminate(nil) },
-        statusIconProvider: @escaping () -> NSImage? = StatusItemController.makeProductionStatusIcon
+        statusIconProvider: @escaping () -> NSImage? = { StatusItemController.makeDefaultStatusIcon() }
     ) {
         self.statusItem = statusItem ?? statusBar.statusItem(withLength: NSStatusItem.squareLength)
         self.applicationTerminator = applicationTerminator
@@ -27,15 +33,37 @@ final class StatusItemController: NSObject {
             button.imagePosition = .imageOnly
         }
 
-        let menu = NSMenu()
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
-        statusItem.menu = menu
+        statusItem.menu = makeMenu()
+    }
+
+    func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void) {
+        pauseRemindersHandler = onPause
+        resumeRemindersHandler = onResume
+    }
+
+    func setRemindersPaused(_ paused: Bool) {
+        guard remindersPaused != paused || statusItem.menu == nil else {
+            return
+        }
+
+        remindersPaused = paused
+        statusItem.menu = makeMenu()
     }
 
     @objc private func quit() {
         applicationTerminator()
+    }
+
+    @objc private func toggleRemindersPauseState() {
+        guard let pauseRemindersHandler, let resumeRemindersHandler else {
+            preconditionFailure("StatusItemController reminder actions must be configured before use")
+        }
+
+        if remindersPaused {
+            resumeRemindersHandler()
+        } else {
+            pauseRemindersHandler()
+        }
     }
 
     static func makeTrayTemplateStatusIcon(bundle: Bundle = .main) -> NSImage? {
@@ -64,8 +92,22 @@ final class StatusItemController: NSObject {
         return makeMenuBarStatusIconCopy(from: appIcon)
     }
 
-    private static func makeProductionStatusIcon() -> NSImage? {
-        makeDefaultStatusIcon()
+    private func makeMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        let pauseResumeItem = NSMenuItem(
+            title: remindersPaused ? Self.resumeRemindersTitle : Self.pauseRemindersTitle,
+            action: #selector(toggleRemindersPauseState),
+            keyEquivalent: ""
+        )
+        pauseResumeItem.target = self
+        menu.addItem(pauseResumeItem)
+
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
     }
 
     private static func makeMenuBarStatusIconCopy(from image: NSImage) -> NSImage? {

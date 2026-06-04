@@ -12,13 +12,18 @@ protocol BreakTimerControlling: AnyObject {
 
 protocol StatusItemControlling: AnyObject {
     func install()
+    func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void)
+    func setRemindersPaused(_ paused: Bool)
 }
 
 typealias RepeatingTickScheduler = (TimeInterval, @escaping () -> Void) -> () -> Void
 typealias CurrentUptimeProvider = () -> TimeInterval
+typealias OverlayVisibilityChangeHandler = (Bool) -> Void
 
 @MainActor
 protocol BreakOverlayManaging: AnyObject {
+    var hasVisibleOverlayWindows: Bool { get }
+    var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler? { get set }
     @discardableResult
     func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool
     func updateRemainingSeconds(_ remainingSeconds: TimeInterval)
@@ -51,8 +56,10 @@ final class AppCoordinator {
     private var cancelTick: (() -> Void)?
     private var breakTimer: BreakTimerControlling?
     private var isShowingBreak = false
+    private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
     private var pendingElapsedSeconds: TimeInterval = 0
+    private var activeConfig: AppConfig?
 
     init(
         statusItemController: StatusItemControlling? = nil,
@@ -68,6 +75,9 @@ final class AppCoordinator {
         self.makeBreakTimer = makeBreakTimer
         self.scheduleRepeatingTick = scheduleRepeatingTick
         self.currentUptime = currentUptime
+        self.overlayManager.onVisibleOverlayWindowsChange = { [weak self] isVisible in
+            self?.handleOverlayVisibilityChange(isVisible)
+        }
     }
 
     func start() {
@@ -75,11 +85,21 @@ final class AppCoordinator {
             return
         }
 
+        statusItemController.configureReminderActions(
+            onPause: { [weak self] in
+                self?.pauseReminders()
+            },
+            onResume: { [weak self] in
+                self?.resumeReminders()
+            }
+        )
         statusItemController.install()
 
         let config = loadConfig()
+        activeConfig = config
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
+        remindersPaused = false
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
         handle(state: breakTimer.state)
@@ -93,13 +113,24 @@ final class AppCoordinator {
             return
         }
 
+        if remindersPaused, breakTimer.state.phase == .work {
+            self.lastTickUptime = currentUptime()
+            return
+        }
+
         let now = currentUptime()
         let elapsedSeconds = max(0, now - lastTickUptime)
         self.lastTickUptime = now
 
-        if breakTimer.state.phase == .rest, isShowingBreak == false {
-            handle(state: breakTimer.state)
-            return
+        if breakTimer.state.phase == .rest {
+            if isShowingBreak == false {
+                handle(state: breakTimer.state)
+                return
+            }
+
+            if overlayManager.hasVisibleOverlayWindows == false {
+                return
+            }
         }
 
         guard elapsedSeconds > 0 else {
@@ -183,6 +214,26 @@ final class AppCoordinator {
         }
     }
 
+    private func handleOverlayVisibilityChange(_ isVisible: Bool) {
+        guard isShowingBreak,
+              let breakTimer,
+              breakTimer.state.phase == .rest,
+              let lastTickUptime else {
+            return
+        }
+
+        let now = currentUptime()
+        let elapsedSeconds = max(0, now - lastTickUptime)
+        self.lastTickUptime = now
+
+        guard isVisible == false, elapsedSeconds > 0 else {
+            return
+        }
+
+        pendingElapsedSeconds += elapsedSeconds
+        consumeElapsedTime(using: breakTimer)
+    }
+
     private func skipBreak() {
         guard let breakTimer else {
             return
@@ -190,6 +241,42 @@ final class AppCoordinator {
 
         let state = breakTimer.skipBreak()
         handle(state: state)
+    }
+
+    private func pauseReminders() {
+        guard remindersPaused == false else {
+            if breakTimer?.state.phase == .work {
+                pendingElapsedSeconds = 0
+                lastTickUptime = currentUptime()
+            }
+            return
+        }
+
+        remindersPaused = true
+        pendingElapsedSeconds = 0
+        statusItemController.setRemindersPaused(true)
+    }
+
+    private func resumeReminders() {
+        guard remindersPaused else {
+            return
+        }
+
+        remindersPaused = false
+        if breakTimer?.state.phase == .work {
+            pendingElapsedSeconds = 0
+            lastTickUptime = currentUptime()
+
+            if let activeConfig {
+                breakTimer = makeBreakTimer(activeConfig)
+            }
+        }
+
+        statusItemController.setRemindersPaused(false)
+
+        if let breakTimer {
+            handle(state: breakTimer.state)
+        }
     }
 
     isolated deinit {

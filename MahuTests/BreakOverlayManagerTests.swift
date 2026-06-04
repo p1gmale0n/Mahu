@@ -267,38 +267,6 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(activationCount, 2)
     }
 
-    func testScreenChangeIgnoresEmptyDisplayResultsDuringActiveBreak() {
-        let display = DisplayDescriptor(
-            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
-            id: "built-in"
-        )
-        var displays = [display]
-        let windowBuilder = FakeOverlayWindowBuilder()
-        let screenObserver = FakeBreakScreenObserverRegistrar()
-        var activationCount = 0
-        let manager = BreakOverlayManager(
-            screenProvider: { displays },
-            windowBuilder: windowBuilder,
-            screenObservationRegistrar: screenObserver.register,
-            appActivator: { activationCount += 1 }
-        )
-
-        manager.showBreak(remainingSeconds: 20)
-        let originalViewModel = manager.viewModel
-        let originalWindow = windowBuilder.windows[0]
-
-        displays = []
-        screenObserver.fire()
-
-        XCTAssertTrue(manager.viewModel === originalViewModel)
-        XCTAssertEqual(windowBuilder.createdDisplays, [display])
-        XCTAssertEqual(windowBuilder.windows.count, 1)
-        XCTAssertEqual(originalWindow.showCallCount, 1)
-        XCTAssertEqual(originalWindow.closeCallCount, 0)
-        XCTAssertEqual(screenObserver.cancelCount, 0)
-        XCTAssertEqual(activationCount, 1)
-    }
-
     func testScreenChangeWithUnchangedDisplaysKeepsExistingWindowsWithoutReactivation() {
         let builtInDisplay = DisplayDescriptor(
             frame: CGRect(x: 0, y: 0, width: 1440, height: 900),

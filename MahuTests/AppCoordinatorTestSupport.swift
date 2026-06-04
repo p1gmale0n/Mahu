@@ -66,9 +66,23 @@ final class FakeBreakTimer: BreakTimerControlling {
 
 final class FakeStatusItemController: StatusItemControlling {
     private(set) var installCallCount = 0
+    private(set) var configureReminderActionsCallCount = 0
+    private(set) var remindersPausedUpdates: [Bool] = []
+    private(set) var pauseRemindersHandler: (() -> Void)?
+    private(set) var resumeRemindersHandler: (() -> Void)?
 
     func install() {
         installCallCount += 1
+    }
+
+    func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void) {
+        configureReminderActionsCallCount += 1
+        pauseRemindersHandler = onPause
+        resumeRemindersHandler = onResume
+    }
+
+    func setRemindersPaused(_ paused: Bool) {
+        remindersPausedUpdates.append(paused)
     }
 }
 
@@ -80,6 +94,16 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
         case hide
     }
 
+    var hasVisibleOverlayWindows = false {
+        didSet {
+            guard hasVisibleOverlayWindows != oldValue else {
+                return
+            }
+
+            onVisibleOverlayWindowsChange?(hasVisibleOverlayWindows)
+        }
+    }
+    var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler?
     private(set) var events: [Event] = []
     private(set) var skipHandler: (() -> Void)?
     var showBreakResult = true
@@ -87,6 +111,7 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
     func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool {
         events.append(.show(remainingSeconds))
         skipHandler = onSkip
+        hasVisibleOverlayWindows = showBreakResult
         return showBreakResult
     }
 
@@ -97,5 +122,6 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
     func hideBreak() {
         events.append(.hide)
         skipHandler = nil
+        hasVisibleOverlayWindows = false
     }
 }

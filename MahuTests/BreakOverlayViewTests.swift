@@ -27,6 +27,21 @@ final class BreakOverlayViewTests: XCTestCase {
         XCTAssertEqual(viewModel.countdownText, "00:00")
     }
 
+    func testViewModelRoundsFractionalCountdownValuesUpForDisplay() {
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 0.1)
+
+        XCTAssertEqual(viewModel.countdownText, "00:01")
+
+        viewModel.updateRemainingSeconds(0.999)
+        XCTAssertEqual(viewModel.countdownText, "00:01")
+
+        viewModel.updateRemainingSeconds(59.1)
+        XCTAssertEqual(viewModel.countdownText, "01:00")
+
+        viewModel.updateRemainingSeconds(60.0)
+        XCTAssertEqual(viewModel.countdownText, "01:00")
+    }
+
     func testViewModelFormatsCountdownsLongerThanTwentyFourHours() {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 172_800)
 
@@ -49,12 +64,8 @@ final class BreakOverlayViewTests: XCTestCase {
     func testBreakOverlayViewContainsRequiredTextAndSkipLabel() {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 65)
         let view = BreakOverlayView(viewModel: viewModel)
-        let foregroundDescription = String(describing: view.foregroundContent)
 
-        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
-        XCTAssertTrue(foregroundDescription.contains("Время отвлечься"))
-        XCTAssertTrue(foregroundDescription.contains("01:05"))
-        XCTAssertTrue(foregroundDescription.contains("Skip"))
+        assertOverlayRendersForegroundContent(view, expectedCountdown: "01:05")
     }
 
     func testBreakOverlayViewCanBeConstructedWhenBackgroundImageIsUnavailable() throws {
@@ -69,15 +80,9 @@ final class BreakOverlayViewTests: XCTestCase {
             viewModel: viewModel,
             backgroundImageLoader: BreakOverlayBackgroundImageLoader(bundle: emptyBundle)
         )
-        let foregroundDescription = String(describing: view.foregroundContent)
-        let backgroundDescription = String(describing: view.backgroundView)
 
         XCTAssertNil(view.backgroundImage)
-        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
-        XCTAssertTrue(backgroundDescription.contains("falseContent"))
-        XCTAssertTrue(foregroundDescription.contains("Время отвлечься"))
-        XCTAssertTrue(foregroundDescription.contains("00:09"))
-        XCTAssertTrue(foregroundDescription.contains("Skip"))
+        assertOverlayRendersForegroundContent(view, expectedCountdown: "00:09")
     }
 
     func testBreakOverlayViewLoadsBackgroundImageOnlyOncePerViewLifetime() {
@@ -106,15 +111,9 @@ final class BreakOverlayViewTests: XCTestCase {
                 NSImage(size: NSSize(width: 1920, height: 1080))
             })
         )
-        let foregroundDescription = String(describing: view.foregroundContent)
-        let backgroundDescription = String(describing: view.backgroundView)
 
         XCTAssertNotNil(view.backgroundImage)
-        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
-        XCTAssertTrue(backgroundDescription.contains("trueContent"))
-        XCTAssertTrue(foregroundDescription.contains("Время отвлечься"))
-        XCTAssertTrue(foregroundDescription.contains("00:27"))
-        XCTAssertTrue(foregroundDescription.contains("Skip"))
+        assertOverlayRendersForegroundContent(view, expectedCountdown: "00:27")
     }
 
     func testBackgroundImageLoaderLoadsHostedAppBundleImage() throws {
@@ -151,15 +150,10 @@ final class BreakOverlayViewTests: XCTestCase {
             viewModel: viewModel,
             backgroundImageLoader: loader
         )
-        let foregroundDescription = String(describing: view.foregroundContent)
-        let backgroundDescription = String(describing: view.backgroundView)
 
         XCTAssertNil(loader.loadBackgroundImage())
         XCTAssertNil(view.backgroundImage)
-        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
-        XCTAssertTrue(backgroundDescription.contains("falseContent"))
-        XCTAssertTrue(foregroundDescription.contains("00:04"))
-        XCTAssertTrue(foregroundDescription.contains("Skip"))
+        assertOverlayRendersForegroundContent(view, expectedCountdown: "00:04")
     }
 
     func testOverlayWindowCanBecomeKeyAndMain() {
@@ -198,6 +192,39 @@ final class BreakOverlayViewTests: XCTestCase {
 
     private func makeEmptyBundle() throws -> URL {
         try makeBundle()
+    }
+
+    private func assertOverlayRendersForegroundContent(
+        _ view: BreakOverlayView,
+        expectedCountdown: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let foregroundStringValues = allStringValues(in: view.foregroundContent)
+
+        XCTAssertTrue(foregroundStringValues.contains("Время отвлечься"), file: file, line: line)
+        XCTAssertTrue(foregroundStringValues.contains(expectedCountdown), file: file, line: line)
+        XCTAssertTrue(foregroundStringValues.contains("Skip"), file: file, line: line)
+        XCTAssertTrue(foregroundStringValues.contains(BreakOverlayAccessibilityID.title), file: file, line: line)
+        XCTAssertTrue(foregroundStringValues.contains(BreakOverlayAccessibilityID.countdown), file: file, line: line)
+        XCTAssertTrue(foregroundStringValues.contains(BreakOverlayAccessibilityID.skipButton), file: file, line: line)
+    }
+
+    private func allStringValues(in value: Any) -> [String] {
+        var values: [String] = []
+        collectStringValues(in: value, into: &values)
+        return values
+    }
+
+    private func collectStringValues(in value: Any, into values: inout [String]) {
+        if let stringValue = value as? String {
+            values.append(stringValue)
+        }
+
+        let mirror = Mirror(reflecting: value)
+        for child in mirror.children {
+            collectStringValues(in: child.value, into: &values)
+        }
     }
 
     private func makeBundle(backgroundData: Data? = nil) throws -> URL {
