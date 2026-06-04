@@ -8,5 +8,9 @@ struct MahuApp: App {
         Settings {
             EmptyView()
         }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+            }
+        }
     }
 }

@@ -1,21 +1,14 @@
 import Foundation
+import OSLog
 
 struct ConfigStore {
-    private let fileManager: FileManager
-    private let appSupportDirectory: URL
-    private let encoder: JSONEncoder
-    private let decoder: JSONDecoder
+    private static let logger = Logger(subsystem: "Mahu", category: "ConfigStore")
 
-    init(
-        fileManager: FileManager = .default,
-        appSupportDirectory: URL? = nil,
-        encoder: JSONEncoder = JSONEncoder(),
-        decoder: JSONDecoder = JSONDecoder()
-    ) {
-        self.fileManager = fileManager
+    private let appSupportDirectory: URL
+
+    init(appSupportDirectory: URL? = nil) {
+        let fileManager = FileManager.default
         self.appSupportDirectory = appSupportDirectory ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        self.encoder = encoder
-        self.decoder = decoder
     }
 
     var configURL: URL {
@@ -25,28 +18,43 @@ struct ConfigStore {
     }
 
     func load() -> AppConfig {
+        let fileManager = FileManager.default
+
+        if !fileManager.fileExists(atPath: configURL.path) {
+            return createDefaultConfigFile()
+        }
+
         do {
-            if !fileManager.fileExists(atPath: configURL.path) {
-                return try createDefaultConfigFile()
+            let data = try Data(contentsOf: configURL)
+            let config = try JSONDecoder().decode(AppConfig.self, from: data)
+            guard config.hasSupportedDurations else {
+                Self.logger.warning("Ignoring config at \(self.configURL.path, privacy: .public) because durations must be finite and at least one second.")
+                return .default
             }
 
-            let data = try Data(contentsOf: configURL)
-            return try decoder.decode(AppConfig.self, from: data)
+            return config
+        } catch is DecodingError {
+            return .default
         } catch {
+            Self.logger.error("Failed to load config at \(self.configURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
             return .default
         }
     }
 
-    @discardableResult
-    private func createDefaultConfigFile() throws -> AppConfig {
-        try fileManager.createDirectory(
-            at: configURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+    private func createDefaultConfigFile() -> AppConfig {
+        do {
+            try FileManager.default.createDirectory(
+                at: configURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
 
-        let defaultConfig = AppConfig.default
-        let data = try encoder.encode(defaultConfig)
-        try data.write(to: configURL, options: .atomic)
-        return defaultConfig
+            let defaultConfig = AppConfig.default
+            let data = try JSONEncoder().encode(defaultConfig)
+            try data.write(to: configURL, options: .atomic)
+            return defaultConfig
+        } catch {
+            Self.logger.error("Failed to create default config at \(self.configURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            return .default
+        }
     }
 }
