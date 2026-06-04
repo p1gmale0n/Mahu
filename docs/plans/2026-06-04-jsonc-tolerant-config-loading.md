@@ -78,12 +78,12 @@ The change keeps the existing config model, filesystem hardening, and no-live-re
 
 ### Task 1: Add failing JSONC config-load tests
 
-- [ ] create `MahuTests/ConfigStoreJSONCTests.swift` with tests that currently fail for `//` line comments in `config.json`
-- [ ] add failing tests for `/* ... */` block comments and trailing commas before objects/arrays close
-- [ ] add failing tests proving strings containing `https://`, comment-like text, escaped quotes, and Unicode are preserved
-- [ ] add failing tests proving a symlinked final `config.json` target containing JSONC still loads when the target is a regular file
-- [ ] add failing tests proving malformed JSONC and invalid explicit field types still fall back to `AppConfig.default`
-- [ ] run targeted config tests and confirm the new JSONC tests fail for the expected parser gap before Task 2
+- [x] create `MahuTests/ConfigStoreJSONCTests.swift` with tests that currently fail for `//` line comments in `config.json`
+- [x] add failing tests for `/* ... */` block comments and trailing commas before objects/arrays close
+- [x] add failing tests proving strings containing `https://`, comment-like text, escaped quotes, and Unicode are preserved
+- [x] add failing tests proving a symlinked final `config.json` target containing JSONC still loads when the target is a regular file
+- [x] add failing tests proving malformed JSONC and invalid explicit field types still fall back to `AppConfig.default`
+- [x] run targeted config tests and confirm the new JSONC tests fail for the expected parser gap before Task 2
 
 ### Task 2: Implement a focused JSONC preprocessor
 
