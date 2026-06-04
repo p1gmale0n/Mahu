@@ -6,9 +6,37 @@ struct ConfigStore {
 
     private let appSupportDirectory: URL
 
-    init(appSupportDirectory: URL? = nil) {
-        let fileManager = FileManager.default
-        self.appSupportDirectory = appSupportDirectory ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    init(
+        appSupportDirectory: URL? = nil,
+        appSupportDirectoryResolver: (() -> URL?)? = nil,
+        fallbackHomeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) {
+        if let appSupportDirectory {
+            self.appSupportDirectory = appSupportDirectory
+            return
+        }
+
+        let resolvedAppSupportDirectory: URL?
+        if let appSupportDirectoryResolver {
+            resolvedAppSupportDirectory = appSupportDirectoryResolver()
+        } else {
+            resolvedAppSupportDirectory = FileManager.default
+                .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+                .first
+        }
+
+        if let resolvedAppSupportDirectory {
+            self.appSupportDirectory = resolvedAppSupportDirectory
+            return
+        }
+
+        let fallbackDirectory = fallbackHomeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+        Self.logger.error(
+            "Failed to resolve the user Application Support directory; falling back to \(fallbackDirectory.path, privacy: .public)."
+        )
+        self.appSupportDirectory = fallbackDirectory
     }
 
     var configURL: URL {
@@ -28,7 +56,9 @@ struct ConfigStore {
             let data = try Data(contentsOf: configURL)
             let config = try JSONDecoder().decode(AppConfig.self, from: data)
             guard config.hasSupportedDurations else {
-                Self.logger.warning("Ignoring config at \(self.configURL.path, privacy: .public) because durations must be finite and at least one second.")
+                Self.logger.warning(
+                    "Ignoring config at \(self.configURL.path, privacy: .public) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
+                )
                 return .default
             }
 

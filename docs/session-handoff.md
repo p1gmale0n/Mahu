@@ -1,5 +1,50 @@
 # Session Handoff
 
+## 2026-05-22 / Timer Precision Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Reject config durations above the largest `TimeInterval` range that still preserves one-second countdown progress instead of allowing arbitrary finite doubles or reverting to the old 24-hour cap; keep README and decision history aligned with the new precision-based config contract.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `swiftlint`
+- Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this iteration can prove build/test/package success but not a repo-defined lint gate. Manual live-overlay verification on real displays/fullscreen Spaces is still pending by design.
+- Next Steps: Run the next external review iteration against this branch; if lint remains part of the gate, add a tracked lint command or install `swiftlint` in the execution environment; keep the hardware-backed overlay checks open until someone records them.
+
+## 2026-05-22 / Second Review Pass 2 Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Remove the accidental 24-hour config-validation cap, keep long finite `config.json` durations valid, and move overflow protection into an Int64-capped countdown formatter so the overlay stays safe without rewriting user schedules.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `swiftlint`
+- Friction/CDD: The branch still has no tracked lint command, and `swiftlint` is not installed in this environment, so this iteration can prove build/test/package success but not a repo-defined lint gate. Manual live-overlay verification on real displays/fullscreen Spaces is still pending by design.
+- Next Steps: Run the next external review iteration against this branch; if lint remains part of the gate, add a tracked lint command or ensure `swiftlint` is available in the execution environment; keep the hardware-backed overlay checks open until someone records them.
+
+## 2026-05-22 / Second Review Pass Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Reject config durations outside `1...86_400` seconds and clamp countdown rendering to the same safe range; retry pending break presentation without consuming rest time until the overlay is actually visible; fall back to a home-derived `Library/Application Support` path if the system directory lookup returns nothing; fix the invalid-PNG test fixture so it writes into bundle resources and exercises the real decode path; move the new break-presentation retry regression into its own test file so `AppCoordinatorTests.swift` stays below the local readability threshold.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `swiftlint`
+- Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this iteration can only prove build/test green status plus the attempted-but-unavailable lint step. Manual live-overlay verification on real displays/fullscreen Spaces is still pending by design.
+- Next Steps: Run the next external review iteration against this branch; manually verify that a transient display/Space transition still yields a full visible break once the overlay appears; add a tracked lint command only if future review gates require lint evidence.
+
+## 2026-05-22 / Review Iteration Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Cache the overlay background image once per `BreakOverlayView` lifetime instead of decoding it on every countdown tick; make overlay presentation return success so the coordinator retries after transient zero-display states instead of entering an invisible break; split live focus-observer coverage into a dedicated test file and add isolated resign/workspace/repeated-burst cases; archive the fully completed rendering-fix plan under `docs/plans/completed/` and point README at the superseding runtime-fix history.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this review round can only prove build/test green status. Manual live-overlay verification of the background image on real displays/fullscreen Spaces is still pending by design.
+- Next Steps: Run the next external review iteration against this branch; manually verify that the background image is visibly rendered in the live overlay on at least one real display and fullscreen Space; add a tracked lint command only if future review gates require lint evidence.
+
+## 2026-05-22 / Overlay Background Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Keep the existing hosted macOS test target for now, but strengthen the background-resource proof by decoding `background.png` in XCTest and making `make build` fail if either bundled app artifact omits the resource; archive the completed overlay-background plan under `docs/plans/completed/` and correct README plan pointers plus the full-Xcode prerequisite.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this review round can only prove build/test green status. Manual visual verification of the overlay background on real displays and fullscreen Spaces is still open.
+- Next Steps: Run the next external review iteration against this branch; manually verify overlay readability/cropping on at least one real display and fullscreen Space; add a tracked lint command only if future review gates require lint evidence.
+
 ## 2026-05-21 / Sixth Review Fixes
 
 🏁 Session Handoff:

@@ -19,7 +19,8 @@ typealias CurrentUptimeProvider = () -> TimeInterval
 
 @MainActor
 protocol BreakOverlayManaging: AnyObject {
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void)
+    @discardableResult
+    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool
     func updateRemainingSeconds(_ remainingSeconds: TimeInterval)
     func hideBreak()
 }
@@ -94,6 +95,11 @@ final class AppCoordinator {
         let elapsedSeconds = max(0, now - lastTickUptime)
         self.lastTickUptime = now
 
+        if breakTimer.state.phase == .rest, isShowingBreak == false {
+            handle(state: breakTimer.state)
+            return
+        }
+
         guard elapsedSeconds > 0 else {
             return
         }
@@ -132,10 +138,9 @@ final class AppCoordinator {
             if isShowingBreak {
                 overlayManager.updateRemainingSeconds(state.remainingSeconds)
             } else {
-                overlayManager.showBreak(remainingSeconds: state.remainingSeconds) { [weak self] in
+                isShowingBreak = overlayManager.showBreak(remainingSeconds: state.remainingSeconds) { [weak self] in
                     self?.skipBreak()
                 }
-                isShowingBreak = true
             }
         }
     }

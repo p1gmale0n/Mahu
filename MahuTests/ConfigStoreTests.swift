@@ -104,6 +104,39 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(config, .default)
     }
 
+    func testLoadReturnsFiniteConfigDurationsLongerThanTwentyFourHours() throws {
+        let store = makeStore()
+        let longConfig = AppConfig(
+            workDurationSeconds: 172_800,
+            breakDurationSeconds: 90_000
+        )
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder().encode(longConfig)
+        try data.write(to: store.configURL, options: .atomic)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, longConfig)
+    }
+
+    func testLoadFallsBackToDefaultsForConfigDurationsAboveSecondPrecisionLimit() throws {
+        let store = makeStore()
+        let invalidConfig = AppConfig(workDurationSeconds: 1e20, breakDurationSeconds: 20)
+        try FileManager.default.createDirectory(
+            at: store.configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder().encode(invalidConfig)
+        try data.write(to: store.configURL, options: .atomic)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
     func testLoadFallsBackToDefaultsWhenExistingConfigCannotBeRead() throws {
         let store = makeStore()
         try FileManager.default.createDirectory(
@@ -126,6 +159,21 @@ final class ConfigStoreTests: XCTestCase {
 
         XCTAssertEqual(config, .default)
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.configURL.path))
+    }
+
+    func testInitFallsBackToHomeLibraryApplicationSupportWhenSystemLookupFails() {
+        let fallbackHomeDirectory = temporaryDirectoryURL.appendingPathComponent("FallbackHome", isDirectory: true)
+        let store = ConfigStore(
+            appSupportDirectoryResolver: { nil },
+            fallbackHomeDirectory: fallbackHomeDirectory
+        )
+
+        XCTAssertEqual(
+            store.configURL.path,
+            fallbackHomeDirectory
+                .appendingPathComponent("Library/Application Support/Mahu/config.json")
+                .path
+        )
     }
 
     private func makeStore() -> ConfigStore {

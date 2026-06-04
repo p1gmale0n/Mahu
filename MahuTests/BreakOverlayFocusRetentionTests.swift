@@ -4,10 +4,6 @@ import XCTest
 
 @MainActor
 final class BreakOverlayFocusRetentionTests: XCTestCase {
-    private enum TestNotificationKey {
-        static let processIdentifier = "processIdentifier"
-    }
-
     func testShowBreakRegistersFocusObserverWhenWindowsExist() {
         let windowBuilder = FakeOverlayWindowBuilder()
         let focusObserver = FakeBreakFocusObserverRegistrar()
@@ -37,10 +33,11 @@ final class BreakOverlayFocusRetentionTests: XCTestCase {
             appActivator: { activationCount += 1 }
         )
 
-        manager.showBreak(remainingSeconds: 20)
+        let didShowBreak = manager.showBreak(remainingSeconds: 20)
         manager.hideBreak()
         focusObserver.fireAll()
 
+        XCTAssertFalse(didShowBreak)
         XCTAssertEqual(focusObserver.registrationCount, 0)
         XCTAssertEqual(focusObserver.handledEventCount, 0)
         XCTAssertEqual(activationCount, 0)
@@ -194,104 +191,5 @@ final class BreakOverlayFocusRetentionTests: XCTestCase {
         XCTAssertEqual(secondWindow.showCallCount, 2)
         XCTAssertEqual(secondWindow.closeCallCount, 1)
         XCTAssertEqual(activationCount, 3)
-    }
-
-    func testLiveFocusObservationRegistrarIgnoresOwnProcessActivation() async {
-        let applicationNotificationCenter = NotificationCenter()
-        let workspaceNotificationCenter = NotificationCenter()
-        let applicationObject = NSObject()
-        var handlerCallCount = 0
-
-        let cancel = LiveBreakFocusObservationRegistrar.make(
-            handler: { handlerCallCount += 1 },
-            applicationNotificationCenter: applicationNotificationCenter,
-            workspaceNotificationCenter: workspaceNotificationCenter,
-            applicationObject: applicationObject,
-            currentProcessIdentifier: 101,
-            activatedProcessIdentifierResolver: { notification in
-                notification.userInfo?[TestNotificationKey.processIdentifier] as? Int32
-            }
-        )
-
-        workspaceNotificationCenter.post(
-            name: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            userInfo: [TestNotificationKey.processIdentifier: Int32(101)]
-        )
-        await Task.yield()
-
-        XCTAssertEqual(handlerCallCount, 0)
-        cancel()
-    }
-
-    func testLiveFocusObservationRegistrarCoalescesResignAndWorkspaceSignals() async {
-        let applicationNotificationCenter = NotificationCenter()
-        let workspaceNotificationCenter = NotificationCenter()
-        let applicationObject = NSObject()
-        var handlerCallCount = 0
-        let handledFocusLoss = expectation(description: "focus loss handled once")
-
-        let cancel = LiveBreakFocusObservationRegistrar.make(
-            handler: {
-                handlerCallCount += 1
-                handledFocusLoss.fulfill()
-            },
-            applicationNotificationCenter: applicationNotificationCenter,
-            workspaceNotificationCenter: workspaceNotificationCenter,
-            applicationObject: applicationObject,
-            currentProcessIdentifier: 101,
-            activatedProcessIdentifierResolver: { notification in
-                notification.userInfo?[TestNotificationKey.processIdentifier] as? Int32
-            }
-        )
-
-        applicationNotificationCenter.post(
-            name: NSApplication.didResignActiveNotification,
-            object: applicationObject
-        )
-        workspaceNotificationCenter.post(
-            name: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            userInfo: [TestNotificationKey.processIdentifier: Int32(202)]
-        )
-
-        await fulfillment(of: [handledFocusLoss], timeout: 1.0)
-
-        XCTAssertEqual(handlerCallCount, 1)
-        cancel()
-    }
-
-    func testLiveFocusObservationRegistrarCancelIsIdempotentAndStopsFutureEvents() async {
-        let applicationNotificationCenter = NotificationCenter()
-        let workspaceNotificationCenter = NotificationCenter()
-        let applicationObject = NSObject()
-        var handlerCallCount = 0
-
-        let cancel = LiveBreakFocusObservationRegistrar.make(
-            handler: { handlerCallCount += 1 },
-            applicationNotificationCenter: applicationNotificationCenter,
-            workspaceNotificationCenter: workspaceNotificationCenter,
-            applicationObject: applicationObject,
-            currentProcessIdentifier: 101,
-            activatedProcessIdentifierResolver: { notification in
-                notification.userInfo?[TestNotificationKey.processIdentifier] as? Int32
-            }
-        )
-
-        cancel()
-        cancel()
-
-        applicationNotificationCenter.post(
-            name: NSApplication.didResignActiveNotification,
-            object: applicationObject
-        )
-        workspaceNotificationCenter.post(
-            name: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            userInfo: [TestNotificationKey.processIdentifier: Int32(202)]
-        )
-        await Task.yield()
-
-        XCTAssertEqual(handlerCallCount, 0)
     }
 }

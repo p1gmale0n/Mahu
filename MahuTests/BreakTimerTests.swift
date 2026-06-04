@@ -80,6 +80,23 @@ final class BreakTimerTests: XCTestCase {
         XCTAssertEqual(timer.state, .init(phase: .work, remainingSeconds: 10))
     }
 
+    func testAdvanceKeepsLargestSupportedDurationMovingByWholeSeconds() {
+        let timer = BreakTimer(
+            workDurationSeconds: AppConfig.maximumSupportedDurationSeconds,
+            breakDurationSeconds: 20
+        )
+
+        timer.advance(by: 1)
+
+        XCTAssertEqual(
+            timer.state,
+            .init(
+                phase: .work,
+                remainingSeconds: AppConfig.maximumSupportedDurationSeconds - 1
+            )
+        )
+    }
+
     func testAdvanceWithBothZeroDurationsReturnsStableWorkState() {
         let timer = BreakTimer(workDurationSeconds: 0, breakDurationSeconds: 0)
 

@@ -29,8 +29,8 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Timers advance only while the Mac is awake; elapsed sleep time is not reconciled yet, so the current interval resumes after wake.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - Missing config creates a default config file and continues running.
-- Invalid JSON or unsupported config durations, including values below 1 second, fall back to defaults and continue running.
-- Break overlay uses a bundled `background.png` image with a dark readability treatment, shows `Время отвлечься`, displays a countdown, and includes `Skip`.
+- Invalid JSON or unsupported config durations, including values below 1 second, values that exceed one-second `TimeInterval` precision, or non-finite values, fall back to defaults and continue running.
+- Break overlay explicitly loads bundled `background.png` from the app bundle, applies a dark readability treatment, shows `Время отвлечься`, displays a countdown, and includes `Skip`.
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
 - Overlay windows are raised above normal apps and the app is activated when the break starts.
@@ -46,7 +46,9 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Makefile`: local build shortcut that creates `build/Mahu.app`.
 - `docs/decisions.md`: architectural and process decisions.
 - `docs/plans/completed/2026-05-20-mahu-mvp.md`: completed MVP execution plan and checkbox progress.
-- `docs/plans/2026-05-21-overlay-focus-hardening.md`: overlay focus-hardening implementation log; manual hardware verification remains open there.
+- `docs/plans/completed/2026-05-21-overlay-focus-hardening.md`: overlay focus-hardening implementation log; manual hardware verification remains open there.
+- `docs/plans/completed/2026-05-21-overlay-background.md`: initial overlay-background bundling plan and history; its runtime-loading details were superseded by the follow-up rendering fix.
+- `docs/plans/completed/2026-05-22-overlay-background-rendering-fix.md`: completed runtime rendering fix for explicit bundle loading; manual live-overlay verification remains open there.
 
 ## Configuration
 
@@ -65,12 +67,13 @@ Example:
 Notes:
 
 - `1200` seconds = 20 minutes.
-- Config durations must be finite values of at least 1 second; zero, negative, or subsecond values are treated as invalid and fall back to defaults.
+- Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
 - Use shorter values locally if you want to manually exercise the overlay flow faster.
 
 ## Setup
 
 - Open the project in Xcode: `open "Mahu.xcodeproj"`
+- Requires the full Xcode developer directory with the macOS SDK. If `xcodebuild` points to CommandLineTools or fails before parsing the project, switch to the Xcode developer directory and run `xcodebuild -runFirstLaunch` once.
 
 ## Verification Commands
 
@@ -81,6 +84,7 @@ make build
 ```
 
 This creates `build/Mahu.app` and keeps Xcode intermediate files under `build/DerivedData`.
+It also fails if the built or copied app bundle is missing `background.png`.
 
 Raw Xcode build:
 
@@ -109,6 +113,7 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 - Confirm the app has no Dock icon.
 - Confirm the status item appears and `Quit` exits the app.
 - Temporarily shorten config durations and confirm the overlay appears.
+- Confirm the overlay background comes from the bundled `background.png`, not a repository-root or user-supplied file.
 - Press `Cmd+Tab` during an active break and confirm Mahu quickly returns to the front.
 - Type after attempting `Cmd+Tab` and confirm input does not reach a hidden app behind the overlay.
 - Let a break end naturally and also press `Skip`, then confirm focus returns to the app that was frontmost before Mahu activated the overlay.

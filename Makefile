@@ -4,6 +4,8 @@ CONFIGURATION := Debug
 DERIVED_DATA := build/DerivedData
 APP_BUNDLE := build/Mahu.app
 BUILT_APP := $(DERIVED_DATA)/Build/Products/$(CONFIGURATION)/Mahu.app
+BUILT_BACKGROUND_RESOURCE := $(BUILT_APP)/Contents/Resources/background.png
+APP_BACKGROUND_RESOURCE := $(APP_BUNDLE)/Contents/Resources/background.png
 
 .PHONY: build
 build:
@@ -14,7 +16,9 @@ build:
 		-destination "platform=macOS" \
 		-derivedDataPath "$(DERIVED_DATA)" \
 		CODE_SIGNING_ALLOWED=NO
+	test -f "$(BUILT_BACKGROUND_RESOURCE)"
 	mkdir -p "build"
 	rm -rf "$(APP_BUNDLE)"
 	cp -R "$(BUILT_APP)" "$(APP_BUNDLE)"
+	test -f "$(APP_BACKGROUND_RESOURCE)"
 	@printf 'Built %s\n' "$(APP_BUNDLE)"

@@ -1,5 +1,12 @@
 # Overlay Background Image
 
+## Status
+
+- Implementation changes are complete in the repo as of 2026-05-21.
+- Review-driven verification hardening was added on 2026-05-22 so XCTest decodes the bundled image and `make build` fails if either app bundle omits `background.png`.
+- The runtime-loading details in this historical plan were superseded by `docs/plans/completed/2026-05-22-overlay-background-rendering-fix.md`.
+- Manual visual verification on real displays and fullscreen Spaces is still pending.
+
 ## Overview
 
 - Add the repository root `background.png` as a bundled app resource and use it as the fullscreen background for Mahu's break overlay.
@@ -36,7 +43,7 @@
 ## Testing Strategy
 
 - **Unit tests**: required for every task that changes code or project resource wiring.
-- **Bundle resource test**: verify `Bundle.main.url(forResource: "background", withExtension: "png")` is non-nil when tests run against the hosted app bundle.
+- **Bundle resource test**: verify the hosted app bundle resolves `background.png` and that the resource decodes as an image.
 - **Overlay view tests**: keep existing checks for message, countdown, and `Skip` label; update them only if view structure changes require a more robust helper.
 - **Build verification**: run both documented `xcodebuild` build/test commands and `make build` to prove the resource is copied into the local `.app` artifact.
 - **E2E tests**: none exist. Do not introduce UI automation for this visual change; keep visual validation in Post-Completion.
@@ -62,7 +69,7 @@
 - [x] move root `background.png` to `Mahu/Resources/background.png`
 - [x] update `Mahu.xcodeproj/project.pbxproj` to include `background.png` in the `Mahu` target resources without adding it to sources
 - [x] add a resource build phase if the app target does not already have one
-- [x] write or update a test that verifies `background.png` exists in the hosted app bundle
+- [x] write or update a test that verifies `background.png` resolves and decodes from the hosted app bundle
 - [x] run tests - must pass before next task
 
 ### Task 2: Use the image in the break overlay view
@@ -92,6 +99,7 @@ Validation notes:
 - 2026-05-21: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO` rerun after Task 4 doc updates.
 - 2026-05-21: `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO` rerun after Task 4 doc updates.
 - 2026-05-21: `make build` rerun after Task 4 doc updates.
+- 2026-05-22: review follow-up hardened automated proof so XCTest decodes `background.png` from the hosted app bundle and `make build` fails if either the built or copied app bundle omits the resource.
 - 2026-05-21: Manual visual checks from Post-Completion were not rerun in this headless environment.
 
 ## Technical Details

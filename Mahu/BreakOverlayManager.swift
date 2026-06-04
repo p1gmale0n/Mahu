@@ -174,7 +174,13 @@ final class BreakOverlayManager {
         )
     }
 
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void = {}) {
+    @discardableResult
+    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void = {}) -> Bool {
+        let displays = screenProvider()
+        guard displays.isEmpty == false else {
+            return false
+        }
+
         let previousFrontmostApplication = windows.isEmpty ? previousAppCapture() : self.previousFrontmostApplication
         hideBreak(restorePreviousApplication: false)
 
@@ -182,7 +188,7 @@ final class BreakOverlayManager {
             self?.hideBreak()
             onSkip()
         }
-        let windows = screenProvider().map { display in
+        let windows = displays.map { display in
             let window = windowBuilder.makeWindow(for: display, viewModel: viewModel)
             window.show()
             return window
@@ -190,16 +196,12 @@ final class BreakOverlayManager {
 
         self.viewModel = viewModel
         self.windows = windows
-        self.previousFrontmostApplication = windows.isEmpty ? nil : previousFrontmostApplication
-        replaceFocusObservation(
-            windows.isEmpty ? nil : focusObservationRegistrar { [weak self] in
-                self?.handleFocusLoss()
-            }
-        )
-
-        if !windows.isEmpty {
-            appActivator()
-        }
+        self.previousFrontmostApplication = previousFrontmostApplication
+        replaceFocusObservation(focusObservationRegistrar { [weak self] in
+            self?.handleFocusLoss()
+        })
+        appActivator()
+        return true
     }
 
     func updateRemainingSeconds(_ remainingSeconds: TimeInterval) {

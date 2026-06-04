@@ -82,10 +82,12 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
 
     private(set) var events: [Event] = []
     private(set) var skipHandler: (() -> Void)?
+    var showBreakResult = true
 
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) {
+    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool {
         events.append(.show(remainingSeconds))
         skipHandler = onSkip
+        return showBreakResult
     }
 
     func updateRemainingSeconds(_ remainingSeconds: TimeInterval) {
