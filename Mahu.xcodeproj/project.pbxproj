@@ -67,6 +67,7 @@
 			A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */; };
 			A000000000000000000000BA /* ConfigStoreJSONCTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BB /* ConfigStoreJSONCTests.swift */; };
 			A000000000000000000000BC /* ConfigJSONPreprocessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BD /* ConfigJSONPreprocessor.swift */; };
+			A000000000000000000000BE /* ConfigStoreJSONCEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -143,6 +144,7 @@
 			A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000BB /* ConfigStoreJSONCTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreJSONCTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000BD /* ConfigJSONPreprocessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigJSONPreprocessor.swift; sourceTree = "<group>"; };
+			A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreJSONCEdgeCaseTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -228,11 +230,12 @@
 				A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */,
 					A0000000000000000000009C /* AppCoordinatorStatusItemPauseResumeTests.swift */,
 					A00000000000000000000016 /* AppCoordinatorTestSupport.swift */,
-				A0000000000000000000000A /* ConfigStoreTests.swift */,
-				A000000000000000000000BB /* ConfigStoreJSONCTests.swift */,
-				A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
-				A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
-				A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
+					A0000000000000000000000A /* ConfigStoreTests.swift */,
+					A000000000000000000000BB /* ConfigStoreJSONCTests.swift */,
+					A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */,
+					A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
+					A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
+					A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
 				A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */,
 				A000000000000000000000B2 /* LaunchAtLoginSettingsStoreTests.swift */,
 				A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */,
@@ -414,11 +417,12 @@
 					A0000000000000000000009D /* AppCoordinatorStatusItemPauseResumeTests.swift in Sources */,
 					A00000000000000000000032 /* AppCoordinatorTestSupport.swift in Sources */,
 					A00000000000000000000033 /* BreakOverlayTestSupport.swift in Sources */,
-				A00000000000000000000026 /* ConfigStoreTests.swift in Sources */,
-				A000000000000000000000BA /* ConfigStoreJSONCTests.swift in Sources */,
-				A0000000000000000000005D /* ConfigStoreSizeLimitTests.swift in Sources */,
-				A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
-				A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
+					A00000000000000000000026 /* ConfigStoreTests.swift in Sources */,
+					A000000000000000000000BA /* ConfigStoreJSONCTests.swift in Sources */,
+					A000000000000000000000BE /* ConfigStoreJSONCEdgeCaseTests.swift in Sources */,
+					A0000000000000000000005D /* ConfigStoreSizeLimitTests.swift in Sources */,
+					A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
+					A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
 				A000000000000000000000B7 /* LaunchAtLoginControllerTests.swift in Sources */,
 				A000000000000000000000B3 /* LaunchAtLoginSettingsStoreTests.swift in Sources */,
 				A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */,

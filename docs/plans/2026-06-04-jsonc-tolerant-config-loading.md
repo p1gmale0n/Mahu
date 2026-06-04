@@ -105,29 +105,29 @@ The change keeps the existing config model, filesystem hardening, and no-live-re
 
 ### Task 4: Harden regressions and preserve existing contracts
 
-- [ ] verify missing optional fields still default safely after preprocessing
-- [ ] verify explicit `null` or wrong-type values for optional fields still trigger whole-config fallback
-- [ ] verify raw config files over 64 KiB still fall back before successful parsing/preprocessing can occur
-- [ ] verify symlinked Mahu config directory and symlinked-save refusal behavior remain unchanged
-- [ ] verify strict JSON without comments still loads exactly as before
-- [ ] run all config-related tests - must pass before Task 5
+- [x] verify missing optional fields still default safely after preprocessing
+- [x] verify explicit `null` or wrong-type values for optional fields still trigger whole-config fallback
+- [x] verify raw config files over 64 KiB still fall back before successful parsing/preprocessing can occur
+- [x] verify symlinked Mahu config directory and symlinked-save refusal behavior remain unchanged
+- [x] verify strict JSON without comments still loads exactly as before
+- [x] run all config-related tests - must pass before Task 5
 
 ### Task 5: Update documentation and decision history
 
-- [ ] update `README.md` to document JSONC-style comments and trailing commas tolerated on load, strict JSON saves, and relaunch-required behavior
-- [ ] update `AGENTS.md` to preserve the project invariant: config read is JSONC-tolerant, app writes strict JSON, no live reload
-- [ ] update `docs/decisions.md` if implementation choices differ from the decision recorded when this plan was created
-- [ ] run `git diff --check` - must pass before Task 6
+- [x] update `README.md` to document JSONC-style comments and trailing commas tolerated on load, strict JSON saves, and relaunch-required behavior
+- [x] update `AGENTS.md` to preserve the project invariant: config read is JSONC-tolerant, app writes strict JSON, no live reload
+- [x] update `docs/decisions.md` if implementation choices differ from the decision recorded when this plan was created (no change needed; current entries already match implementation)
+- [x] run `git diff --check` - must pass before Task 6
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] verify the reported project-root symlink config with a commented-out line loads custom `workDurationSeconds`, `breakDurationSeconds`, and `showStatusItemTimerState` values
-- [ ] verify malformed JSONC still falls back to defaults and does not crash Mahu
-- [ ] verify no YAML dependency or config filename migration was introduced
-- [ ] run full unit test suite with `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
-- [ ] run build with `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
-- [ ] run `make build`
-- [ ] run `git diff --check`
+- [x] verify the reported project-root symlink config with a commented-out line loads custom `workDurationSeconds`, `breakDurationSeconds`, and `showStatusItemTimerState` values (skipped - manual relaunch scenario; covered by `ConfigStoreJSONCTests.testLoadAcceptsJSONCThroughFinalConfigSymlinkWhenTargetIsRegularFile`)
+- [x] verify malformed JSONC still falls back to defaults and does not crash Mahu (skipped - manual no-crash relaunch scenario; covered by `ConfigStoreJSONCTests.testLoadFallsBackToDefaultsForMalformedJSONCBlockComment`)
+- [x] verify no YAML dependency or config filename migration was introduced
+- [x] run full unit test suite with `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- [x] run build with `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- [x] run `make build`
+- [x] run `git diff --check`
 
 ## Technical Details
 

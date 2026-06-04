@@ -159,44 +159,85 @@ final class ConfigStoreJSONCTests: XCTestCase {
         XCTAssertEqual(config, .default)
     }
 
-    func testPreprocessorRemovesCommentsAndTrailingCommasOutsideStrings() throws {
-        let processedConfig = try ConfigJSONPreprocessor.preprocess(
-            #"""
+    func testLoadDefaultsMissingOptionalFieldsAfterJSONCPreprocessing() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
             {
-              "items": [1, 2,],
-              "url": "https://example.com/path//still-string",
-              /* comment */
-              "note": "text /* still string */",
+              "workDurationSeconds": 300,
+              "breakDurationSeconds": 45, // Optional fields remain absent on purpose.
             }
-            """#
+            """,
+            to: store.configURL
         )
 
+        let config = store.load()
+
         XCTAssertEqual(
-            processedConfig,
-            #"""
-            {
-              "items": [1, 2],
-              "url": "https://example.com/path//still-string",
-              
-              "note": "text /* still string */"
-            }
-            """#
+            config,
+            AppConfig(
+                workDurationSeconds: 300,
+                breakDurationSeconds: 45,
+                showStatusItemTimerState: false,
+                breakOverlayMessageText: AppConfig.defaultBreakOverlayMessageText,
+                launchAtLoginEnabled: false
+            )
         )
     }
 
-    func testPreprocessorThrowsForUnterminatedBlockComment() {
-        XCTAssertThrowsError(
-            try ConfigJSONPreprocessor.preprocess(
-                #"""
-                {
-                  "workDurationSeconds": 300,
-                  /* comment never ends
-                }
-                """#
-            )
-        ) { error in
-            XCTAssertEqual(error as? ConfigJSONPreprocessorError, .unterminatedBlockComment)
-        }
+    func testLoadFallsBackToDefaultsForExplicitNullOptionalFieldInsideJSONC() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              "workDurationSeconds": 300,
+              "breakDurationSeconds": 45,
+              /* Null must keep the whole-config fallback path. */
+              "breakOverlayMessageText": null
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadFallsBackToDefaultsForOversizedJSONCBeforeParsingCanSucceed() throws {
+        let store = makeStore()
+        let oversizedComment = String(repeating: "x", count: 70_000)
+        try writeRawConfig(
+            """
+            {
+              /* \(oversizedComment) */
+              "workDurationSeconds": 300,
+              "breakDurationSeconds": 45
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertEqual(config, .default)
+    }
+
+    func testLoadPreservesStrictJSONBehaviorWithoutCommentsOrTrailingCommas() throws {
+        let store = makeStore()
+        let expectedConfig = AppConfig(
+            workDurationSeconds: 900,
+            breakDurationSeconds: 60,
+            showStatusItemTimerState: true,
+            breakOverlayMessageText: "Strict JSON",
+            launchAtLoginEnabled: true
+        )
+        let encodedConfig = try XCTUnwrap(String(data: try JSONEncoder().encode(expectedConfig), encoding: .utf8))
+        try writeRawConfig(encodedConfig, to: store.configURL)
+
+        let config = store.load()
+
+        XCTAssertEqual(config, expectedConfig)
     }
 
     private func makeStore() -> ConfigStore {

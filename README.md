@@ -37,6 +37,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `launchAtLoginEnabled` defaults to `false`; on the next launch, `true` requests main-app Login Item registration through `SMAppService.mainApp`, while `false` requests unregister/removal when the Login Item is currently enabled or pending approval and otherwise no-ops. If macOS still requires approval or registration/unregistration fails, Mahu logs a non-fatal warning and keeps running.
 - Missing config creates a default config file and continues running.
 - Invalid JSON or unsupported config durations, including values below 1 second, values that exceed one-second `TimeInterval` precision, or non-finite values, fall back to defaults and continue running.
+- On load, `config.json` also tolerates JSONC-style `//` comments, `/* ... */` block comments, and trailing commas before `}` or `]`, but Mahu still writes strict JSON when it creates or saves config files.
 - Break overlay explicitly loads bundled `background.png` from the app bundle, applies a dark readability treatment, shows a config-backed message that defaults to `Время отвлечься`, displays a countdown, and includes `Skip`.
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
@@ -83,6 +84,17 @@ Example:
 }
 ```
 
+Manual-edit example with tolerated JSONC-style syntax on load:
+
+```jsonc
+{
+  "workDurationSeconds": 1200,
+  "breakDurationSeconds": 20,
+  // Enable menu-bar countdown text.
+  "showStatusItemTimerState": true,
+}
+```
+
 Notes:
 
 - `1200` seconds = 20 minutes.
@@ -91,6 +103,7 @@ Notes:
 - `launchAtLoginEnabled` defaults to `false`; set it to `true` to request Launch at Login for the main app on the next launch, or leave/set it to `false` to request unregister/removal on the next launch when a Login Item is currently present.
 - Empty or whitespace-only `breakOverlayMessageText` values normalize back to the default title, while `null` or non-string values make Mahu fall back to the full default config like other malformed config edits.
 - `config.json` is read at launch to seed Mahu's runtime settings and launch-at-login desired state. Editing the file while the app is already running does not apply changes immediately because Mahu intentionally has no file watcher or implicit reload loop; relaunch Mahu after manual config changes.
+- Manual edits may include JSONC-style comments and trailing commas on read, but Mahu-created files remain strict JSON and future app-driven saves remove those comments/trailing commas.
 - Runtime-only updates inside the app should target the shared in-process settings source first and persist back to `config.json`; this foundation exists for a future Settings UI even though no Settings window ships yet.
 - Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
 - Mahu reads `config.json` only when the managed `~/Library/Application Support/Mahu` path itself is a real directory and the configured `config.json` path is a regular file or a symlink resolving to one. Directories, pipes, broken symlinks, symlinked `Mahu` directories, unreadable targets, and files larger than 64 KiB are ignored, and Mahu falls back to the default schedule.

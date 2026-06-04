@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-04 | Config JSONC review hardening | Treat removed block comments as JSON whitespace and preserve standard Unicode JSON text encodings before normalizing preprocessed config back to UTF-8. | Review found the original scanner could silently merge tokens across `/* ... */` and the initial load wiring regressed previously supported UTF-16/BOM-edited configs. |
 | 2026-06-04 | Config JSONC preprocessor shape | Implement JSONC tolerance as a small in-repo scanner that strips comments first and then removes trailing commas in a second pass. | This keeps the behavior string-safe and testable without regex corruption risks or prematurely expanding `ConfigStore.swift`. |
 | 2026-06-04 | Config JSONC tolerance | Keep `config.json` as the persisted format, tolerate JSONC-style comments and trailing commas on read, and continue writing strict JSON. | The config is currently user-edited and Zed can insert JSONC comments, but migrating to YAML or adding a parser dependency would add more complexity than needed before the future Settings UI. |
 | 2026-06-03 | Break overlay dormant-session recovery | Preserve a dormant break session even when break start finds zero active displays, and materialize windows later from screen-change events instead of retrying with a new session. | Review found that the zero-display start path dropped session state, delayed recovery until the next tick, and could recapture the wrong previous app once displays returned. |
@@ -170,6 +171,22 @@
 **Consequences:** The repo now has a focused preprocessing seam with direct helper tests for array/object trailing commas and unterminated block-comment errors. `ConfigStore` integration remains unchanged until the next task, so existing failing JSONC load tests still truthfully signal that wiring has not happened yet.
 
 **Alternatives Considered:** Fold the scanner directly into `ConfigStore.loadRegularConfig(from:)`; rejected because it grows an already large file before the behavior is validated in isolation. Use a single-pass regex-based cleanup; rejected because it is brittle around escaped quotes, URLs, and comment-like text inside strings.
+
+## 2026-06-04 / Config JSONC Review Hardening
+
+**Date:** 2026-06-04
+
+**Area:** Config parsing
+
+**Context:** Review found two correctness gaps in the initial JSONC branch. Inline `/* ... */` comments were removed without leaving JSON whitespace, which could silently merge neighboring tokens like `3/*x*/00` into `300`. The first `ConfigStore` wiring also forced raw config bytes through `String(..., .utf8)`, which regressed previously supported UTF-16/BOM-edited JSON files before preprocessing even ran.
+
+**Decision:** Treat every removed block comment as at least one JSON-whitespace boundary, and move JSON text decoding into `ConfigJSONPreprocessor` with encoding detection for standard UTF-8/UTF-16/UTF-32 JSON inputs before normalizing sanitized data back to UTF-8 for `JSONDecoder`.
+
+**Rationale:** Fail-safe parsing is more important than accepting every malformed inline edit. Preserving Unicode JSON compatibility avoids shipping hidden regressions for manually edited configs while still keeping `ConfigStore.swift` thin and the normalization logic in one place.
+
+**Consequences:** Invalid token-splitting comments now fall back to defaults instead of silently changing timer values, and JSONC preprocessing works for BOM-prefixed or UTF-16-edited config files that Foundation previously accepted. New edge-case tests now cover EOF line comments, invalid raw bytes, Unicode encodings, and token-splitting block comments.
+
+**Alternatives Considered:** Keep stripping block comments to an empty string; rejected because it mutates malformed JSONC into different valid JSON. Narrow the contract to UTF-8-only config text; rejected because it introduces an unnecessary compatibility regression for user-edited files.
 
 **Date:** 2026-06-04
 

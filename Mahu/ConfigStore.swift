@@ -120,7 +120,7 @@ struct ConfigStore {
     private func loadRegularConfig(from readableConfigURL: URL) -> AppConfig {
         do {
             let rawData = try loadConfigData(from: readableConfigURL)
-            let preprocessedData = try preprocessConfigData(rawData)
+            let preprocessedData = try ConfigJSONPreprocessor.preprocess(rawData)
             let config = try JSONDecoder().decode(AppConfig.self, from: preprocessedData)
             guard config.hasSupportedDurations else {
                 Self.logger.warning(
@@ -144,34 +144,6 @@ struct ConfigStore {
             Self.logger.error("Failed to load config at \(self.configURL.path, privacy: .private): \(String(describing: error), privacy: .private)")
             return .default
         }
-    }
-
-    private func preprocessConfigData(_ rawData: Data) throws -> Data {
-        let decodingContext = DecodingError.Context(
-            codingPath: [],
-            debugDescription: "Config data must be valid UTF-8 JSON text."
-        )
-        guard let rawConfigText = String(data: rawData, encoding: .utf8) else {
-            throw DecodingError.dataCorrupted(decodingContext)
-        }
-
-        let sanitizedConfigText: String
-        do {
-            sanitizedConfigText = try ConfigJSONPreprocessor.preprocess(rawConfigText)
-        } catch {
-            throw DecodingError.dataCorrupted(
-                .init(
-                    codingPath: [],
-                    debugDescription: "Config JSONC preprocessing failed: \(error)"
-                )
-            )
-        }
-
-        guard let sanitizedConfigData = sanitizedConfigText.data(using: .utf8) else {
-            throw DecodingError.dataCorrupted(decodingContext)
-        }
-
-        return sanitizedConfigData
     }
 
     private func createDefaultConfigFile() -> AppConfig {
