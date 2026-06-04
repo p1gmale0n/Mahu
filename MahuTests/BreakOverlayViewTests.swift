@@ -116,6 +116,23 @@ final class BreakOverlayViewTests: XCTestCase {
         assertOverlayRendersForegroundContent(view, expectedCountdown: "00:27")
     }
 
+    func testBreakOverlayViewUsesGeometryBoundedLayoutToKeepForegroundCentered() {
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 27)
+        let view = BreakOverlayView(
+            viewModel: viewModel,
+            backgroundImageLoader: BreakOverlayBackgroundImageLoader(loadBackgroundImage: {
+                NSImage(size: NSSize(width: 3_456, height: 2_234))
+            })
+        )
+
+        let bodyType = String(describing: type(of: view.body))
+
+        XCTAssertTrue(
+            bodyType.contains("GeometryReader"),
+            "BreakOverlayView must size the background and foreground to the hosting window bounds so scaledToFill background images cannot shift foreground centering on built-in displays."
+        )
+    }
+
     func testBackgroundImageLoaderLoadsHostedAppBundleImage() throws {
         let loader = BreakOverlayBackgroundImageLoader(bundle: .main)
 
@@ -200,7 +217,7 @@ final class BreakOverlayViewTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let bodyStringValues = allStringValues(in: view.body)
+        let bodyStringValues = allStringValues(in: view.foregroundContent)
 
         XCTAssertTrue(bodyStringValues.contains("Время отвлечься"), file: file, line: line)
         XCTAssertTrue(bodyStringValues.contains(expectedCountdown), file: file, line: line)

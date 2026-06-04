@@ -28,6 +28,7 @@
 - Do not add system-level keyboard/mouse capture unless the product requirement changes; focus stealing plus high-level overlay is the intended behavior.
 - Break screen should be dark and minimal, with a short message like `Время отвлечься`, a countdown until rest ends, and a `Skip` button.
 - Break screen should use the bundled background image with a dark readability layer so title, countdown, and `Skip` remain legible across displays.
+- Break screen foreground centering must be bounded by the actual overlay window size: keep `BreakOverlayView` using `GeometryReader` (or an equivalent explicit-size container) so `scaledToFill()` background imagery cannot expand layout and shift content on the built-in laptop display.
 - When a visible break ends naturally, play bundled `sound.wav` once; pressing `Skip` must not play the completion sound.
 - MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
 - Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
@@ -60,6 +61,7 @@
 - `build/` is intentionally ignored; use `make build` when a local `.app` artifact is needed, but do not commit build products.
 - Multi-display overlay behavior is automated only through abstraction-level tests in this environment; real display and Space behavior still requires manual validation.
 - Focus retention is best-effort through public notifications only; it can bounce Mahu back after `Cmd+Tab`, but it cannot guarantee blocking system shortcuts or every fullscreen/Spaces transition.
+- Do not simplify `BreakOverlayView` to a bare full-frame `ZStack` without explicit geometry bounds; that previously regressed foreground centering on the built-in display while external monitors still looked correct.
 - The shared test scheme disables production coordinator startup with `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`; if hosted tests are run outside that scheme, set the same environment variable to avoid real menu-bar, timer, and config-file side effects.
 
 ## Decision History
