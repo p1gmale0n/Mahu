@@ -25,6 +25,36 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(activationCount, 1)
     }
 
+    func testShowBreakCreatesViewModelWithProvidedMessageText() {
+        let display = DisplayDescriptor(frame: CGRect(x: 0, y: 0, width: 1440, height: 900))
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let manager = BreakOverlayManager(
+            screenProvider: { [display] },
+            windowBuilder: windowBuilder,
+            appActivator: {}
+        )
+
+        manager.showBreak(remainingSeconds: 20, messageText: "休憩しましょう — отдохни 🌿")
+
+        XCTAssertEqual(manager.viewModel?.titleText, "休憩しましょう — отдохни 🌿")
+        XCTAssertEqual(windowBuilder.createdViewModels.first?.titleText, "休憩しましょう — отдохни 🌿")
+    }
+
+    func testShowBreakNormalizesWhitespaceOnlyMessageTextToDefault() {
+        let display = DisplayDescriptor(frame: CGRect(x: 0, y: 0, width: 1440, height: 900))
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let manager = BreakOverlayManager(
+            screenProvider: { [display] },
+            windowBuilder: windowBuilder,
+            appActivator: {}
+        )
+
+        manager.showBreak(remainingSeconds: 20, messageText: "   \n\t  ")
+
+        XCTAssertEqual(manager.viewModel?.titleText, AppConfig.defaultBreakOverlayMessageText)
+        XCTAssertEqual(windowBuilder.createdViewModels.first?.titleText, AppConfig.defaultBreakOverlayMessageText)
+    }
+
     func testHideBreakClosesAndReleasesWindows() {
         let displays = [
             DisplayDescriptor(frame: CGRect(x: 0, y: 0, width: 1440, height: 900)),
@@ -157,6 +187,49 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(windowBuilder.windows[1].showCallCount, 1)
         XCTAssertEqual(windowBuilder.windows[1].closeCallCount, 0)
         XCTAssertEqual(activationCount, 2)
+    }
+
+    func testScreenChangePreservesCustomMessageAndSharedBreakState() {
+        let builtInDisplay = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        let externalDisplay = DisplayDescriptor(
+            frame: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
+            id: "external"
+        )
+        var displays = [builtInDisplay]
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let screenObserver = FakeBreakScreenObserverRegistrar()
+        var didSkip = false
+        let manager = BreakOverlayManager(
+            screenProvider: { displays },
+            windowBuilder: windowBuilder,
+            screenObservationRegistrar: screenObserver.register,
+            appActivator: {}
+        )
+
+        manager.showBreak(remainingSeconds: 20, messageText: "休憩しましょう — отдохни 🌿") {
+            didSkip = true
+        }
+        manager.updateRemainingSeconds(11)
+        let originalWindow = windowBuilder.windows[0]
+        guard let sharedViewModel = try? XCTUnwrap(manager.viewModel) else {
+            return XCTFail("Expected active break view model")
+        }
+
+        displays = [builtInDisplay, externalDisplay]
+        screenObserver.fire()
+        manager.viewModel?.skip()
+
+        XCTAssertEqual(windowBuilder.createdDisplays, [builtInDisplay, externalDisplay])
+        XCTAssertTrue(windowBuilder.createdViewModels.allSatisfy { $0 === sharedViewModel })
+        XCTAssertEqual(sharedViewModel.titleText, "休憩しましょう — отдохни 🌿")
+        XCTAssertEqual(sharedViewModel.countdownText, "00:11")
+        XCTAssertEqual(windowBuilder.windows.count, 2)
+        XCTAssertEqual(originalWindow.closeCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[1].closeCallCount, 1)
+        XCTAssertTrue(didSkip)
     }
 
     func testShowBreakResyncsDisplaysChangedBeforeScreenObserverRegistrationCompletes() {

@@ -126,17 +126,17 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         controller.install()
 
         let button = try XCTUnwrap(statusItem.button)
-        XCTAssertEqual(button.title, "05:00")
+        XCTAssertEqual(button.attributedTitle.string, "  05:00")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
 
         controller.setRemindersPaused(true)
 
-        XCTAssertEqual(button.title, "Paused")
+        XCTAssertEqual(button.attributedTitle.string, "  Paused")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
 
         controller.setRemindersPaused(false)
 
-        XCTAssertEqual(button.title, "05:00")
+        XCTAssertEqual(button.attributedTitle.string, "  05:00")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
     }
 

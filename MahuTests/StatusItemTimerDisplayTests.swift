@@ -72,10 +72,36 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertEqual(statusItem.length, NSStatusItem.variableLength)
-        XCTAssertEqual(button.title, "02:05")
+        XCTAssertEqual(button.attributedTitle.string, "  02:05")
+        XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+    }
+
+    func testTimerModeUsesStableWidthDigitPresentationAcrossCountdownChanges() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.install()
+
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
+        let tenSecondTitle = try XCTUnwrap(statusItem.button).attributedTitle
+
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 9))
+        let nineSecondTitle = try XCTUnwrap(statusItem.button).attributedTitle
+
+        XCTAssertEqual(tenSecondTitle.string, "  00:10")
+        XCTAssertEqual(nineSecondTitle.string, "  00:09")
+        XCTAssertEqual(tenSecondTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
+        XCTAssertEqual(nineSecondTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
     }
 
     func testTimerModeCanBeEnabledAfterInstallUsingProductionCallOrder() throws {
@@ -96,7 +122,8 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertEqual(statusItem.length, NSStatusItem.variableLength)
-        XCTAssertEqual(button.title, "00:20")
+        XCTAssertEqual(button.attributedTitle.string, "  00:20")
+        XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
     }
@@ -120,12 +147,17 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertEqual(statusItem.length, NSStatusItem.variableLength)
-        XCTAssertEqual(button.title, "Paused")
+        XCTAssertEqual(button.attributedTitle.string, "  Paused")
+        XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
         XCTAssertLessThan(button.alphaValue, 1.0)
         XCTAssertTrue(button.alphaValue >= 0.45)
         XCTAssertTrue(button.alphaValue <= 0.60)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+    }
+
+    private func timerDisplayFont() -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     }
 }

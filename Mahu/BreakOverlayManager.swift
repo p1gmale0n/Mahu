@@ -179,7 +179,11 @@ final class BreakOverlayManager {
     }
 
     @discardableResult
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void = {}) -> Bool {
+    func showBreak(
+        remainingSeconds: TimeInterval,
+        messageText: String = AppConfig.defaultBreakOverlayMessageText,
+        onSkip: @escaping () -> Void = {}
+    ) -> Bool {
         let displays = screenProvider()
         guard displays.isEmpty == false else {
             return false
@@ -188,7 +192,10 @@ final class BreakOverlayManager {
         let previousFrontmostApplication = viewModel == nil ? previousAppCapture() : self.previousFrontmostApplication
         tearDownActiveBreak(restorePreviousApplication: false)
 
-        let viewModel = BreakOverlayViewModel(remainingSeconds: remainingSeconds) { [weak self] in
+        let viewModel = BreakOverlayViewModel(
+            remainingSeconds: remainingSeconds,
+            titleText: messageText
+        ) { [weak self] in
             onSkip()
             if self?.viewModel != nil {
                 self?.hideBreak()

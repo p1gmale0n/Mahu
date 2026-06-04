@@ -2,6 +2,14 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-29 | Overlay message review hardening | Reuse `AppConfig.normalizedBreakOverlayMessageText` below the config layer, center multiline overlay titles inside a bounded width, strengthen legacy-config tests, and document whitespace fallback plus custom-title display resync in README manual checks. | Review found the config boundary normalized blank message text more strictly than the overlay view-model path, the missing-field tests could pass on full-config fallback, and the shipped docs did not explicitly cover whitespace fallback or custom-title persistence during display resync. |
+| 2026-05-29 | Coordinator overlay message wiring | Make `AppCoordinator` pass `activeConfig.breakOverlayMessageText` into `showBreak`, with the default title only as a defensive fallback. | The config is loaded once at launch and cached on the coordinator already, so this is the smallest place to connect launch-time configuration to break presentation without introducing live reload or moving overlay policy into SwiftUI/AppKit seams. |
+| 2026-05-29 | Overlay message plan close-out | Close the configurable overlay-message plan without sequence changes and keep physical-display text layout/readability checks explicit in Post-Completion manual verification. | The implementation and automated validation are complete, but XCTest/builds cannot prove real NSWindow rendering, text wrapping, or multi-display readability during a live break, so the final plan state must distinguish shipped automation from remaining hardware-only verification. |
+| 2026-05-29 | Break overlay manager message wiring | Extend `BreakOverlayManaging.showBreak`/`BreakOverlayManager.showBreak` with `messageText` and keep resync on the shared `BreakOverlayViewModel`. | The manager owns initial overlay window creation plus active-break display reconciliation, so it is the smallest seam that can preserve title, countdown, and skip state across hot-plug changes while exposing the shown title to coordinator tests. |
+| 2026-05-29 | Break overlay view-model message ownership | Store the overlay title on `BreakOverlayViewModel`, default it from `AppConfig.defaultBreakOverlayMessageText`, and have `BreakOverlayView` render only the model-provided string. | The configurable message feature needs a small UI seam that keeps config lookup out of SwiftUI view code while preserving the existing default title and countdown/skip behavior. |
+| 2026-05-29 | Break overlay message config contract | Add `breakOverlayMessageText: String` to `AppConfig`, default it to `Время отвлечься`, decode a missing key as the default, normalize empty or whitespace-only strings back to the default, and let `null` or non-string values fail through the existing whole-config fallback path. | The new overlay-message feature must preserve old `config.json` files, keep the current Russian message when the field is absent or blank, and avoid inventing a second malformed-config recovery rule separate from the established decode-failure fallback behavior. |
+| 2026-05-29 | Break overlay message documentation contract | Document `breakOverlayMessageText` in `README.md` and `AGENTS.md` as a shipped config-backed overlay title with the Russian default and explicit malformed-config fallback semantics. | Future agents use these docs as product invariants; leaving them on the hardcoded-title story would misstate shipped behavior and make backward-compatible config expectations easy to break. |
+| 2026-05-29 | Tray timer text presentation | Render timer-mode status item text with a monospaced-digit attributed title and a small leading text spacer while keeping the native `NSStatusBarButton` and existing tray icon. | Manual tray validation showed the default image-leading title was too tight and proportional digits caused the status item width to shift during countdown; monospaced digits stabilize normal `MM:SS` transitions and the spacer improves readability without moving to a custom status-item view. |
 | 2026-05-29 | Tray timer review hardening | Treat explicit `showStatusItemTimerState: null` as invalid config, and require the dedicated tray-timer coordinator XCTest files to be real Xcode target members with assertions that prove post-install status updates and exact work/rest state transitions. | The review found one config-contract leak plus false-green coverage gaps: `null` bypassed the documented whole-config fallback, two new XCTest files were not compiled into `MahuTests`, and some status-item assertions did not yet prove the production call order or natural-completion sequence precisely. |
 | 2026-05-29 | Tray timer plan archival | Archive the completed optional tray-timer plan under `docs/plans/completed/` and add an explicit completed-status marker in the file. | The repo and README treat `docs/plans/` as the active queue, so leaving a finished plan there misstates project state for future agents and review loops. |
 | 2026-05-29 | Tray timer plan close-out | Close the optional tray-timer plan without sequence changes, and explicitly keep native `NSStatusItem` width/truncation/spacing acceptance in Post-Completion manual checks. | The implementation landed task-by-task as planned, but XCTest still cannot prove real menu-bar rendering details, so the final plan state must distinguish complete automation from remaining live-UI verification. |
@@ -101,6 +109,70 @@
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
 ## 2026-05-29 / Shared Timer Display Formatting
+
+## 2026-05-29 / Coordinator Overlay Message Wiring
+
+**Date:** 2026-05-29
+
+**Area:** Coordinator overlay message wiring
+
+**Context:** Task 4 needed the already-loaded `AppConfig.breakOverlayMessageText` to reach break presentation, but the repo explicitly keeps live config reload out of scope and avoids pushing extra display/window logic into `AppCoordinator`. The overlay manager and view model already accept message text by this point, so the remaining seam is the coordinator's rest-phase `showBreak` call.
+
+**Decision:** Pass `activeConfig.breakOverlayMessageText` from `AppCoordinator` into `overlayManager.showBreak(...)`, keeping `AppConfig.defaultBreakOverlayMessageText` only as a defensive fallback if `activeConfig` is unexpectedly absent.
+
+**Rationale:** `AppCoordinator.start()` already loads and caches config exactly once per launch. Reusing that cached value is the smallest correct wiring change, keeps configuration ownership out of SwiftUI/AppKit layers, and preserves the current no-live-reload contract.
+
+**Consequences:** Coordinator tests can now prove both custom and default-message launch paths without changing overlay-manager behavior or adding new state to `BreakOverlayView`. If a future feature adds live config reload, that should be a separate coordinator/config-store change rather than piggybacking on this path.
+
+**Alternatives Considered:** Keep sending the hardcoded default from `AppCoordinator`; rejected because it would leave the feature half-wired and make launch-loaded config ineffective at runtime. Re-read config at break start; rejected because this plan explicitly keeps live reload out of scope and would introduce hidden runtime config semantics.
+
+## 2026-05-29 / Break Overlay View-Model Message Ownership
+
+**Date:** 2026-05-29
+
+**Area:** Break overlay view-model message ownership
+
+**Context:** Task 2 needs the break overlay title to become configurable without letting `BreakOverlayView` read `AppConfig` or any config store directly. The existing view model already owns the countdown formatter and skip callback, so it is the smallest seam that can carry the title through both production and tests.
+
+**Decision:** Add a `titleText` property to `BreakOverlayViewModel`, default it from `AppConfig.defaultBreakOverlayMessageText`, and make `BreakOverlayView` render that property instead of a hardcoded string.
+
+**Rationale:** This keeps the SwiftUI layer data-driven and leaves config ownership outside the view code, which matches the repo's AppKit/SwiftUI boundary guidance. Reusing the existing view model also avoids adding another wrapper type or passing parallel title state through the view tree.
+
+**Consequences:** Task 3 and Task 4 can later wire the configured message through `BreakOverlayManager` and `AppCoordinator` without changing `BreakOverlayView` again. Tests can now prove both the default and custom Unicode title rendering together with the existing countdown and `Skip` behavior.
+
+**Alternatives Considered:** Keep the hardcoded title in `BreakOverlayView` and swap it later in Task 4; rejected because that would force a larger cross-task UI change and keep the view non-data-driven longer than necessary. Let `BreakOverlayView` read `AppConfig.defaultBreakOverlayMessageText` directly; rejected because the feature contract explicitly keeps config access out of SwiftUI view code.
+
+## 2026-05-29 / Break Overlay Message Config Contract
+
+**Date:** 2026-05-29
+
+**Area:** Break overlay message config contract
+
+**Context:** The break overlay currently hardcodes `Время отвлечься`, but the new feature needs a config-backed message without breaking existing manually edited `config.json` files. The repo already has an established config contract: omitted optional keys decode to safe defaults, while explicit invalid values fail decoding and make `ConfigStore.load()` fall back to `AppConfig.default`.
+
+**Decision:** Add `breakOverlayMessageText: String` to `AppConfig`, make `AppConfig.default` encode it as `Время отвлечься`, decode a missing key as that default, normalize empty or whitespace-only strings back to the default, and keep `null` or non-string values on the existing whole-config fallback path by decoding them as required strings when present.
+
+**Rationale:** Missing-key-as-default preserves backward compatibility for already-written config files. Blank-string normalization gives users a predictable fallback instead of shipping an invisible title, and reusing the current decode-failure path for `null` and wrong types keeps malformed-manual-edit behavior consistent with the rest of the config surface.
+
+**Consequences:** Task 1 can stay localized to `AppConfig` plus config tests; `ConfigStore` does not need custom field-specific recovery logic. Future overlay wiring can trust `activeConfig.breakOverlayMessageText` to always contain a non-empty string.
+
+**Alternatives Considered:** Treat blank strings as valid and render them literally; rejected because it would allow an effectively missing overlay title and conflict with the feature's default-message intent. Add custom `ConfigStore` repair logic for `null`; rejected because it would split one field away from the repo's established invalid-config fallback contract.
+
+## 2026-05-29 / Break Overlay Message Documentation Contract
+
+**Date:** 2026-05-29
+
+**Area:** Break overlay message documentation contract
+
+**Context:** The configurable overlay title is now implemented in config, view model, overlay manager, and coordinator tests, but the human-facing docs still described the break screen as always showing the hardcoded Russian text. This creates a drift risk because future agents rely on `README.md` and `AGENTS.md` to understand shipped behavior and config guarantees.
+
+**Decision:** Update `README.md` and `AGENTS.md` so they describe `breakOverlayMessageText` as a shipped config-backed break title, preserve `Время отвлечься` as the default when the field is missing or blank, and document that `null` or wrong types still trigger the existing whole-config fallback behavior.
+
+**Rationale:** This is the smallest durable way to keep product docs aligned with the implemented config contract and prevent future work from accidentally re-hardcoding the title or misdocumenting malformed-config behavior.
+
+**Consequences:** Humans now have a correct config example and manual verification path for custom Unicode titles. Future agents can treat the configurable title as an invariant rather than rediscovering it from tests or source.
+
+**Alternatives Considered:** Leave docs unchanged because the code and tests already prove behavior; rejected because Mahu's workflow explicitly treats README and AGENTS as durable product guidance, and stale docs would mislead both humans and future agents. Document only the default message without the config key; rejected because it would hide the shipped customization surface and the backward-compatibility rules.
 
 ## 2026-05-29 / Tray Timer Plan Archival
 
@@ -1665,3 +1737,35 @@
 **Consequences:** `showStatusItemTimerState: null` now falls back to `.default` alongside other malformed config values, the dedicated tray-timer coordinator tests run under `xcodebuild test`, and the strengthened AppKit/coordinator assertions better match the real startup call order. If future tray text differentiates work vs. rest beyond raw `MM:SS`, the exact-state assertions will keep that seam explicit instead of hiding it behind duplicate strings.
 
 **Alternatives Considered:** Keep treating `null` as "missing" for convenience; rejected because the plan and README both define invalid values as whole-config fallback territory. Leave the missing coordinator suites off-target and rely on plan prose; rejected because that creates silent coverage gaps. Keep the weaker string-based assertions; rejected because identical `00:01` strings can mask a missing rest-phase update.
+
+## 2026-05-29 / Break Overlay Manager Message Wiring
+
+**Date:** 2026-05-29
+
+**Area:** Break overlay manager message wiring
+
+**Context:** The configurable overlay title already lives on `BreakOverlayViewModel`, but active-break window creation and display resync still instantiated the shared view model without any message input. The coordinator-facing overlay protocol and fake manager also could not record which title was shown, which would block the next task's config-to-overlay assertions.
+
+**Decision:** Extend `BreakOverlayManaging.showBreak` and `BreakOverlayManager.showBreak` with a `messageText` parameter, build the shared `BreakOverlayViewModel` from that string, and keep screen-change reconciliation reusing that same view-model instance.
+
+**Rationale:** `BreakOverlayManager` is the smallest seam that owns both initial window creation and active-break display reconciliation. Carrying the title here preserves the existing shared-state model and keeps config access out of SwiftUI views while making the coordinator test seam explicit.
+
+**Consequences:** All display windows for one break continue sharing the same title, countdown, and `Skip` callback even after hot-plug/resync. Coordinator-support fakes now record message text, which enables the next task to verify config wiring without another seam refactor.
+
+**Alternatives Considered:** Keep `showBreak` default-only until coordinator wiring; rejected because Task 3 explicitly needs manager-level message propagation and resync proof. Recompute title per window during resync; rejected because it weakens the existing shared-view-model contract and risks diverging per-display state.
+
+## 2026-05-29 / Overlay Message Review Hardening
+
+**Date:** 2026-05-29
+
+**Area:** Overlay message review hardening
+
+**Context:** Review of the configurable overlay-title work exposed two follow-up gaps. `AppConfig` normalized empty and whitespace-only message text back to `Время отвлечься`, but `BreakOverlayViewModel` still had a weaker `isEmpty` fallback, so direct non-config callers could present an effectively blank overlay title. The same review also found that README manual checks documented the default/custom title cases but not the whitespace fallback or the requirement that a custom title survive display hot-plug and resize resync.
+
+**Decision:** Make `AppConfig.normalizedBreakOverlayMessageText(_:)` the shared normalization helper for both config decoding and `BreakOverlayViewModel` initialization, tighten overlay title presentation with centered multiline rendering plus a bounded maximum width, and strengthen the legacy-config tests so omitted `breakOverlayMessageText` must preserve the rest of the decoded config instead of silently passing on a whole-config fallback. Expand README manual checks and the plan close-out text to cover whitespace fallback and custom-title persistence during display resync, while keeping the finished plan at its current path with an explicit completed-status marker for the active review loop.
+
+**Rationale:** One normalization rule is easier to reason about than layered fallbacks with subtly different semantics. Centered multiline text with a bounded width keeps long custom messages readable without inventing a new config-length limit, stronger legacy-config tests make the backward-compatibility claim truthful, and the missing manual-check bullets were part of the shipped feature contract, not optional commentary.
+
+**Consequences:** Every overlay entry path now treats blank and whitespace-only titles consistently, long custom titles center more predictably when they wrap, the backward-compatible config tests now fail if omitted-message JSON falls all the way back to `.default`, and future reviewers can see the missing manual verification cases directly in README and the completed plan header. If the product later needs a hard maximum title length instead of view-level wrapping, that should be added explicitly at the config boundary.
+
+**Alternatives Considered:** Leave normalization duplicated across `AppConfig` and the view-model; rejected because the weaker lower-layer fallback allowed divergent behavior outside the config path. Add a config-length limit for `breakOverlayMessageText`; rejected for now because the feature contract still allows any non-empty Unicode string and the immediate problem was rendering/readability, not storage size.

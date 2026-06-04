@@ -36,7 +36,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - Missing config creates a default config file and continues running.
 - Invalid JSON or unsupported config durations, including values below 1 second, values that exceed one-second `TimeInterval` precision, or non-finite values, fall back to defaults and continue running.
-- Break overlay explicitly loads bundled `background.png` from the app bundle, applies a dark readability treatment, shows `Время отвлечься`, displays a countdown, and includes `Skip`.
+- Break overlay explicitly loads bundled `background.png` from the app bundle, applies a dark readability treatment, shows a config-backed message that defaults to `Время отвлечься`, displays a countdown, and includes `Skip`.
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
 - If Mahu starts a break while no active displays are available, it retries presentation without consuming break time; if an active break temporarily loses every display, Mahu closes the hidden overlay windows, preserves the same countdown/`Skip` state, and resumes the break without consuming rest time once a display returns.
@@ -74,7 +74,8 @@ Example:
 {
   "workDurationSeconds": 1200,
   "breakDurationSeconds": 20,
-  "showStatusItemTimerState": false
+  "showStatusItemTimerState": false,
+  "breakOverlayMessageText": "Время отвлечься"
 }
 ```
 
@@ -82,6 +83,8 @@ Notes:
 
 - `1200` seconds = 20 minutes.
 - `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`, with `Paused` shown while reminders are paused.
+- `breakOverlayMessageText` defaults to `Время отвлечься`; omit it to keep backward-compatible behavior, or set it to any non-empty Unicode string to change the break title.
+- Empty or whitespace-only `breakOverlayMessageText` values normalize back to the default title, while `null` or non-string values make Mahu fall back to the full default config like other malformed config edits.
 - Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
 - Mahu reads `config.json` only when the configured path is a regular file or a symlink resolving to one. Directories, pipes, broken symlinks, unreadable targets, and files larger than 64 KiB are ignored, and Mahu falls back to the default schedule.
 - Use shorter values locally if you want to manually exercise the overlay flow faster.
@@ -140,7 +143,9 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Confirm the status item visually uses the transparent tray glyph rather than the old SF Symbol or a visible square app-icon raster.
 - Check the tray icon in light mode, dark mode, and the highlighted menu-bar state; this readability proof is still manual-only. If the tray asset is unavailable during local debugging, confirm Mahu still shows a non-empty fallback icon.
 - Temporarily shorten config durations and confirm the overlay appears.
-- Confirm `Время отвлечься`, the countdown, and `Skip` stay horizontally and vertically centered on the built-in display.
+- With the default or missing `breakOverlayMessageText`, confirm `Время отвлечься`, the countdown, and `Skip` stay horizontally and vertically centered on the built-in display.
+- With a custom Unicode `breakOverlayMessageText` such as `休憩しましょう — отдохни 🌿`, confirm the overlay renders that exact text and keeps the title, countdown, and `Skip` readable.
+- With an empty or whitespace-only `breakOverlayMessageText`, confirm the overlay falls back to `Время отвлечься` while keeping the title, countdown, and `Skip` centered.
 - Confirm the overlay background comes from the bundled `background.png`, not a repository-root or user-supplied file.
 - If an external display is available, confirm background cropping does not shift the foreground controls there either.
 - Press `Cmd+Tab` during an active break and confirm Mahu quickly returns to the front.
@@ -149,6 +154,7 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Start a break on the built-in display, then connect an external monitor and confirm an overlay appears on the new display without restarting the break.
 - Start a break with an external monitor connected, then disconnect it and confirm stale overlay windows close while the remaining display keeps the same countdown and `Skip` state.
 - Change display resolution or scaling during an active break and confirm overlay windows resync.
+- Start a break with a custom `breakOverlayMessageText`, then connect, disconnect, or resize a display and confirm the same custom title persists with the same countdown and `Skip` state.
 - Trigger a transient display or fullscreen-Space transition during a break and confirm Mahu keeps the break active across empty-display snapshots; note any cases where AppKit still hides the overlay despite active displays.
 - Test with a fullscreen app or Space and document any limitations separately.
 - Let a break end naturally and confirm the bundled `break-completion.caf` completion sound plays once.

@@ -5,25 +5,30 @@ struct AppConfig: Codable, Equatable {
     static let maximumSupportedDurationSeconds: TimeInterval = 9_007_199_254_740_992
     static let subsecondPrecisionThresholdSeconds: TimeInterval = 4_503_599_627_370_496
     private static let maximumDisplayableWholeSeconds: TimeInterval = TimeInterval(Int64.max)
+    static let defaultBreakOverlayMessageText = "Время отвлечься"
 
     let workDurationSeconds: TimeInterval
     let breakDurationSeconds: TimeInterval
     let showStatusItemTimerState: Bool
+    let breakOverlayMessageText: String
 
     static let `default` = AppConfig(
         workDurationSeconds: 1_200,
         breakDurationSeconds: 20,
-        showStatusItemTimerState: false
+        showStatusItemTimerState: false,
+        breakOverlayMessageText: defaultBreakOverlayMessageText
     )
 
     init(
         workDurationSeconds: TimeInterval,
         breakDurationSeconds: TimeInterval,
-        showStatusItemTimerState: Bool = false
+        showStatusItemTimerState: Bool = false,
+        breakOverlayMessageText: String = AppConfig.defaultBreakOverlayMessageText
     ) {
         self.workDurationSeconds = workDurationSeconds
         self.breakDurationSeconds = breakDurationSeconds
         self.showStatusItemTimerState = showStatusItemTimerState
+        self.breakOverlayMessageText = Self.normalizedBreakOverlayMessageText(breakOverlayMessageText)
     }
 
     var hasSupportedDurations: Bool {
@@ -50,10 +55,17 @@ struct AppConfig: Codable, Equatable {
             duration <= maximumSupportedDurationSeconds
     }
 
+    static func normalizedBreakOverlayMessageText(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? defaultBreakOverlayMessageText
+            : text
+    }
+
     private enum CodingKeys: String, CodingKey {
         case workDurationSeconds
         case breakDurationSeconds
         case showStatusItemTimerState
+        case breakOverlayMessageText
     }
 
     init(from decoder: Decoder) throws {
@@ -64,6 +76,14 @@ struct AppConfig: Codable, Equatable {
             showStatusItemTimerState = try container.decode(Bool.self, forKey: .showStatusItemTimerState)
         } else {
             showStatusItemTimerState = false
+        }
+
+        if container.contains(.breakOverlayMessageText) {
+            breakOverlayMessageText = Self.normalizedBreakOverlayMessageText(
+                try container.decode(String.self, forKey: .breakOverlayMessageText)
+            )
+        } else {
+            breakOverlayMessageText = Self.defaultBreakOverlayMessageText
         }
     }
 }

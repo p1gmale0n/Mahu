@@ -105,7 +105,7 @@ final class AppCoordinatorStatusItemDisplayTests: XCTestCase {
         scheduledTick?()
         scheduledTick?()
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(20), .update(19)])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText), .update(19)])
         XCTAssertEqual(
             fakeStatusItemController.statusDisplayStates,
             [

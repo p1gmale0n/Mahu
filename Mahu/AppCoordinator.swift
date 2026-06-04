@@ -179,7 +179,10 @@ final class AppCoordinator {
             if isShowingBreak {
                 overlayManager.updateRemainingSeconds(state.remainingSeconds)
             } else {
-                isShowingBreak = overlayManager.showBreak(remainingSeconds: state.remainingSeconds) { [weak self] in
+                isShowingBreak = overlayManager.showBreak(
+                    remainingSeconds: state.remainingSeconds,
+                    messageText: activeConfig?.breakOverlayMessageText ?? AppConfig.defaultBreakOverlayMessageText
+                ) { [weak self] in
                     self?.skipBreak()
                 }
                 if isShowingBreak {

@@ -142,7 +142,7 @@ final class FakeBreakCompletionSoundPlayer: BreakCompletionSoundPlaying {
 @MainActor
 final class FakeBreakOverlayManager: BreakOverlayManaging {
     enum Event: Equatable {
-        case show(TimeInterval)
+        case show(TimeInterval, String)
         case update(TimeInterval)
         case hide
     }
@@ -161,8 +161,8 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
     private(set) var skipHandler: (() -> Void)?
     var showBreakResult = true
 
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool {
-        events.append(.show(remainingSeconds))
+    func showBreak(remainingSeconds: TimeInterval, messageText: String, onSkip: @escaping () -> Void) -> Bool {
+        events.append(.show(remainingSeconds, messageText))
         skipHandler = onSkip
         hasVisibleOverlayWindows = showBreakResult
         return showBreakResult

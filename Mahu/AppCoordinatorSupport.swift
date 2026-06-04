@@ -27,7 +27,7 @@ protocol BreakOverlayManaging: AnyObject {
     var hasVisibleOverlayWindows: Bool { get }
     var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler? { get set }
     @discardableResult
-    func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void) -> Bool
+    func showBreak(remainingSeconds: TimeInterval, messageText: String, onSkip: @escaping () -> Void) -> Bool
     func updateRemainingSeconds(_ remainingSeconds: TimeInterval)
     func hideBreak()
 }

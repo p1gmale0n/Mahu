@@ -16,10 +16,29 @@ final class BreakOverlayViewTests: XCTestCase {
         XCTAssertTrue(didSkip)
     }
 
+    func testViewModelUsesDefaultTitleWhenCustomTextIsOmitted() {
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 12)
+
+        XCTAssertEqual(viewModel.titleText, AppConfig.defaultBreakOverlayMessageText)
+    }
+
+    func testViewModelPreservesCustomUnicodeTitle() {
+        let customTitle = "休憩しましょう — отдохни 🌿"
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 12, titleText: customTitle)
+
+        XCTAssertEqual(viewModel.titleText, customTitle)
+    }
+
+    func testViewModelNormalizesWhitespaceOnlyTitleToDefault() {
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 12, titleText: "   \n\t  ")
+
+        XCTAssertEqual(viewModel.titleText, AppConfig.defaultBreakOverlayMessageText)
+    }
+
     func testViewModelFormatsCountdownUsingMinutesAndSeconds() {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 65)
 
-        XCTAssertEqual(viewModel.titleText, "Время отвлечься")
+        XCTAssertEqual(viewModel.titleText, AppConfig.defaultBreakOverlayMessageText)
         XCTAssertEqual(viewModel.countdownText, "01:05")
 
         viewModel.updateRemainingSeconds(-5)
@@ -65,7 +84,35 @@ final class BreakOverlayViewTests: XCTestCase {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 65)
         let view = BreakOverlayView(viewModel: viewModel)
 
-        assertOverlayRendersForegroundContent(view, expectedCountdown: "01:05")
+        assertOverlayRendersForegroundContent(
+            view,
+            expectedTitle: AppConfig.defaultBreakOverlayMessageText,
+            expectedCountdown: "01:05"
+        )
+    }
+
+    func testBreakOverlayViewRendersCustomMessageWithCountdownAndSkip() {
+        let customTitle = "休憩しましょう — отдохни 🌿"
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 65, titleText: customTitle)
+        let view = BreakOverlayView(viewModel: viewModel)
+
+        assertOverlayRendersForegroundContent(
+            view,
+            expectedTitle: customTitle,
+            expectedCountdown: "01:05"
+        )
+    }
+
+    func testBreakOverlayViewRendersLongCustomMessageWithCountdownAndSkip() {
+        let customTitle = "Пора сделать паузу и мягко перевести взгляд вдаль, чтобы дать глазам немного отдохнуть перед следующим рабочим интервалом."
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 65, titleText: customTitle)
+        let view = BreakOverlayView(viewModel: viewModel)
+
+        assertOverlayRendersForegroundContent(
+            view,
+            expectedTitle: customTitle,
+            expectedCountdown: "01:05"
+        )
     }
 
     func testBreakOverlayViewCanBeConstructedWhenBackgroundImageIsUnavailable() throws {
@@ -82,7 +129,11 @@ final class BreakOverlayViewTests: XCTestCase {
         )
 
         XCTAssertNil(view.backgroundImage)
-        assertOverlayRendersForegroundContent(view, expectedCountdown: "00:09")
+        assertOverlayRendersForegroundContent(
+            view,
+            expectedTitle: AppConfig.defaultBreakOverlayMessageText,
+            expectedCountdown: "00:09"
+        )
     }
 
     func testBreakOverlayViewLoadsBackgroundImageOnlyOncePerViewLifetime() {
@@ -113,7 +164,11 @@ final class BreakOverlayViewTests: XCTestCase {
         )
 
         XCTAssertNotNil(view.backgroundImage)
-        assertOverlayRendersForegroundContent(view, expectedCountdown: "00:27")
+        assertOverlayRendersForegroundContent(
+            view,
+            expectedTitle: AppConfig.defaultBreakOverlayMessageText,
+            expectedCountdown: "00:27"
+        )
     }
 
     func testBreakOverlayViewUsesGeometryBoundedLayoutToKeepForegroundCentered() {
@@ -170,7 +225,11 @@ final class BreakOverlayViewTests: XCTestCase {
 
         XCTAssertNil(loader.loadBackgroundImage())
         XCTAssertNil(view.backgroundImage)
-        assertOverlayRendersForegroundContent(view, expectedCountdown: "00:04")
+        assertOverlayRendersForegroundContent(
+            view,
+            expectedTitle: AppConfig.defaultBreakOverlayMessageText,
+            expectedCountdown: "00:04"
+        )
     }
 
     func testOverlayWindowCanBecomeKeyAndMain() {
@@ -213,13 +272,14 @@ final class BreakOverlayViewTests: XCTestCase {
 
     private func assertOverlayRendersForegroundContent(
         _ view: BreakOverlayView,
+        expectedTitle: String,
         expectedCountdown: String,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
         let bodyStringValues = allStringValues(in: view.foregroundContent)
 
-        XCTAssertTrue(bodyStringValues.contains("Время отвлечься"), file: file, line: line)
+        XCTAssertTrue(bodyStringValues.contains(expectedTitle), file: file, line: line)
         XCTAssertTrue(bodyStringValues.contains(expectedCountdown), file: file, line: line)
         XCTAssertTrue(bodyStringValues.contains("Skip"), file: file, line: line)
     }

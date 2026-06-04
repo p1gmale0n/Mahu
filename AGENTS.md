@@ -19,6 +19,7 @@
 - Prefer a standard modern Xcode macOS app target with SwiftUI app lifecycle; use AppKit interop for status-item and overlay-window behavior.
 - MVP default schedule is 20-20-20: 20 minutes of work, then a 20-second break.
 - MVP status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config may show the same icon plus `MM:SS` for active work/rest timers or `Paused` while reminders are paused.
+- In optional tray timer mode, keep spacing between the icon and text readable and use stable-width digit presentation so the tray icon does not drift horizontally during countdown.
 - While reminders are paused, keep the same status icon asset but dim it visually without disabling the menu-bar control.
 - When a break starts, create a borderless fullscreen `NSWindow` for every active display, not just the main display.
 - While a break is active, display additions, removals, and display-frame changes must resync overlay windows without restarting the break, recapturing the previous app, or replacing the shared countdown/`Skip` state.
@@ -26,7 +27,7 @@
 - Bring the overlay app to the front with `makeKeyAndOrderFront(nil)` and `NSApp.activate(ignoringOtherApps: true)`.
 - While a break is active, best-effort focus retention should re-show existing overlay windows and reactivate Mahu if another app becomes frontmost; do not escalate this into input capture without an explicit product change.
 - Do not add system-level keyboard/mouse capture unless the product requirement changes; focus stealing plus high-level overlay is the intended behavior.
-- Break screen should be dark and minimal, with a short message like `Время отвлечься`, a countdown until rest ends, and a `Skip` button.
+- Break screen should be dark and minimal, with a short config-backed message that defaults to `Время отвлечься`, a countdown until rest ends, and a `Skip` button.
 - Break screen should use the bundled background image with a dark readability layer so title, countdown, and `Skip` remain legible across displays.
 - Break screen foreground centering must be bounded by the actual overlay window size: keep `BreakOverlayView` using `GeometryReader` (or an equivalent explicit-size container) so `scaledToFill()` background imagery cannot expand layout and shift content on the built-in laptop display.
 - When a visible break ends naturally, play bundled `break-completion.caf` once; pressing `Skip` must not play the completion sound.

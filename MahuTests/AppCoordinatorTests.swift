@@ -105,7 +105,7 @@ final class AppCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             fakeOverlayManager.events,
-            [.show(20), .update(19)]
+            [.show(20, AppConfig.defaultBreakOverlayMessageText), .update(19)]
         )
     }
 
@@ -139,7 +139,7 @@ final class AppCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             fakeOverlayManager.events,
-            [.show(1), .hide]
+            [.show(1, AppConfig.defaultBreakOverlayMessageText), .hide]
         )
     }
 
@@ -174,7 +174,7 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(fakeTimer.skipBreakCallCount, 1)
         XCTAssertEqual(
             fakeOverlayManager.events,
-            [.show(20), .hide]
+            [.show(20, AppConfig.defaultBreakOverlayMessageText), .hide]
         )
     }
 
@@ -290,7 +290,7 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(fakeTimer.advanceCalls, [1, 1])
         XCTAssertEqual(
             fakeOverlayManager.events,
-            [.show(20), .update(19)]
+            [.show(20, AppConfig.defaultBreakOverlayMessageText), .update(19)]
         )
     }
 
@@ -325,7 +325,7 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(fakeTimer.advanceCalls, [1, 1])
         XCTAssertEqual(
             fakeOverlayManager.events,
-            [.show(20), .update(19)]
+            [.show(20, AppConfig.defaultBreakOverlayMessageText), .update(19)]
         )
     }
 

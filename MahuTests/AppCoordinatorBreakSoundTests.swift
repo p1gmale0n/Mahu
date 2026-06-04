@@ -32,7 +32,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         scheduledTick?()
         scheduledTick?()
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(1), .hide])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(1, AppConfig.defaultBreakOverlayMessageText), .hide])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 1)
     }
 
@@ -63,7 +63,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         scheduledTick?()
         fakeOverlayManager.skipHandler?()
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(20), .hide])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText), .hide])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
 
@@ -133,7 +133,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         coordinator.start()
         scheduledTick?()
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(20)])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText)])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
 
@@ -164,7 +164,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         scheduledTick?()
         scheduledTick?()
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(20), .show(20)])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText), .show(20, AppConfig.defaultBreakOverlayMessageText)])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
 
@@ -215,7 +215,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         scheduledTick?()
         fakeOverlayManager.hasVisibleOverlayWindows = false
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(1), .hide])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(1, AppConfig.defaultBreakOverlayMessageText), .hide])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 1)
     }
 
@@ -242,7 +242,7 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         scheduledTick?()
         fakeOverlayManager.hasVisibleOverlayWindows = false
 
-        XCTAssertEqual(fakeOverlayManager.events, [.show(2), .update(1)])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(2, AppConfig.defaultBreakOverlayMessageText), .update(1)])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
 }

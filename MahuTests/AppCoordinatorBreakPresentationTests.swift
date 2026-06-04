@@ -28,7 +28,7 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         scheduledTick?()
 
         XCTAssertEqual(fakeTimer.advanceCalls, [1])
-        XCTAssertEqual(fakeOverlayManager.events, [.show(20), .show(20)])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText), .show(20, AppConfig.defaultBreakOverlayMessageText)])
     }
 
     func testLateBreakCompletionTickDoesNotConsumeNextWorkIntervalBeforeOverlayHides() {
@@ -60,7 +60,7 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         scheduledTick?()
 
         XCTAssertEqual(fakeTimer.advanceCalls, [1, 1, 1])
-        XCTAssertEqual(fakeOverlayManager.events, [.show(1), .hide])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(1, AppConfig.defaultBreakOverlayMessageText), .hide])
     }
 
     func testHiddenActiveBreakPausesCountdownUntilOverlayBecomesVisibleAgain() {
@@ -93,7 +93,7 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         scheduledTick?()
 
         XCTAssertEqual(fakeTimer.advanceCalls, [1, 1])
-        XCTAssertEqual(fakeOverlayManager.events, [.show(20), .update(19)])
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText), .update(19)])
     }
 
     func testBreakOnlyConsumesVisibleRestTimeWhenDisplaysDisappearBetweenTicks() {
@@ -118,7 +118,7 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         fakeOverlayManager.hasVisibleOverlayWindows = true
         scheduledTick?()
 
-        guard case .show(let initialBreakSeconds)? = fakeOverlayManager.events.first else {
+        guard case .show(let initialBreakSeconds, let initialMessageText)? = fakeOverlayManager.events.first else {
             return XCTFail("Expected the break overlay to be shown once before visibility transitions.")
         }
 
@@ -131,8 +131,77 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         }
 
         XCTAssertEqual(initialBreakSeconds, 20, accuracy: 0.0001)
+        XCTAssertEqual(initialMessageText, AppConfig.defaultBreakOverlayMessageText)
         XCTAssertEqual(updateEvents.count, 2)
         XCTAssertEqual(updateEvents[0], 19.6, accuracy: 0.0001)
         XCTAssertEqual(updateEvents[1], 18.6, accuracy: 0.0001)
+    }
+
+    func testCustomBreakOverlayMessageFromLoadedConfigReachesShowBreak() {
+        let customMessage = "休憩しましょう — отдохни 🌿"
+        let config = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            breakOverlayMessageText: customMessage
+        )
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [.init(phase: .rest, remainingSeconds: 20)]
+        )
+        var scheduledTick: (() -> Void)?
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            loadConfig: { config },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([300, 301])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, customMessage)])
+    }
+
+    func testMissingBreakOverlayMessageConfigFieldStillSendsDefaultMessage() throws {
+        let legacyConfigData = Data(
+            """
+            {
+              "workDurationSeconds": 300,
+              "breakDurationSeconds": 20,
+              "showStatusItemTimerState": true
+            }
+            """.utf8
+        )
+        let legacyConfig = try JSONDecoder().decode(AppConfig.self, from: legacyConfigData)
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [.init(phase: .rest, remainingSeconds: 20)]
+        )
+        var scheduledTick: (() -> Void)?
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            loadConfig: { legacyConfig },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([400, 401])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+
+        XCTAssertTrue(legacyConfig.showStatusItemTimerState)
+        XCTAssertEqual(legacyConfig.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText)])
     }
 }

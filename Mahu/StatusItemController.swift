@@ -2,6 +2,7 @@ import AppKit
 
 final class StatusItemController: NSObject {
     private static let menuBarIconSize = NSSize(width: 18, height: 18)
+    private static let timerStateTitlePrefix = "  "
     private static let pauseRemindersTitle = "Pause Reminders"
     private static let resumeRemindersTitle = "Resume Reminders"
     private static let normalStatusItemAlpha: CGFloat = 1.0
@@ -156,14 +157,29 @@ final class StatusItemController: NSObject {
 
         if showsTimerState {
             statusItem.length = NSStatusItem.variableLength
-            button.title = remindersPaused ? statusDisplayFormatter.string(for: .paused) : activeStatusDisplayText()
+            button.attributedTitle = makeTimerStateTitle(
+                remindersPaused ? statusDisplayFormatter.string(for: .paused) : activeStatusDisplayText()
+            )
             button.imagePosition = .imageLeading
             return
         }
 
         statusItem.length = NSStatusItem.squareLength
         button.title = ""
+        button.attributedTitle = NSAttributedString(string: "")
         button.imagePosition = .imageOnly
+    }
+
+    private func makeTimerStateTitle(_ text: String) -> NSAttributedString {
+        NSAttributedString(
+            string: Self.timerStateTitlePrefix + text,
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(
+                    ofSize: NSFont.systemFontSize,
+                    weight: .regular
+                )
+            ]
+        )
     }
 
     private func activeStatusDisplayText() -> String {

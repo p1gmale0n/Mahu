@@ -5,17 +5,19 @@ import SwiftUI
 @MainActor
 final class BreakOverlayViewModel: ObservableObject {
     @Published private(set) var remainingSeconds: TimeInterval
+    let titleText: String
 
     private let onSkip: () -> Void
     private let statusDisplayFormatter = StatusDisplayFormatter()
 
-    init(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void = {}) {
+    init(
+        remainingSeconds: TimeInterval,
+        titleText: String = AppConfig.defaultBreakOverlayMessageText,
+        onSkip: @escaping () -> Void = {}
+    ) {
         self.remainingSeconds = max(0, remainingSeconds)
+        self.titleText = AppConfig.normalizedBreakOverlayMessageText(titleText)
         self.onSkip = onSkip
-    }
-
-    var titleText: String {
-        "Время отвлечься"
     }
 
     var countdownText: String {
@@ -38,6 +40,8 @@ enum BreakOverlayAccessibilityID {
 }
 
 struct BreakOverlayView: View {
+    private static let titleMaximumWidth: CGFloat = 960
+
     @ObservedObject var viewModel: BreakOverlayViewModel
     let backgroundImage: NSImage?
 
@@ -65,6 +69,9 @@ struct BreakOverlayView: View {
             Text(viewModel.titleText)
                 .font(.system(size: 42, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: Self.titleMaximumWidth)
                 .accessibilityIdentifier(BreakOverlayAccessibilityID.title)
 
             Text(viewModel.countdownText)
