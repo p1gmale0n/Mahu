@@ -29,29 +29,24 @@ final class SmokeTests: XCTestCase {
     }
 
     func testHostedAppBundleContainsBreakCompletionSoundResource() throws {
-        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+        let resourceURL = try hostedResourceURL(named: "sound", extension: "wav")
 
-        XCTAssertEqual(resourceURL.lastPathComponent, "break-completion.caf")
+        XCTAssertEqual(resourceURL.lastPathComponent, "sound.wav")
     }
 
     func testHostedAppBundleBreakCompletionSoundLivesInsideBundleResources() throws {
-        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+        let resourceURL = try hostedResourceURL(named: "sound", extension: "wav")
 
         XCTAssertTrue(isHostedBundleResource(resourceURL))
     }
 
     func testHostedAppBundleBreakCompletionSoundIsNonEmpty() throws {
-        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+        let resourceURL = try hostedResourceURL(named: "sound", extension: "wav")
         let fileSize = try XCTUnwrap(
             (try FileManager.default.attributesOfItem(atPath: resourceURL.path)[.size]) as? NSNumber
         )
 
-        XCTAssertEqual(resourceURL.lastPathComponent, "break-completion.caf")
         XCTAssertGreaterThan(fileSize.intValue, 0)
-    }
-
-    func testHostedAppBundleDoesNotContainLegacyBreakCompletionSoundResource() {
-        XCTAssertNil(Bundle.main.url(forResource: "sound", withExtension: "wav"))
     }
 
     func testHostedAppBundleContainsSystemBootTimePrivacyManifestReason() throws {

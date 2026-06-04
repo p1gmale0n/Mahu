@@ -39,7 +39,7 @@
 			A0000000000000000000004A /* TrayIconAssetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004B /* TrayIconAssetTests.swift */; };
 			A0000000000000000000004D /* AppCoordinatorReminderPauseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004C /* AppCoordinatorReminderPauseTests.swift */; };
 			A0000000000000000000004F /* StatusItemMenuAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */; };
-			A00000000000000000000053 /* break-completion.caf in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* break-completion.caf */; };
+			A00000000000000000000053 /* sound.wav in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* sound.wav */; };
 			A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */; };
 			A00000000000000000000057 /* BreakCompletionSoundPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000058 /* BreakCompletionSoundPlayerTests.swift */; };
 			A00000000000000000000059 /* AppCoordinatorBreakSoundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000005A /* AppCoordinatorBreakSoundTests.swift */; };
@@ -92,7 +92,7 @@
 			A0000000000000000000004B /* TrayIconAssetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrayIconAssetTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000004C /* AppCoordinatorReminderPauseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorReminderPauseTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemMenuAcceptanceTests.swift; sourceTree = "<group>"; };
-			A00000000000000000000054 /* break-completion.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = "break-completion.caf"; sourceTree = "<group>"; };
+			A00000000000000000000054 /* sound.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = sound.wav; sourceTree = "<group>"; };
 			A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakCompletionSoundPlayer.swift; sourceTree = "<group>"; };
 			A00000000000000000000058 /* BreakCompletionSoundPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakCompletionSoundPlayerTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000005A /* AppCoordinatorBreakSoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorBreakSoundTests.swift; sourceTree = "<group>"; };
@@ -158,7 +158,7 @@
 			sourceTree = "<group>";
 			children = (
 				A0000000000000000000001A /* background.png */,
-				A00000000000000000000054 /* break-completion.caf */,
+				A00000000000000000000054 /* sound.wav */,
 			);
 		};
 		A00000000000000000000042 /* MahuTests */ = {
@@ -297,7 +297,7 @@
 				A0000000000000000000003C /* Assets.xcassets in Resources */,
 				A00000000000000000000036 /* background.png in Resources */,
 				A0000000000000000000003D /* PrivacyInfo.xcprivacy in Resources */,
-				A00000000000000000000053 /* break-completion.caf in Resources */,
+				A00000000000000000000053 /* sound.wav in Resources */,
 			);
 				runOnlyForDeploymentPostprocessing = 0;
 			};

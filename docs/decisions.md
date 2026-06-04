@@ -2,13 +2,6 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
-| 2026-05-29 | Break completion sound runtime format | Replace the bundled runtime completion sound with `Mahu/Resources/break-completion.caf` and switch playback from `NSSound` to `AVAudioPlayer`. | The new source asset is already CAF, `AVAudioPlayer` is the native local-file playback API for this use case, and a stable runtime filename avoids shipping the human-provided source name with spaces while keeping failure handling localized in the sound player seam. |
-| 2026-05-29 | Break completion sound documentation contract | Document `break-completion.caf` as the only shipped completion-sound filename in README/build verification, while keeping `source-assets/11labs-sound-sample.caf` as a staging/source asset name only. | The repo now has different source and runtime filenames; locking the docs to the bundled name avoids stale `sound.wav` references and prevents humans or future agents from confusing the editable source asset with the app-bundle contract. |
-| 2026-05-29 | Source asset organization and completion sound | Rename the repository staging folder from `images/` to `source-assets/`, use `Warm Focus Nudge 48k 16bit.wav` as the source for the bundled completion audio, and keep the runtime bundle filename as `Mahu/Resources/sound.wav`. | `source-assets/` describes mixed design/audio source material more clearly than `images/`; preserving the stable bundled `sound.wav` name avoids Xcode project churn, spaces in runtime resource names, and unnecessary code/test/Makefile changes. |
-| 2026-05-29 | Native status item layout | Roll back status-item length/render-size experiments and keep the native `NSStatusItem.squareLength` layout with an 18x18 template image. | Manual checks showed the 20pt/18x18 and 18pt/20x20 tuning attempts did not visibly reduce menu-bar spacing; using a custom view would be less native and risk menu-bar behavior for a minor visual deviation, so the safest result is to keep AppKit's standard status-item layout. |
-| 2026-05-28 | Tray icon visual fit | Tighten the status item slot to 18pt and render the existing `TrayIconTemplate` image at 20x20. | The earlier 20pt slot with an 18x18 rendered image did not visibly reduce menu-bar whitespace; increasing rendered glyph size while tightening the slot keeps the same asset and behavior but better matches neighboring menu-bar icons. |
-| 2026-05-28 | Compact status item length | Use an explicit 20pt `NSStatusItem` length for Mahu's icon-only tray control while keeping the `TrayIconTemplate` image at 18x18. | After fixing glyph bounds, the remaining visual imbalance came from the menu-bar slot width rather than the asset itself; tuning the status-item length reduces horizontal padding without degrading the template artwork or changing menu behavior. |
-| 2026-05-28 | Tray icon high-resolution crop | Regenerate `TrayIconTemplate` from the archive's high-resolution transparent source, crop to the visible glyph bounds, and downscale to 18x18/36x36 instead of editing the existing low-resolution tray PNGs. | The live menu-bar icon looked smaller than neighboring icons because the glyph did not fill enough of the template canvas; using the high-resolution archive source avoids compounding low-res artifacts while glyph-bound tests prevent future padded-mask regressions. |
 | 2026-05-28 | Refactor plan archival | Archive completed refactor plans under `docs/plans/completed/` and describe plan directories generically in `README.md` instead of enumerating every archived file. | A completed plan left in the active queue misleads future review loops, and the per-file README inventory had already drifted out of sync with the repository. |
 | 2026-05-28 | App coordinator support refactor | Keep `AppCoordinator` focused on orchestration by moving coordinator-facing protocols, scheduler/typealias support, and concrete conformance glue into `Mahu/AppCoordinatorSupport.swift` without changing runtime behavior. | `AppCoordinator.swift` had crossed the local readability threshold, and extracting support declarations is the smallest refactor that reduces cognitive load while preserving the existing ownership boundaries and regression-proof behavior. |
 | 2026-05-28 | Break completion sound review fixes | Preserve the hidden-break countdown contract, but settle the last visible rest slice at overlay-hide time so a break that naturally ends on that boundary still plays sound once; also harden the false-green test/docs gaps the review exposed. | The review found one real edge-case runtime bug plus several incomplete checks that could let future refactors break shipped behavior or mislead future agents even though current `xcodebuild` runs were green. |
@@ -89,38 +82,6 @@
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
 ## 2026-05-28 / Break Completion Sound Seam
-
-## 2026-05-29 / Break Completion Sound Documentation Contract
-
-**Date:** 2026-05-29
-
-**Area:** Break completion sound documentation contract
-
-**Context:** The runtime sound contract now differs from the checked-in source filename: the editable source asset remains `source-assets/11labs-sound-sample.caf`, while the shipped app bundle exposes `Mahu/Resources/break-completion.caf`. README and build-verification text still serve as the human-facing source of truth for that bundle contract.
-
-**Decision:** Document `break-completion.caf` as the only runtime completion-sound filename in README and bundle-verification guidance, and treat the source-asset filename as implementation/staging detail only.
-
-**Rationale:** Keeping one documented runtime name avoids future stale `sound.wav` references and makes it clear which filename must exist inside the app bundle versus which one is only edited in the repository.
-
-**Consequences:** Human verification steps, build notes, and future plan work should reference `break-completion.caf` when talking about shipped behavior. This works for the current single bundled clip; if the app later supports user-selectable sounds, the docs will need to describe configuration rather than a single fixed bundle filename.
-
-**Alternatives Considered:** Document both filenames interchangeably; rejected because it blurs the boundary between source asset and shipped runtime contract. Keep README wording generic without naming the resource; rejected because the repo intentionally uses explicit bundle-resource checks in tests and `make build`.
-
-## 2026-05-29 / Break Completion Sound Runtime Format
-
-**Date:** 2026-05-29
-
-**Area:** Break completion sound runtime format
-
-**Context:** The runtime completion sound is being switched from the earlier bundled WAV contract to a checked-in CAF source file, and Task 3 now converts the playback edge from `NSSound` to AVFoundation while keeping the coordinator seam and non-fatal failure behavior intact. The previous 2026-05-29 source-asset decision kept `sound.wav` only to minimize churn before the newer CAF-specific implementation plan was approved.
-
-**Decision:** Bundle the completion sound as `Mahu/Resources/break-completion.caf`, resolve that filename from `BreakCompletionSoundPlayer`, and use `AVAudioPlayer(contentsOf:)` plus `prepareToPlay()`/`play()` for local playback instead of `NSSound`.
-
-**Rationale:** The source asset is already CAF, so keeping a CAF runtime resource avoids unnecessary transcoding or dual-format maintenance. `AVAudioPlayer` is the standard public API for bundled local audio playback on macOS and gives an explicit initialization failure path that matches the desired warning-only behavior. The stable runtime name `break-completion.caf` keeps the bundle contract clear without exposing the human source filename with spaces.
-
-**Consequences:** Resource lookup, tests, build checks, and docs must now point at `break-completion.caf`, and the earlier "keep runtime sound.wav" decision is superseded for this feature. This works for the current single bundled clip; if Mahu later needs richer playback control or multiple simultaneous sounds, `AVAudioEngine` would be the better alternative.
-
-**Alternatives Considered:** Keep bundling `sound.wav`; rejected because the approved plan now standardizes on CAF and the extra conversion path adds maintenance with no product benefit. Keep `NSSound`; rejected because the current task needs an explicit AVFoundation-backed seam with prepare/init failure coverage.
 
 **Date:** 2026-05-28
 

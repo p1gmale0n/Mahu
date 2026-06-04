@@ -43,7 +43,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - While a break is active, display additions, removals, and display-frame changes resync overlay windows without restarting the break or replacing the shared countdown/`Skip` state.
 - While a break is active, Mahu best-effort reasserts its own focus and re-shows existing overlay windows if another app becomes active behind the overlay.
 - When a break ends or `Skip` is pressed, Mahu restores the previously frontmost app when possible.
-- When a visible break ends naturally, Mahu plays bundled `break-completion.caf` once through an AVFoundation-backed player so the user can return attention without watching the screen.
+- When a visible break ends naturally, Mahu plays bundled `sound.wav` once so the user can return attention without watching the screen.
 - Pressing `Skip` closes the break without playing the completion sound.
 - Live config reload is out of scope; runtime settings changes still require editing the config file before launch or between runs.
 
@@ -52,8 +52,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Mahu/`: app sources, including `AppCoordinator.swift` for orchestration flow and `AppCoordinatorSupport.swift` for coordinator-facing support declarations.
 - `Mahu/Assets.xcassets/`: app asset catalog, including the macOS `AppIcon` generated from `icon.png`.
 - `Mahu/Assets.xcassets/TrayIconTemplate.imageset/`: tray-optimized transparent template glyph artwork derived from the same source motif as the app icon.
-- `Mahu/Resources/`: bundled app resources, including `background.png` for the overlay and `break-completion.caf` for natural break completion.
-- `source-assets/`: source/staging artwork and audio assets used to produce bundled app resources.
+- `Mahu/Resources/`: bundled app resources, including `background.png` for the overlay and `sound.wav` for natural break completion.
 - `Mahu/PrivacyInfo.xcprivacy`: privacy manifest for required-reason APIs used by the app target.
 - `MahuTests/`: unit tests for config, timer, coordinator, status item, and overlay logic.
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
@@ -97,7 +96,7 @@ make build
 ```
 
 This creates `build/Mahu.app` and keeps Xcode intermediate files under `build/DerivedData`.
-It also fails if the built or copied app bundle is missing `background.png` or `break-completion.caf`.
+It also fails if the built or copied app bundle is missing `background.png` or `sound.wav`.
 
 Raw Xcode build:
 
@@ -145,7 +144,7 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Change display resolution or scaling during an active break and confirm overlay windows resync.
 - Trigger a transient display or fullscreen-Space transition during a break and confirm Mahu keeps the break active across empty-display snapshots; note any cases where AppKit still hides the overlay despite active displays.
 - Test with a fullscreen app or Space and document any limitations separately.
-- Let a break end naturally and confirm the bundled `break-completion.caf` completion sound plays once.
+- Let a break end naturally and confirm `sound.wav` plays once.
 - Start another break, press `Skip`, and confirm no completion sound plays.
 - Confirm pause/resume reminder toggles do not play the completion sound.
 - Confirm the app still completes/restores focus normally when system audio output is muted or unavailable.

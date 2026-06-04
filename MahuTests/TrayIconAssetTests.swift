@@ -36,15 +36,6 @@ final class TrayIconAssetTests: XCTestCase {
         )
     }
 
-    func testTrayTemplateGlyphFillsMenuBarCanvasWithoutExcessSidePadding() throws {
-        let assetFiles = try trayTemplateAssetFiles()
-        let oneXMetrics = try trayTemplateAssetMetrics(named: assetFiles.oneX)
-        let twoXMetrics = try trayTemplateAssetMetrics(named: assetFiles.twoX)
-
-        assertGlyphFillsCanvas(oneXMetrics, minimumGlyphWidth: 17, minimumGlyphHeight: 13)
-        assertGlyphFillsCanvas(twoXMetrics, minimumGlyphWidth: 34, minimumGlyphHeight: 26)
-    }
-
     func testTrayTemplateImageSetContainsOnlyExpectedTransparentGlyphAssets() throws {
         let assetFiles = try trayTemplateAssetFiles()
         let imageSetURL = try XCTUnwrap(trayTemplateImageSetURL())
@@ -103,28 +94,6 @@ final class TrayIconAssetTests: XCTestCase {
             "Expected \(metrics.fileName) to contain non-transparent glyph pixels"
         )
         XCTAssertNotNil(metrics.glyphBounds, "Expected \(metrics.fileName) to contain a visible glyph")
-    }
-
-    private func assertGlyphFillsCanvas(
-        _ metrics: TrayTemplateAssetMetrics,
-        minimumGlyphWidth: Int,
-        minimumGlyphHeight: Int
-    ) {
-        guard let glyphBounds = metrics.glyphBounds else {
-            XCTFail("Expected \(metrics.fileName) to contain a visible glyph")
-            return
-        }
-
-        XCTAssertGreaterThanOrEqual(
-            glyphBounds.width,
-            minimumGlyphWidth,
-            "Expected \(metrics.fileName) to avoid excess horizontal padding"
-        )
-        XCTAssertGreaterThanOrEqual(
-            glyphBounds.height,
-            minimumGlyphHeight,
-            "Expected \(metrics.fileName) to avoid excess vertical padding"
-        )
     }
 
     private func trayTemplateAssetMetrics(named fileName: String) throws -> TrayTemplateAssetMetrics {

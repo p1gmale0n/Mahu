@@ -1,4 +1,4 @@
-import AVFoundation
+import AppKit
 import Foundation
 import OSLog
 
@@ -8,17 +8,16 @@ protocol BreakCompletionSoundPlaying: AnyObject {
 }
 
 protocol BreakCompletionSoundResource: AnyObject {
-    func prepareToPlay() -> Bool
     func play() -> Bool
 }
 
-extension AVAudioPlayer: BreakCompletionSoundResource {
+extension NSSound: BreakCompletionSoundResource {
 }
 
 @MainActor
 final class BreakCompletionSoundPlayer: BreakCompletionSoundPlaying {
     typealias ResourceURLResolver = (Bundle) -> URL?
-    typealias SoundResourceLoader = (URL) throws -> BreakCompletionSoundResource
+    typealias SoundResourceLoader = (URL) -> BreakCompletionSoundResource?
     typealias FileSizeProvider = (URL) throws -> Int
 
     private static let logger = Logger(subsystem: "Mahu", category: "BreakCompletionSoundPlayer")
@@ -32,10 +31,10 @@ final class BreakCompletionSoundPlayer: BreakCompletionSoundPlaying {
     init(
         bundle: Bundle = .main,
         resolveResourceURL: @escaping ResourceURLResolver = { bundle in
-            bundle.url(forResource: "break-completion", withExtension: "caf")
+            bundle.url(forResource: "sound", withExtension: "wav")
         },
         loadSoundResource: @escaping SoundResourceLoader = { url in
-            try AVAudioPlayer(contentsOf: url)
+            NSSound(contentsOf: url, byReference: false)
         },
         fileSizeProvider: @escaping FileSizeProvider = { url in
             let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
@@ -65,20 +64,12 @@ final class BreakCompletionSoundPlayer: BreakCompletionSoundPlaying {
             return
         }
 
-        let sound: BreakCompletionSoundResource
-        do {
-            sound = try loadSoundResource(resourceURL)
-        } catch {
+        guard let sound = loadSoundResource(resourceURL) else {
             Self.logger.warning("Failed to decode bundled break completion sound resource.")
             return
         }
 
         activeSound = sound
-
-        guard sound.prepareToPlay() else {
-            Self.logger.warning("Failed to prepare bundled break completion sound resource.")
-            return
-        }
 
         guard sound.play() else {
             Self.logger.warning("Failed to play bundled break completion sound resource.")
