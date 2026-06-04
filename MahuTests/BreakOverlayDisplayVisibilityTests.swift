@@ -108,4 +108,40 @@ final class BreakOverlayDisplayVisibilityTests: XCTestCase {
 
         XCTAssertEqual(visibilityEvents, [true, false, true, false])
     }
+
+    func testShowBreakReturnsFalseWhenStartupResyncLosesEveryDisplayBeforeActivation() {
+        let display = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        var screenProviderCallCount = 0
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let focusObserver = FakeBreakFocusObserverRegistrar()
+        let screenObserver = FakeBreakScreenObserverRegistrar()
+        var activationCount = 0
+        let manager = BreakOverlayManager(
+            screenProvider: {
+                defer { screenProviderCallCount += 1 }
+                return screenProviderCallCount == 0 ? [display] : []
+            },
+            windowBuilder: windowBuilder,
+            focusObservationRegistrar: focusObserver.register,
+            screenObservationRegistrar: screenObserver.register,
+            appActivator: { activationCount += 1 }
+        )
+
+        let didShowBreak = manager.showBreak(remainingSeconds: 20)
+
+        XCTAssertFalse(didShowBreak)
+        XCTAssertNil(manager.viewModel)
+        XCTAssertFalse(manager.hasVisibleOverlayWindows)
+        XCTAssertEqual(activationCount, 0)
+        XCTAssertEqual(windowBuilder.windows.count, 1)
+        XCTAssertEqual(windowBuilder.windows[0].showCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[0].closeCallCount, 1)
+        XCTAssertEqual(focusObserver.registrationCount, 1)
+        XCTAssertEqual(focusObserver.cancelCount, 1)
+        XCTAssertEqual(screenObserver.registrationCount, 1)
+        XCTAssertEqual(screenObserver.cancelCount, 1)
+    }
 }

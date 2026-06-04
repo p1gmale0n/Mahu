@@ -5,9 +5,9 @@ DERIVED_DATA := build/DerivedData
 APP_BUNDLE := build/Mahu.app
 BUILT_APP := $(DERIVED_DATA)/Build/Products/$(CONFIGURATION)/Mahu.app
 BUILT_BACKGROUND_RESOURCE := $(BUILT_APP)/Contents/Resources/background.png
-BUILT_SOUND_RESOURCE := $(BUILT_APP)/Contents/Resources/sound.wav
+BUILT_SOUND_RESOURCE := $(BUILT_APP)/Contents/Resources/break-completion.caf
 APP_BACKGROUND_RESOURCE := $(APP_BUNDLE)/Contents/Resources/background.png
-APP_SOUND_RESOURCE := $(APP_BUNDLE)/Contents/Resources/sound.wav
+APP_SOUND_RESOURCE := $(APP_BUNDLE)/Contents/Resources/break-completion.caf
 
 .PHONY: build
 build:

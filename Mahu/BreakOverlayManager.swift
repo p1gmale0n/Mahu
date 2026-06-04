@@ -61,6 +61,7 @@ enum LiveBreakFocusObservationRegistrar {
             }
 
             isCancelled = true
+            coalescer.cancel()
             applicationNotificationCenter.removeObserver(resignObserver)
             workspaceNotificationCenter.removeObserver(workspaceObserver)
         }
@@ -75,25 +76,40 @@ enum LiveBreakFocusObservationRegistrar {
 final class FocusLossNotificationCoalescer {
     private let handler: () -> Void
     private var isPending = false
+    private var isCancelled = false
+    private var deliveryTask: Task<Void, Never>?
 
     init(handler: @escaping () -> Void) {
         self.handler = handler
     }
 
     func notifyFocusLoss() {
-        guard isPending == false else {
+        guard isCancelled == false, isPending == false else {
             return
         }
 
         isPending = true
-        Task { @MainActor [weak self] in
+        deliveryTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
 
+            guard self.isCancelled == false else {
+                self.deliveryTask = nil
+                return
+            }
+
             self.isPending = false
+            self.deliveryTask = nil
             self.handler()
         }
+    }
+
+    func cancel() {
+        isCancelled = true
+        isPending = false
+        deliveryTask?.cancel()
+        deliveryTask = nil
     }
 }
 
@@ -173,8 +189,10 @@ final class BreakOverlayManager {
         tearDownActiveBreak(restorePreviousApplication: false)
 
         let viewModel = BreakOverlayViewModel(remainingSeconds: remainingSeconds) { [weak self] in
-            self?.hideBreak()
             onSkip()
+            if self?.viewModel != nil {
+                self?.hideBreak()
+            }
         }
         let activeOverlays = displays.map { display in
             let window = windowBuilder.makeWindow(for: display, viewModel: viewModel)
@@ -196,6 +214,12 @@ final class BreakOverlayManager {
             using: viewModel,
             activateOnChange: false
         )
+
+        guard hasVisibleOverlayWindows else {
+            tearDownActiveBreak(restorePreviousApplication: false)
+            return false
+        }
+
         appActivator()
         return true
     }

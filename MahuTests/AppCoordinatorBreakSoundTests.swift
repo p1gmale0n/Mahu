@@ -67,6 +67,47 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
 
+    func testSkipAtCompletionBoundaryDoesNotPlaySoundWhenLiveOverlayManagerHandlesSkip() throws {
+        let display = DisplayDescriptor(frame: CGRect(x: 0, y: 0, width: 1440, height: 900), id: "built-in")
+        let overlayManager = BreakOverlayManager(
+            screenProvider: { [display] },
+            windowBuilder: FakeOverlayWindowBuilder(),
+            appActivator: {}
+        )
+        let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 1),
+                .init(phase: .work, remainingSeconds: 300)
+            ],
+            skipState: .init(phase: .work, remainingSeconds: 300)
+        )
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: overlayManager,
+            breakCompletionSoundPlayer: fakeSoundPlayer,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 101, 102])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        try XCTUnwrap(overlayManager.viewModel).skip()
+
+        XCTAssertEqual(fakeTimer.advanceCalls, [1])
+        XCTAssertEqual(fakeTimer.skipBreakCallCount, 1)
+        XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
+        XCTAssertFalse(overlayManager.hasVisibleOverlayWindows)
+    }
+
     func testWorkToBreakTransitionDoesNotPlaySound() {
         let fakeOverlayManager = FakeBreakOverlayManager()
         let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()

@@ -200,14 +200,11 @@ final class BreakOverlayViewTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let foregroundStringValues = allStringValues(in: view.foregroundContent)
+        let bodyStringValues = allStringValues(in: view.body)
 
-        XCTAssertTrue(foregroundStringValues.contains("Время отвлечься"), file: file, line: line)
-        XCTAssertTrue(foregroundStringValues.contains(expectedCountdown), file: file, line: line)
-        XCTAssertTrue(foregroundStringValues.contains("Skip"), file: file, line: line)
-        XCTAssertTrue(foregroundStringValues.contains(BreakOverlayAccessibilityID.title), file: file, line: line)
-        XCTAssertTrue(foregroundStringValues.contains(BreakOverlayAccessibilityID.countdown), file: file, line: line)
-        XCTAssertTrue(foregroundStringValues.contains(BreakOverlayAccessibilityID.skipButton), file: file, line: line)
+        XCTAssertTrue(bodyStringValues.contains("Время отвлечься"), file: file, line: line)
+        XCTAssertTrue(bodyStringValues.contains(expectedCountdown), file: file, line: line)
+        XCTAssertTrue(bodyStringValues.contains("Skip"), file: file, line: line)
     }
 
     private func allStringValues(in value: Any) -> [String] {

@@ -87,6 +87,24 @@ final class LiveBreakScreenObservationRegistrarTests: XCTestCase {
         XCTAssertEqual(context.handlerCallCount(), 0)
     }
 
+    func testCancelSuppressesAlreadyQueuedScreenChangeDelivery() async {
+        let unexpectedScreenChange = expectation(description: "queued screen change should be cancelled")
+        unexpectedScreenChange.isInverted = true
+        let context = makeRegistrarContext {
+            unexpectedScreenChange.fulfill()
+        }
+
+        context.notificationCenter.post(
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: context.applicationObject
+        )
+        context.cancel()
+        await Task.yield()
+        await fulfillment(of: [unexpectedScreenChange], timeout: 0.1)
+
+        XCTAssertEqual(context.handlerCallCount(), 0)
+    }
+
     private func makeRegistrarContext(
         onScreenChange: @escaping () -> Void = {}
     ) -> (

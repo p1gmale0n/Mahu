@@ -87,24 +87,16 @@ struct BreakOverlayView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                backgroundView
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
+        ZStack {
+            backgroundView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
 
-                Color.black.opacity(0.48)
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+            Color.black.opacity(0.48)
 
-                foregroundContent
+            foregroundContent
                 .padding(40)
-                .frame(
-                    width: geometry.size.width,
-                    height: geometry.size.height,
-                    alignment: .center
-                )
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .ignoresSafeArea()
     }

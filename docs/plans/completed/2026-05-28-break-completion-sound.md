@@ -2,6 +2,9 @@
 
 Status: Completed (2026-05-28)
 
+Superseded on 2026-05-29 by `docs/plans/completed/2026-05-29-avfoundation-caf-break-completion-sound.md`.
+Historical context only: the shipped runtime contract is now `break-completion.caf` played through `AVAudioPlayer`.
+
 ## Overview
 
 - Bundle the user-provided `images/sound.wav` into the Mahu app and play it when a break ends naturally.

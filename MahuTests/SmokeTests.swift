@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import XCTest
 @testable import Mahu
@@ -29,24 +30,37 @@ final class SmokeTests: XCTestCase {
     }
 
     func testHostedAppBundleContainsBreakCompletionSoundResource() throws {
-        let resourceURL = try hostedResourceURL(named: "sound", extension: "wav")
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
 
-        XCTAssertEqual(resourceURL.lastPathComponent, "sound.wav")
+        XCTAssertEqual(resourceURL.lastPathComponent, "break-completion.caf")
     }
 
     func testHostedAppBundleBreakCompletionSoundLivesInsideBundleResources() throws {
-        let resourceURL = try hostedResourceURL(named: "sound", extension: "wav")
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
 
         XCTAssertTrue(isHostedBundleResource(resourceURL))
     }
 
     func testHostedAppBundleBreakCompletionSoundIsNonEmpty() throws {
-        let resourceURL = try hostedResourceURL(named: "sound", extension: "wav")
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
         let fileSize = try XCTUnwrap(
             (try FileManager.default.attributesOfItem(atPath: resourceURL.path)[.size]) as? NSNumber
         )
 
+        XCTAssertEqual(resourceURL.lastPathComponent, "break-completion.caf")
         XCTAssertGreaterThan(fileSize.intValue, 0)
+    }
+
+    func testHostedAppBundleBreakCompletionSoundCanBeDecodedByAVAudioPlayer() throws {
+        let resourceURL = try hostedResourceURL(named: "break-completion", extension: "caf")
+        let player = try AVAudioPlayer(contentsOf: resourceURL)
+
+        XCTAssertTrue(player.prepareToPlay())
+        XCTAssertGreaterThan(player.duration, 0)
+    }
+
+    func testHostedAppBundleDoesNotContainLegacyBreakCompletionSoundResource() {
+        XCTAssertNil(Bundle.main.url(forResource: "sound", withExtension: "wav"))
     }
 
     func testHostedAppBundleContainsSystemBootTimePrivacyManifestReason() throws {

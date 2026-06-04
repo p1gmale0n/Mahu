@@ -129,6 +129,24 @@ final class LiveBreakFocusObservationRegistrarTests: XCTestCase {
         XCTAssertEqual(context.handlerCallCount(), 0)
     }
 
+    func testCancelSuppressesAlreadyQueuedFocusLossDelivery() async {
+        let unexpectedFocusLoss = expectation(description: "queued focus loss should be cancelled")
+        unexpectedFocusLoss.isInverted = true
+        let context = makeRegistrarContext {
+            unexpectedFocusLoss.fulfill()
+        }
+
+        context.applicationNotificationCenter.post(
+            name: NSApplication.didResignActiveNotification,
+            object: context.applicationObject
+        )
+        context.cancel()
+        await Task.yield()
+        await fulfillment(of: [unexpectedFocusLoss], timeout: 0.1)
+
+        XCTAssertEqual(context.handlerCallCount(), 0)
+    }
+
     private func makeRegistrarContext(
         onFocusLoss: @escaping () -> Void = {}
     ) -> (

@@ -37,6 +37,7 @@ enum LiveBreakScreenObservationRegistrar {
             }
 
             isCancelled = true
+            coalescer.cancel()
             notificationCenter.removeObserver(observer)
         }
     }
@@ -46,24 +47,39 @@ enum LiveBreakScreenObservationRegistrar {
 final class ScreenChangeNotificationCoalescer {
     private let handler: () -> Void
     private var isPending = false
+    private var isCancelled = false
+    private var deliveryTask: Task<Void, Never>?
 
     init(handler: @escaping () -> Void) {
         self.handler = handler
     }
 
     func notifyScreenChange() {
-        guard isPending == false else {
+        guard isCancelled == false, isPending == false else {
             return
         }
 
         isPending = true
-        Task { @MainActor [weak self] in
+        deliveryTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
 
+            guard self.isCancelled == false else {
+                self.deliveryTask = nil
+                return
+            }
+
             self.isPending = false
+            self.deliveryTask = nil
             self.handler()
         }
+    }
+
+    func cancel() {
+        isCancelled = true
+        isPending = false
+        deliveryTask?.cancel()
+        deliveryTask = nil
     }
 }

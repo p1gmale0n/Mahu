@@ -11,7 +11,7 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
             resolveResourceURL: { _ in nil },
             loadSoundResource: { _ in
                 loadCallCount += 1
-                return nil
+                throw TestSoundLoaderError.failedToDecode
             }
         )
 
@@ -30,7 +30,7 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
             resolveResourceURL: { _ in emptyResourceURL },
             loadSoundResource: { _ in
                 loadCallCount += 1
-                return nil
+                throw TestSoundLoaderError.failedToDecode
             }
         )
 
@@ -51,7 +51,7 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
             loadSoundResource: { url in
                 loadedResourceURL = url
                 loadCallCount += 1
-                return nil
+                throw TestSoundLoaderError.failedToDecode
             }
         )
 
@@ -61,15 +61,17 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
         XCTAssertEqual(loadedResourceURL, invalidResourceURL)
     }
 
-    func testPlayRetainsSoundResourceWhenPlaybackStarts() throws {
+    func testPlayCreatesPreparesAndRetainsSoundResourceWhenPlaybackStarts() throws {
         let resourceURL = try makeTemporaryFile(data: Data([0x01]))
         defer { try? FileManager.default.removeItem(at: resourceURL) }
 
         weak var weakSound: FakeBreakCompletionSoundResource?
+        var loadedResourceURL: URL?
         let player = BreakCompletionSoundPlayer(
             bundle: .main,
             resolveResourceURL: { _ in resourceURL },
-            loadSoundResource: { _ in
+            loadSoundResource: { url in
+                loadedResourceURL = url
                 let sound = FakeBreakCompletionSoundResource(playResult: true)
                 weakSound = sound
                 return sound
@@ -78,8 +80,27 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
 
         player.playBreakCompletionSound()
 
+        XCTAssertEqual(loadedResourceURL, resourceURL)
+        XCTAssertEqual(weakSound?.prepareCallCount, 1)
         XCTAssertEqual(weakSound?.playCallCount, 1)
         XCTAssertNotNil(weakSound)
+    }
+
+    func testPlayDoesNothingWhenSoundCannotPrepare() throws {
+        let resourceURL = try makeTemporaryFile(data: Data([0x01]))
+        defer { try? FileManager.default.removeItem(at: resourceURL) }
+
+        let sound = FakeBreakCompletionSoundResource(prepareResult: false, playResult: true)
+        let player = BreakCompletionSoundPlayer(
+            bundle: .main,
+            resolveResourceURL: { _ in resourceURL },
+            loadSoundResource: { _ in sound }
+        )
+
+        player.playBreakCompletionSound()
+
+        XCTAssertEqual(sound.prepareCallCount, 1)
+        XCTAssertEqual(sound.playCallCount, 0)
     }
 
     func testPlayHandlesUnplayableSoundGracefully() throws {
@@ -95,6 +116,7 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
 
         player.playBreakCompletionSound()
 
+        XCTAssertEqual(sound.prepareCallCount, 1)
         XCTAssertEqual(sound.playCallCount, 1)
     }
 
@@ -107,7 +129,7 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
             resolveResourceURL: { _ in resourceURL },
             loadSoundResource: { _ in
                 loadCallCount += 1
-                return nil
+                throw TestSoundLoaderError.failedToDecode
             },
             fileSizeProvider: { _ in
                 throw TestSoundMetadataError.failedToReadFileSize
@@ -126,16 +148,28 @@ final class BreakCompletionSoundPlayerTests: XCTestCase {
     }
 }
 
+private enum TestSoundLoaderError: Error {
+    case failedToDecode
+}
+
 private enum TestSoundMetadataError: Error {
     case failedToReadFileSize
 }
 
 private final class FakeBreakCompletionSoundResource: NSObject, BreakCompletionSoundResource {
+    private(set) var prepareCallCount = 0
     private(set) var playCallCount = 0
+    private let prepareResult: Bool
     private let playResult: Bool
 
-    init(playResult: Bool) {
+    init(prepareResult: Bool = true, playResult: Bool) {
+        self.prepareResult = prepareResult
         self.playResult = playResult
+    }
+
+    func prepareToPlay() -> Bool {
+        prepareCallCount += 1
+        return prepareResult
     }
 
     func play() -> Bool {
