@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-28 | Paused reminder icon state | Dim the existing status-item button at runtime to show paused reminders, using the same `TrayIconTemplate` asset and keeping the control enabled. | This keeps the paused cue inside `StatusItemController`, preserves the asset contract, and avoids introducing a second paused icon or disabled-control semantics. |
 | 2026-05-28 | Reminder pause review fixes | Cache the launch-loaded config for resume resets and keep rest-phase pause/resume from touching active-break timing. | Review found hidden live-config reload behavior and active-break timing drift when the tray menu was used during rest. |
 | 2026-05-26 | Reminder pause/resume semantics | Treat the tray menu action as enabling or disabling automatic reminders at the coordinator layer, and make resume start a fresh work interval from the current config instead of continuing partially elapsed work time. | This keeps break countdown behavior unchanged, avoids introducing countdown-pause semantics into `BreakTimer`, and gives users a predictable reset when they re-enable reminders. |
 | 2026-05-26 | Reminder menu status-item API | Keep pause/resume menu wiring inside `StatusItemController` with injected callbacks plus a `setRemindersPaused(_:)` view-state method, leaving reminder semantics in `AppCoordinator`. | The tray layer should only own AppKit menu construction and dispatch, while coordinator-level reminder state and timer resets remain testable outside AppKit. |
@@ -72,6 +73,22 @@
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
 ## 2026-05-25 / Tray Icon Retina Asset Verification
+
+## 2026-05-28 / Paused Reminder Icon State
+
+**Date:** 2026-05-28
+
+**Area:** Paused reminder icon state
+
+**Context:** The pause/resume menu feature already exposed the reminder-enabled state through menu titles, but the new follow-up requires a visual paused cue in the tray without changing timer semantics or adding a second asset variant.
+
+**Decision:** Keep the same `TrayIconTemplate` image path and implement the paused cue entirely inside `StatusItemController` by applying a lower alpha value to the existing status item button when reminders are paused, then restoring full opacity when reminders resume.
+
+**Rationale:** The status item layer already owns AppKit presentation state, so dimming there is the smallest correct change. It preserves the existing asset contract and keeps the button/menu interactable, avoiding the misleading disabled-control behavior that `isEnabled = false` would introduce.
+
+**Consequences:** Pause/resume remains a coordinator-owned semantic change, while tray presentation stays localized to the AppKit edge. Manual menu-bar readability validation is still required because XCTest can prove state transitions, not live menu-bar rendering quality.
+
+**Alternatives Considered:** Add a second paused icon asset; rejected because the plan and product constraints require reusing the existing template asset. Disable the status item button to get a dimmed appearance for free; rejected because it risks breaking click/menu interaction and communicates the wrong UI state.
 
 ## 2026-05-26 / Reminder Pause/Resume Semantics
 

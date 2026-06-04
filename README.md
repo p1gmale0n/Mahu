@@ -27,6 +27,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset: a transparent, glyph-only template silhouette derived from the app icon motif, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
 - Work timer starts automatically on launch.
 - Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
+- While reminders are paused, Mahu keeps the same tray icon asset but visually dims the status item icon until reminders are resumed.
 - Choosing `Resume Reminders` re-enables reminders and starts a fresh full work interval from the config that Mahu loaded on launch instead of resuming a partially elapsed one.
 - Pause state is runtime-only; Mahu always launches with reminders enabled.
 - Default schedule is 20 minutes of work and 20 seconds of break.
@@ -127,8 +128,8 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 
 - Confirm the app has no Dock icon.
 - Confirm the status item appears and initially shows `Pause Reminders` plus `Quit`.
-- Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders` and that no break overlay appears once the previously running work interval would have elapsed.
-- Choose `Resume Reminders`, then confirm the next break appears only after a full fresh work interval from the config loaded when Mahu launched.
+- Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders`, the tray icon visibly dims without looking disabled, and no break overlay appears once the previously running work interval would have elapsed.
+- Choose `Resume Reminders`, then confirm the tray icon returns to normal brightness and the next break appears only after a full fresh work interval from the config loaded when Mahu launched.
 - During an active break, toggle `Pause Reminders` and `Resume Reminders`, then confirm the existing countdown and `Skip` behavior stay unchanged.
 - Confirm `Quit` still exits the app.
 - Confirm the status item visually uses the transparent tray glyph rather than the old SF Symbol or a visible square app-icon raster.

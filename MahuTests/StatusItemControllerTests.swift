@@ -45,6 +45,66 @@ final class StatusItemControllerTests: XCTestCase {
         XCTAssertEqual(statusItem.menu?.items.last?.keyEquivalent, "q")
     }
 
+    func testInstallStartsWithNormalStatusButtonOpacity() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertTrue(button.isEnabled)
+    }
+
+    func testSetRemindersPausedDimsExistingStatusItemIconWithoutChangingMenuContract() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.install()
+
+        controller.setRemindersPaused(true)
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertLessThan(button.alphaValue, 1.0)
+        XCTAssertTrue(button.alphaValue >= 0.45)
+        XCTAssertTrue(button.alphaValue <= 0.60)
+        XCTAssertTrue(button.isEnabled)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+    }
+
+    func testSetRemindersPausedFalseRestoresNormalStatusButtonOpacity() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.install()
+        controller.setRemindersPaused(true)
+
+        controller.setRemindersPaused(false)
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertTrue(button.isEnabled)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+    }
+
     func testTrayTemplateStatusIconProviderLoadsBundledAsset() throws {
         let image = try XCTUnwrap(StatusItemController.makeTrayTemplateStatusIcon())
 

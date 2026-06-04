@@ -4,6 +4,8 @@ final class StatusItemController: NSObject {
     private static let menuBarIconSize = NSSize(width: 18, height: 18)
     private static let pauseRemindersTitle = "Pause Reminders"
     private static let resumeRemindersTitle = "Resume Reminders"
+    private static let normalStatusItemAlpha: CGFloat = 1.0
+    private static let pausedStatusItemAlpha: CGFloat = 0.5
 
     private let statusItem: NSStatusItem
     private var pauseRemindersHandler: (() -> Void)?
@@ -33,6 +35,8 @@ final class StatusItemController: NSObject {
             button.imagePosition = .imageOnly
         }
 
+        applyReminderVisualState()
+
         statusItem.menu = makeMenu()
     }
 
@@ -47,6 +51,7 @@ final class StatusItemController: NSObject {
         }
 
         remindersPaused = paused
+        applyReminderVisualState()
         statusItem.menu = makeMenu()
     }
 
@@ -108,6 +113,15 @@ final class StatusItemController: NSObject {
         menu.addItem(quitItem)
 
         return menu
+    }
+
+    private func applyReminderVisualState() {
+        guard let button = statusItem.button else {
+            return
+        }
+
+        button.alphaValue = remindersPaused ? Self.pausedStatusItemAlpha : Self.normalStatusItemAlpha
+        button.isEnabled = true
     }
 
     private static func makeMenuBarStatusIconCopy(from image: NSImage) -> NSImage? {

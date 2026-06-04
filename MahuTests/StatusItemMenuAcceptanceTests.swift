@@ -79,6 +79,36 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         XCTAssertEqual(secondStatusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
     }
 
+    func testPauseAndResumeTransitionsKeepMenuContractAndSyncIconOpacity() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
+
+        controller.setRemindersPaused(true)
+
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(button.alphaValue, 0.5, accuracy: 0.001)
+        XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
+
+        controller.setRemindersPaused(false)
+
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
+    }
+
     private func invokeMenuItem(named title: String, in menu: NSMenu?) throws {
         let item = try menuItem(named: title, in: menu)
         let target = try XCTUnwrap(item.target as AnyObject?)
