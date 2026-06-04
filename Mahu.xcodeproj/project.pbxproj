@@ -11,7 +11,20 @@
 		A00000000000000000000021 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000002 /* AppDelegate.swift */; };
 		A00000000000000000000022 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000003 /* SmokeTests.swift */; };
 		A00000000000000000000023 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000004 /* XCTest.framework */; };
+		A00000000000000000000024 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* AppConfig.swift */; };
+		A00000000000000000000025 /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* ConfigStore.swift */; };
+		A00000000000000000000026 /* ConfigStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* ConfigStoreTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000000000000000000090 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000070 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000010;
+			remoteInfo = Mahu;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A00000000000000000000001 /* MahuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MahuApp.swift; sourceTree = "<group>"; };
@@ -21,6 +34,9 @@
 		A00000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000006 /* Mahu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mahu.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000007 /* MahuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MahuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000008 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		A00000000000000000000009 /* ConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStore.swift; sourceTree = "<group>"; };
+		A0000000000000000000000A /* ConfigStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +75,8 @@
 			children = (
 				A00000000000000000000001 /* MahuApp.swift */,
 				A00000000000000000000002 /* AppDelegate.swift */,
+				A00000000000000000000008 /* AppConfig.swift */,
+				A00000000000000000000009 /* ConfigStore.swift */,
 				A00000000000000000000005 /* Info.plist */,
 			);
 		};
@@ -68,6 +86,7 @@
 			sourceTree = "<group>";
 			children = (
 				A00000000000000000000003 /* SmokeTests.swift */,
+				A0000000000000000000000A /* ConfigStoreTests.swift */,
 			);
 		};
 		A00000000000000000000043 /* Frameworks */ = {
@@ -88,6 +107,14 @@
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
+
+/* Begin PBXTargetDependency section */
+		A00000000000000000000091 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000000000000000000010 /* Mahu */;
+			targetProxy = A00000000000000000000090 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXNativeTarget section */
 		A00000000000000000000010 /* Mahu */ = {
@@ -116,6 +143,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				A00000000000000000000091 /* PBXTargetDependency */,
 			);
 			name = MahuTests;
 			productName = MahuTests;
@@ -169,6 +197,8 @@
 			files = (
 				A00000000000000000000020 /* MahuApp.swift in Sources */,
 				A00000000000000000000021 /* AppDelegate.swift in Sources */,
+				A00000000000000000000024 /* AppConfig.swift in Sources */,
+				A00000000000000000000025 /* ConfigStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,6 +207,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000022 /* SmokeTests.swift in Sources */,
+				A00000000000000000000026 /* ConfigStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -287,7 +318,7 @@
 		A00000000000000000000084 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "";
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -302,6 +333,7 @@
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mahu.app/Contents/MacOS/Mahu";
 				TEST_TARGET_NAME = Mahu;
 			};
 			name = Debug;
@@ -309,7 +341,7 @@
 		A00000000000000000000085 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "";
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -324,6 +356,7 @@
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mahu.app/Contents/MacOS/Mahu";
 				TEST_TARGET_NAME = Mahu;
 			};
 			name = Release;
