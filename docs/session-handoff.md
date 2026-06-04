@@ -1,5 +1,14 @@
 # Session Handoff
 
+## 2026-05-21 / Sixth Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Coalesce live focus-loss notifications on the MainActor so one real app switch produces one bounce-back; simplify observer teardown to an idempotent cancellation closure instead of a protocol token; split overlay tests into focused files and expand coverage for empty-display, live-registrar, and repeated-show teardown paths.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this review round can only prove build/test green status. Real fullscreen-Space and external-display focus behavior still requires hardware-backed manual verification and remains explicitly open in the plan.
+- Next Steps: Run the next external review iteration against this branch; manually verify `Cmd+Tab` typing safety, previous-app restore after both natural break end and `Skip`, and the external-display/fullscreen-Space scenarios on hardware.
+
 ## 2026-05-21 / Final External Review
 
 🏁 Session Handoff:

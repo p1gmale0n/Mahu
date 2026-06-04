@@ -26,6 +26,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Icon-only status item with a menu containing `Quit`.
 - Work timer starts automatically on launch.
 - Default schedule is 20 minutes of work and 20 seconds of break.
+- Timers advance only while the Mac is awake; elapsed sleep time is not reconciled yet, so the current interval resumes after wake.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - Missing config creates a default config file and continues running.
 - Invalid JSON or unsupported config durations, including values below 1 second, fall back to defaults and continue running.
@@ -33,6 +34,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
 - Overlay windows are raised above normal apps and the app is activated when the break starts.
+- While a break is active, Mahu best-effort reasserts its own focus and re-shows existing overlay windows if another app becomes active behind the overlay.
 - When a break ends or `Skip` is pressed, Mahu restores the previously frontmost app when possible.
 
 ## Project Structure
@@ -40,8 +42,10 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Mahu/`: app sources.
 - `MahuTests/`: unit tests for config, timer, coordinator, status item, and overlay logic.
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
+- `Makefile`: local build shortcut that creates `build/Mahu.app`.
 - `docs/decisions.md`: architectural and process decisions.
-- `docs/plans/2026-05-20-mahu-mvp.md`: MVP execution plan and checkbox progress.
+- `docs/plans/completed/2026-05-20-mahu-mvp.md`: completed MVP execution plan and checkbox progress.
+- `docs/plans/2026-05-21-overlay-focus-hardening.md`: overlay focus-hardening implementation log; manual hardware verification remains open there.
 
 ## Configuration
 
@@ -69,7 +73,15 @@ Notes:
 
 ## Verification Commands
 
-Build:
+Build local app artifact:
+
+```sh
+make build
+```
+
+This creates `build/Mahu.app` and keeps Xcode intermediate files under `build/DerivedData`.
+
+Raw Xcode build:
 
 ```sh
 xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO
@@ -96,6 +108,9 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 - Confirm the app has no Dock icon.
 - Confirm the status item appears and `Quit` exits the app.
 - Temporarily shorten config durations and confirm the overlay appears.
+- Press `Cmd+Tab` during an active break and confirm Mahu quickly returns to the front.
+- Type after attempting `Cmd+Tab` and confirm input does not reach a hidden app behind the overlay.
+- Let a break end naturally and also press `Skip`, then confirm focus returns to the app that was frontmost before Mahu activated the overlay.
 - Test with an external display if available.
 - Test with a fullscreen app or Space and document any limitations separately.
 

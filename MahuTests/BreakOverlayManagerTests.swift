@@ -1,4 +1,3 @@
-import SwiftUI
 import XCTest
 @testable import Mahu
 
@@ -93,78 +92,5 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertNil(manager.viewModel)
         XCTAssertEqual(windowBuilder.windows.first?.closeCallCount, 1)
         XCTAssertEqual(restoreCallCount, 1)
-    }
-
-    func testViewModelSkipInvokesCallback() {
-        var didSkip = false
-        let viewModel = BreakOverlayViewModel(remainingSeconds: 12) {
-            didSkip = true
-        }
-
-        viewModel.skip()
-
-        XCTAssertTrue(didSkip)
-    }
-
-    func testViewModelFormatsCountdownUsingMinutesAndSeconds() {
-        let viewModel = BreakOverlayViewModel(remainingSeconds: 65)
-
-        XCTAssertEqual(viewModel.titleText, "Время отвлечься")
-        XCTAssertEqual(viewModel.countdownText, "01:05")
-
-        viewModel.updateRemainingSeconds(-5)
-
-        XCTAssertEqual(viewModel.countdownText, "00:00")
-    }
-
-    func testBreakOverlayViewRendersRequiredMessageCountdownAndSkipButton() {
-        let viewDescription = String(
-            describing: BreakOverlayView(viewModel: BreakOverlayViewModel(remainingSeconds: 65)).body
-        )
-
-        XCTAssertTrue(viewDescription.contains("Время отвлечься"))
-        XCTAssertTrue(viewDescription.contains("01:05"))
-        XCTAssertTrue(viewDescription.contains("Skip"))
-    }
-
-    func testOverlayWindowCanBecomeKeyAndMain() {
-        let window = BreakOverlayWindow(
-            contentRect: .zero,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-
-        XCTAssertTrue(window.canBecomeKey)
-        XCTAssertTrue(window.canBecomeMain)
-    }
-}
-
-@MainActor
-private final class FakeOverlayWindowBuilder: BreakOverlayWindowBuilding {
-    private(set) var createdDisplays: [DisplayDescriptor] = []
-    private(set) var createdViewModels: [BreakOverlayViewModel] = []
-    private(set) var windows: [FakeOverlayWindow] = []
-
-    func makeWindow(for display: DisplayDescriptor, viewModel: BreakOverlayViewModel) -> BreakOverlayWindowing {
-        createdDisplays.append(display)
-        createdViewModels.append(viewModel)
-
-        let window = FakeOverlayWindow()
-        windows.append(window)
-        return window
-    }
-}
-
-private final class FakeOverlayWindow: BreakOverlayWindowing {
-    private(set) var showCallCount = 0
-    private(set) var closeCallCount = 0
-
-    func show() {
-        showCallCount += 1
-    }
-
-    func close() {
-        closeCallCount += 1
     }
 }
