@@ -46,6 +46,22 @@ final class StatusItemControllerTests: XCTestCase {
         XCTAssertEqual(statusItem.menu?.items.last?.keyEquivalent, "q")
     }
 
+    func testInstallDisablesReminderToggleUntilActionsAreConfigured() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+
+        controller.install()
+
+        let pauseResumeItem = try pauseResumeMenuItem(in: statusItem.menu, named: "Pause Reminders")
+        XCTAssertFalse(pauseResumeItem.isEnabled)
+    }
+
     func testInstallStartsWithNormalStatusButtonOpacity() throws {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }

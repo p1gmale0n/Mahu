@@ -9,16 +9,20 @@ final class AppCoordinator {
     private let makeBreakTimer: (AppConfig) -> BreakTimerControlling
     private let scheduleRepeatingTick: RepeatingTickScheduler
     private let currentUptime: CurrentUptimeProvider
+    private let currentWallClockDate: CurrentWallClockDateProvider
+    private let sleepWakeRegistrar: SleepWakeObservationRegistrar
 
     private var cancelTick: (() -> Void)?
     private var cancelRuntimeSettingsObservation: (() -> Void)?
+    private var cancelSleepWakeObservation: SleepWakeObservationCancellation?
     private var breakTimer: BreakTimerControlling?
     private var runtimeSettingsStore: RuntimeSettingsStoring?
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
-    private var isShowingBreak = false
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
+    private var lastSleepStartedAt: Date?
     private var pendingElapsedSeconds: TimeInterval = 0
+    private var isStartingBreakPresentation = false
 
     init(
         statusItemController: StatusItemControlling? = nil,
@@ -28,7 +32,9 @@ final class AppCoordinator {
         loadConfig: @escaping () -> AppConfig = { ConfigStore().load() },
         makeBreakTimer: @escaping (AppConfig) -> BreakTimerControlling = { BreakTimer(config: $0) },
         scheduleRepeatingTick: @escaping RepeatingTickScheduler = LiveRepeatingScheduler.schedule,
-        currentUptime: @escaping CurrentUptimeProvider = { ProcessInfo.processInfo.systemUptime }
+        currentUptime: @escaping CurrentUptimeProvider = { ProcessInfo.processInfo.systemUptime },
+        currentWallClockDate: @escaping CurrentWallClockDateProvider = Date.init,
+        sleepWakeRegistrar: @escaping SleepWakeObservationRegistrar = LiveSleepWakeObservationRegistrar.make
     ) {
         self.statusItemController = statusItemController ?? StatusItemController()
         self.overlayManager = overlayManager ?? BreakOverlayManager()
@@ -38,6 +44,8 @@ final class AppCoordinator {
         self.makeBreakTimer = makeBreakTimer
         self.scheduleRepeatingTick = scheduleRepeatingTick
         self.currentUptime = currentUptime
+        self.currentWallClockDate = currentWallClockDate
+        self.sleepWakeRegistrar = sleepWakeRegistrar
         self.overlayManager.onVisibleOverlayWindowsChange = { [weak self] isVisible in
             self?.handleOverlayVisibilityChange(isVisible)
         }
@@ -67,6 +75,14 @@ final class AppCoordinator {
         runtimeSettingsPolicy.reset(startupSettings: config)
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
+        cancelSleepWakeObservation = sleepWakeRegistrar(
+            { [weak self] in
+                self?.handleWillSleep()
+            },
+            { [weak self] in
+                self?.handleDidWake()
+            }
+        )
         remindersPaused = false
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
@@ -82,7 +98,7 @@ final class AppCoordinator {
             return
         }
 
-        let allowBreakCompletionSound = isShowingBreak && overlayManager.hasVisibleOverlayWindows
+        let allowBreakCompletionSound = overlayManager.hasActiveBreakSession && overlayManager.hasVisibleOverlayWindows
 
         if remindersPaused, breakTimer.state.phase == .work {
             self.lastTickUptime = currentUptime()
@@ -94,7 +110,7 @@ final class AppCoordinator {
         self.lastTickUptime = now
 
         if breakTimer.state.phase == .rest {
-            if isShowingBreak == false {
+            if overlayManager.hasActiveBreakSession == false {
                 handle(state: breakTimer.state)
                 return
             }
@@ -122,6 +138,7 @@ final class AppCoordinator {
         var latestState = breakTimer.state
         var didAdvance = false
         var shouldPlayBreakCompletionSound = false
+        var overflowElapsedAfterRestCompletion: TimeInterval = 0
 
         while true {
             let elapsedToConsume = elapsedTimeToConsume(
@@ -139,10 +156,11 @@ final class AppCoordinator {
 
             if previousPhase == .rest, latestState.phase == .work {
                 shouldPlayBreakCompletionSound = allowBreakCompletionSound
+                overflowElapsedAfterRestCompletion = pendingElapsedSeconds
                 break
             }
 
-            if latestState.phase == .rest, isShowingBreak == false {
+            if latestState.phase == .rest, overlayManager.hasActiveBreakSession == false {
                 break
             }
         }
@@ -156,6 +174,14 @@ final class AppCoordinator {
         if shouldPlayBreakCompletionSound {
             breakCompletionSoundPlayer.playBreakCompletionSound()
         }
+
+        guard overflowElapsedAfterRestCompletion > 0,
+              let currentBreakTimer = self.breakTimer else {
+            return
+        }
+
+        pendingElapsedSeconds = overflowElapsedAfterRestCompletion
+        consumeElapsedTime(using: currentBreakTimer)
     }
 
     private func handle(state: BreakTimer.State) {
@@ -164,23 +190,24 @@ final class AppCoordinator {
 
         switch state.phase {
         case .work:
-            if isShowingBreak {
+            if overlayManager.hasActiveBreakSession {
                 overlayManager.hideBreak()
-                isShowingBreak = false
                 pendingElapsedSeconds = 0
                 lastTickUptime = currentUptime()
             }
         case .rest:
-            if isShowingBreak {
+            if overlayManager.hasActiveBreakSession {
                 overlayManager.updateRemainingSeconds(state.remainingSeconds)
             } else {
-                isShowingBreak = overlayManager.showBreak(
+                isStartingBreakPresentation = true
+                _ = overlayManager.showBreak(
                     remainingSeconds: state.remainingSeconds,
                     messageText: runtimeSettingsStore?.currentSettings.breakOverlayMessageText ?? AppConfig.defaultBreakOverlayMessageText
                 ) { [weak self] in
                     self?.skipBreak()
                 }
-                if isShowingBreak {
+                isStartingBreakPresentation = false
+                if overlayManager.hasActiveBreakSession {
                     pendingElapsedSeconds = 0
                     lastTickUptime = currentUptime()
                 }
@@ -225,7 +252,8 @@ final class AppCoordinator {
     }
 
     private func handleOverlayVisibilityChange(_ isVisible: Bool) {
-        guard isShowingBreak,
+        guard overlayManager.hasActiveBreakSession,
+              isStartingBreakPresentation == false,
               let breakTimer,
               breakTimer.state.phase == .rest,
               let lastTickUptime else {
@@ -242,6 +270,71 @@ final class AppCoordinator {
 
         pendingElapsedSeconds += elapsedSeconds
         consumeElapsedTime(using: breakTimer, allowBreakCompletionSound: true)
+    }
+
+    private func handleWillSleep() {
+        settleElapsedAwakeTimeBeforeSleep()
+        lastSleepStartedAt = currentWallClockDate()
+    }
+
+    private func handleDidWake() {
+        let wokeAt = currentWallClockDate()
+        let reconciliationAction = wakeReconciliationAction(
+            sleepStartedAt: lastSleepStartedAt,
+            wokeAt: wokeAt,
+            currentState: breakTimer?.state,
+            remindersPaused: remindersPaused
+        )
+
+        lastSleepStartedAt = nil
+        pendingElapsedSeconds = 0
+        lastTickUptime = currentUptime()
+
+        guard reconciliationAction != .none else {
+            return
+        }
+
+        guard let currentSettings = runtimeSettingsStore?.currentSettings else {
+            return
+        }
+
+        runtimeSettingsPolicy.reset(startupSettings: currentSettings)
+
+        switch reconciliationAction {
+        case .none, .preservePausedWork:
+            return
+        case .resetActiveWork, .resetAfterActiveRest:
+            let newBreakTimer = makeBreakTimer(currentSettings)
+            breakTimer = newBreakTimer
+            handle(state: newBreakTimer.state)
+        }
+    }
+
+    private func settleElapsedAwakeTimeBeforeSleep() {
+        guard let breakTimer, let lastTickUptime else {
+            return
+        }
+
+        let now = currentUptime()
+        self.lastTickUptime = now
+
+        if remindersPaused, breakTimer.state.phase == .work {
+            return
+        }
+
+        if breakTimer.state.phase == .rest,
+           (overlayManager.hasActiveBreakSession == false || overlayManager.hasVisibleOverlayWindows == false) {
+            return
+        }
+
+        let elapsedSeconds = max(0, now - lastTickUptime)
+        guard elapsedSeconds > 0 else {
+            return
+        }
+
+        pendingElapsedSeconds += elapsedSeconds
+        let allowBreakCompletionSound = overlayManager.hasActiveBreakSession && overlayManager.hasVisibleOverlayWindows
+        consumeElapsedTime(using: breakTimer, allowBreakCompletionSound: allowBreakCompletionSound)
     }
 
     private func skipBreak() {
@@ -291,6 +384,7 @@ final class AppCoordinator {
     }
 
     isolated deinit {
+        cancelSleepWakeObservation?()
         cancelRuntimeSettingsObservation?()
         cancelTick?()
     }

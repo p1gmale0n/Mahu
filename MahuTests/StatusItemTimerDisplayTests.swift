@@ -71,7 +71,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         controller.install()
 
         let button = try XCTUnwrap(statusItem.button)
-        XCTAssertEqual(statusItem.length, NSStatusItem.variableLength)
+        XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
         XCTAssertEqual(button.attributedTitle.string, "  02:05")
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
@@ -94,14 +94,17 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
         let tenSecondTitle = try XCTUnwrap(statusItem.button).attributedTitle
+        let widthAtTenSeconds = statusItem.length
 
         controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 9))
         let nineSecondTitle = try XCTUnwrap(statusItem.button).attributedTitle
+        let widthAtNineSeconds = statusItem.length
 
         XCTAssertEqual(tenSecondTitle.string, "  00:10")
         XCTAssertEqual(nineSecondTitle.string, "  00:09")
         XCTAssertEqual(tenSecondTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(nineSecondTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
+        XCTAssertEqual(widthAtNineSeconds, widthAtTenSeconds, accuracy: 0.001)
     }
 
     func testTimerModeCanBeEnabledAfterInstallUsingProductionCallOrder() throws {
@@ -121,14 +124,14 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         controller.setStatusDisplayState(.active(phase: .rest, remainingSeconds: 20))
 
         let button = try XCTUnwrap(statusItem.button)
-        XCTAssertEqual(statusItem.length, NSStatusItem.variableLength)
+        XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
         XCTAssertEqual(button.attributedTitle.string, "  00:20")
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
     }
 
-    func testTimerModeShowsPausedTextWhileKeepingExistingIconAndDimming() throws {
+    func testTimerModeKeepsRestCountdownVisibleWhilePauseStateDimsIconAndUpdatesMenuTitle() throws {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }
 
@@ -146,8 +149,8 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         controller.setRemindersPaused(true)
 
         let button = try XCTUnwrap(statusItem.button)
-        XCTAssertEqual(statusItem.length, NSStatusItem.variableLength)
-        XCTAssertEqual(button.attributedTitle.string, "  Paused")
+        XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
+        XCTAssertEqual(button.attributedTitle.string, "  00:20")
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
@@ -155,6 +158,31 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertTrue(button.alphaValue >= 0.45)
         XCTAssertTrue(button.alphaValue <= 0.60)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+    }
+
+    func testTimerModeKeepsLongestObservedWidthAcrossDigitBoundaryChanges() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 6_000))
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        let widthAtHundredMinutes = statusItem.length
+
+        XCTAssertEqual(button.attributedTitle.string, "  100:00")
+
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 5_999))
+
+        XCTAssertEqual(button.attributedTitle.string, "  99:59")
+        XCTAssertEqual(statusItem.length, widthAtHundredMinutes, accuracy: 0.001)
     }
 
     private func timerDisplayFont() -> NSFont {

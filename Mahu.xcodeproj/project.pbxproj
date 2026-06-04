@@ -55,6 +55,11 @@
 			A000000000000000000000A1 /* AppCoordinatorRuntimeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */; };
 			A000000000000000000000A2 /* AppCoordinatorRuntimeSettingsRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */; };
 			A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */; };
+			A000000000000000000000A7 /* SleepWakeObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A6 /* SleepWakeObservation.swift */; };
+			A000000000000000000000A9 /* FakeSleepWakeObserverRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */; };
+			A000000000000000000000AB /* LiveSleepWakeObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */; };
+			A000000000000000000000AD /* AppCoordinatorSleepWakeAccountingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */; };
+			A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -119,6 +124,11 @@
 			A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorRuntimeSettingsTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorRuntimeSettingsRegressionTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSettingsStoreTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000A6 /* SleepWakeObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepWakeObservation.swift; sourceTree = "<group>"; };
+			A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeSleepWakeObserverRegistrarTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSleepWakeObservationRegistrarTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorSleepWakeAccountingTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,6 +169,7 @@
 				A00000000000000000000002 /* AppDelegate.swift */,
 				A0000000000000000000000D /* AppCoordinator.swift */,
 				A0000000000000000000005B /* AppCoordinatorSupport.swift */,
+				A000000000000000000000A6 /* SleepWakeObservation.swift */,
 				A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */,
 				A00000000000000000000008 /* AppConfig.swift */,
 				A00000000000000000000009 /* ConfigStore.swift */,
@@ -204,7 +215,10 @@
 				A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
 				A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
 				A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
-			A00000000000000000000093 /* ConfigStoreStatusItemTimerTests.swift */,
+					A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */,
+					A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */,
+					A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */,
+				A00000000000000000000093 /* ConfigStoreStatusItemTimerTests.swift */,
 				A00000000000000000000097 /* StatusDisplayFormatterTests.swift */,
 				A0000000000000000000000C /* BreakTimerTests.swift */,
 					A00000000000000000000017 /* BreakOverlayTestSupport.swift */,
@@ -213,6 +227,7 @@
 					A00000000000000000000018 /* BreakOverlayFocusRetentionTests.swift */,
 					A0000000000000000000001B /* LiveBreakFocusObservationRegistrarTests.swift */,
 					A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */,
+					A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */,
 					A00000000000000000000019 /* BreakOverlayViewTests.swift */,
 					A0000000000000000000004B /* TrayIconAssetTests.swift */,
 				A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */,
@@ -345,6 +360,7 @@
 				A00000000000000000000021 /* AppDelegate.swift in Sources */,
 				A00000000000000000000029 /* AppCoordinator.swift in Sources */,
 				A0000000000000000000005C /* AppCoordinatorSupport.swift in Sources */,
+				A000000000000000000000A7 /* SleepWakeObservation.swift in Sources */,
 				A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */,
 				A00000000000000000000024 /* AppConfig.swift in Sources */,
 				A00000000000000000000025 /* ConfigStore.swift in Sources */,
@@ -378,7 +394,10 @@
 				A0000000000000000000005D /* ConfigStoreSizeLimitTests.swift in Sources */,
 				A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
 				A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
-				A00000000000000000000092 /* ConfigStoreStatusItemTimerTests.swift in Sources */,
+					A000000000000000000000A9 /* FakeSleepWakeObserverRegistrarTests.swift in Sources */,
+					A000000000000000000000AD /* AppCoordinatorSleepWakeAccountingTests.swift in Sources */,
+					A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */,
+					A00000000000000000000092 /* ConfigStoreStatusItemTimerTests.swift in Sources */,
 				A00000000000000000000096 /* StatusDisplayFormatterTests.swift in Sources */,
 				A00000000000000000000028 /* BreakTimerTests.swift in Sources */,
 					A0000000000000000000002E /* BreakOverlayManagerTests.swift in Sources */,
@@ -386,6 +405,7 @@
 					A00000000000000000000034 /* BreakOverlayFocusRetentionTests.swift in Sources */,
 					A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */,
 					A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */,
+					A000000000000000000000AB /* LiveSleepWakeObservationRegistrarTests.swift in Sources */,
 				A00000000000000000000035 /* BreakOverlayViewTests.swift in Sources */,
 				A0000000000000000000004A /* TrayIconAssetTests.swift in Sources */,
 				A0000000000000000000004F /* StatusItemMenuAcceptanceTests.swift in Sources */,

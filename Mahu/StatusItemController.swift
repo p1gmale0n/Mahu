@@ -7,6 +7,7 @@ final class StatusItemController: NSObject {
     private static let resumeRemindersTitle = "Resume Reminders"
     private static let normalStatusItemAlpha: CGFloat = 1.0
     private static let pausedStatusItemAlpha: CGFloat = 0.5
+    private static let minimumTimerStatusItemLength = NSStatusItem.squareLength
 
     private let statusItem: NSStatusItem
     private var pauseRemindersHandler: (() -> Void)?
@@ -19,6 +20,11 @@ final class StatusItemController: NSObject {
     private var showsTimerState = false
     private var statusDisplayState: StatusDisplayState?
     private var installedStatusIcon: NSImage?
+    private var maximumTimerStatusItemLength: CGFloat = 0
+
+    private var reminderActionsAreConfigured: Bool {
+        pauseRemindersHandler != nil && resumeRemindersHandler != nil
+    }
 
     init(
         statusItem: NSStatusItem? = nil,
@@ -47,6 +53,10 @@ final class StatusItemController: NSObject {
     func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void) {
         pauseRemindersHandler = onPause
         resumeRemindersHandler = onResume
+
+        if statusItem.menu != nil {
+            statusItem.menu = makeMenu()
+        }
     }
 
     func setRemindersPaused(_ paused: Bool) {
@@ -66,6 +76,11 @@ final class StatusItemController: NSObject {
         }
 
         self.showsTimerState = showsTimerState
+
+        if showsTimerState == false {
+            maximumTimerStatusItemLength = 0
+        }
+
         applyStatusItemDisplay()
     }
 
@@ -85,7 +100,7 @@ final class StatusItemController: NSObject {
 
     @objc private func toggleRemindersPauseState() {
         guard let pauseRemindersHandler, let resumeRemindersHandler else {
-            preconditionFailure("StatusItemController reminder actions must be configured before use")
+            return
         }
 
         if remindersPaused {
@@ -130,6 +145,7 @@ final class StatusItemController: NSObject {
             keyEquivalent: ""
         )
         pauseResumeItem.target = self
+        pauseResumeItem.isEnabled = reminderActionsAreConfigured
         menu.addItem(pauseResumeItem)
 
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
@@ -156,14 +172,15 @@ final class StatusItemController: NSObject {
         button.image = installedStatusIcon
 
         if showsTimerState {
-            statusItem.length = NSStatusItem.variableLength
-            button.attributedTitle = makeTimerStateTitle(
-                remindersPaused ? statusDisplayFormatter.string(for: .paused) : activeStatusDisplayText()
-            )
+            button.attributedTitle = makeTimerStateTitle(currentTimerStateText())
             button.imagePosition = .imageLeading
+            let measuredLength = measuredTimerStatusItemLength(for: button)
+            maximumTimerStatusItemLength = max(maximumTimerStatusItemLength, measuredLength)
+            statusItem.length = maximumTimerStatusItemLength
             return
         }
 
+        maximumTimerStatusItemLength = 0
         statusItem.length = NSStatusItem.squareLength
         button.title = ""
         button.attributedTitle = NSAttributedString(string: "")
@@ -182,12 +199,27 @@ final class StatusItemController: NSObject {
         )
     }
 
-    private func activeStatusDisplayText() -> String {
+    private func currentTimerStateText() -> String {
         guard let statusDisplayState else {
-            return ""
+            return remindersPaused ? statusDisplayFormatter.string(for: .paused) : ""
         }
 
-        return statusDisplayFormatter.string(for: statusDisplayState)
+        switch statusDisplayState {
+        case let .active(phase, remainingSeconds):
+            if remindersPaused, phase == .work {
+                return statusDisplayFormatter.string(for: .paused)
+            }
+
+            return statusDisplayFormatter.string(
+                for: .active(phase: phase, remainingSeconds: remainingSeconds)
+            )
+        case .paused:
+            return statusDisplayFormatter.string(for: .paused)
+        }
+    }
+
+    private func measuredTimerStatusItemLength(for button: NSStatusBarButton) -> CGFloat {
+        max(Self.minimumTimerStatusItemLength, ceil(button.fittingSize.width))
     }
 
     private static func makeMenuBarStatusIconCopy(from image: NSImage) -> NSImage? {

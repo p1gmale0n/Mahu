@@ -267,6 +267,48 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(activationCount, 1)
     }
 
+    func testShowBreakPreservesCapturedPreviousAppAcrossZeroWindowStartupRetry() {
+        let builtInDisplay = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        var displays = [builtInDisplay]
+        let windowBuilder = FakeOverlayWindowBuilder()
+        var capturedPreviousApplicationCount = 0
+        var shouldDropDisplaysDuringRegistration = true
+        let manager = BreakOverlayManager(
+            screenProvider: { displays },
+            windowBuilder: windowBuilder,
+            previousAppCapture: {
+                capturedPreviousApplicationCount += 1
+                return PreviousFrontmostApplication {}
+            },
+            focusObservationRegistrar: { _ in
+                if shouldDropDisplaysDuringRegistration {
+                    displays = []
+                    shouldDropDisplaysDuringRegistration = false
+                }
+                return {}
+            },
+            screenObservationRegistrar: { _ in {} },
+            appActivator: {}
+        )
+
+        XCTAssertFalse(manager.showBreak(remainingSeconds: 20))
+        XCTAssertNotNil(manager.viewModel)
+        XCTAssertEqual(capturedPreviousApplicationCount, 1)
+
+        displays = [builtInDisplay]
+
+        XCTAssertTrue(manager.showBreak(remainingSeconds: 20))
+        XCTAssertEqual(capturedPreviousApplicationCount, 1)
+        XCTAssertNotNil(manager.viewModel)
+        XCTAssertEqual(windowBuilder.windows.count, 2)
+        XCTAssertEqual(windowBuilder.windows[0].closeCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[1].showCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[1].closeCallCount, 0)
+    }
+
     func testScreenChangeRemovesDisplayDuringActiveBreak() {
         let builtInDisplay = DisplayDescriptor(
             frame: CGRect(x: 0, y: 0, width: 1440, height: 900),

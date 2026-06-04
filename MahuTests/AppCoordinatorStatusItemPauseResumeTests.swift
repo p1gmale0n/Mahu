@@ -92,4 +92,42 @@ final class AppCoordinatorStatusItemPauseResumeTests: XCTestCase {
         XCTAssertEqual(initialTimer.advanceCalls, [5])
         XCTAssertEqual(resumedTimer.advanceCalls, [1])
     }
+
+    func testPauseDuringActiveBreakKeepsRestCountdownVisibleInTimerMode() throws {
+        let config = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 20),
+            statesToReturn: [.init(phase: .rest, remainingSeconds: 14)]
+        )
+        var scheduledTick: (() -> Void)?
+        var uptime = 100.0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { config },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: { uptime }
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+
+        pauseReminders()
+        uptime = 106
+        scheduledTick?()
+
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true])
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:20", "00:14"])
+        XCTAssertEqual(fakeTimer.advanceCalls, [6])
+    }
 }

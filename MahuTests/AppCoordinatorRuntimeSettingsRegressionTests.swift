@@ -226,4 +226,47 @@ final class AppCoordinatorRuntimeSettingsRegressionTests: XCTestCase {
         XCTAssertTrue(fakeOverlayManager.events.isEmpty)
         XCTAssertTrue(runtimeSettingsStore.updates.isEmpty)
     }
+
+    func testLongSleepWakeResetUsesRuntimeSettingsStoreWithoutReloadingDiskConfig() {
+        let startupConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let runtimeEditedConfig = AppConfig(workDurationSeconds: 600, breakDurationSeconds: 45)
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: runtimeEditedConfig)
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 3)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: runtimeEditedConfig.workDurationSeconds)
+        )
+        var createdConfigs: [AppConfig] = []
+        var loadConfigCallCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: {
+                loadConfigCallCount += 1
+                return startupConfig
+            },
+            makeBreakTimer: { config in
+                createdConfigs.append(config)
+                return createdConfigs.count == 1 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([100, 200, 201]),
+            currentWallClockDate: makeCurrentWallClockDateProvider([
+                Date(timeIntervalSinceReferenceDate: 11_000),
+                Date(timeIntervalSinceReferenceDate: 11_000 + longSleepResetThresholdSeconds + 5)
+            ]),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+
+        XCTAssertEqual(loadConfigCallCount, 0)
+        XCTAssertEqual(createdConfigs, [runtimeEditedConfig, runtimeEditedConfig])
+    }
 }

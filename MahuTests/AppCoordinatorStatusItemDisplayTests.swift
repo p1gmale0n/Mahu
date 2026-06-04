@@ -292,4 +292,52 @@ final class AppCoordinatorStatusItemDisplayTests: XCTestCase {
         XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText)])
         XCTAssertEqual(fakeStatusItemController.showsTimerStateUpdates, [false, true, false])
     }
+
+    func testLongSleepWakeResetUpdatesStatusItemTimerDisplayToFreshWorkDuration() {
+        let config = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 2)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: config.workDurationSeconds)
+        )
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: config),
+            loadConfig: { config },
+            makeBreakTimer: { _ in
+                timerCreationCount += 1
+                return timerCreationCount == 1 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([50, 50, 501]),
+            currentWallClockDate: makeCurrentWallClockDateProvider([
+                Date(timeIntervalSinceReferenceDate: 12_000),
+                Date(timeIntervalSinceReferenceDate: 12_000 + longSleepResetThresholdSeconds + 3)
+            ]),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+
+        XCTAssertEqual(
+            fakeStatusItemController.statusDisplayStates,
+            [
+                .active(phase: .work, remainingSeconds: 2),
+                .active(phase: .work, remainingSeconds: 300)
+            ]
+        )
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:02", "05:00"])
+    }
 }

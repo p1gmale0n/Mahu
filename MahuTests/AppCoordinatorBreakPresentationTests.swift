@@ -31,19 +31,56 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText), .show(20, AppConfig.defaultBreakOverlayMessageText)])
     }
 
-    func testLateBreakCompletionTickDoesNotConsumeNextWorkIntervalBeforeOverlayHides() {
+    func testDormantBreakSessionThatBecomesVisibleLaterHidesWhenBreakEnds() throws {
         let fakeOverlayManager = FakeBreakOverlayManager()
+        fakeOverlayManager.showBreakResult = false
+        fakeOverlayManager.preservesActiveBreakSessionOnFailedShow = true
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [.init(phase: .rest, remainingSeconds: 20)],
+            skipState: .init(phase: .work, remainingSeconds: 300)
+        )
+        var scheduledTick: (() -> Void)?
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([80, 81, 82])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        fakeOverlayManager.hasVisibleOverlayWindows = true
+        let skipBreak = try XCTUnwrap(fakeOverlayManager.skipHandler)
+        skipBreak()
+
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [.show(20, AppConfig.defaultBreakOverlayMessageText), .hide]
+        )
+        XCTAssertFalse(fakeOverlayManager.hasActiveBreakSession)
+        XCTAssertFalse(fakeOverlayManager.hasVisibleOverlayWindows)
+    }
+
+    func testLateBreakCompletionTickCarriesOverflowIntoNextWorkIntervalAfterOverlayHides() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeStatusItemController = FakeStatusItemController()
         let fakeTimer = FakeBreakTimer(
             state: .init(phase: .work, remainingSeconds: 1),
             statesToReturn: [
                 .init(phase: .rest, remainingSeconds: 1),
                 .init(phase: .work, remainingSeconds: 300),
-                .init(phase: .work, remainingSeconds: 299)
+                .init(phase: .work, remainingSeconds: 297)
             ]
         )
         var scheduledTick: (() -> Void)?
         let coordinator = AppCoordinator(
-            statusItemController: FakeStatusItemController(),
+            statusItemController: fakeStatusItemController,
             overlayManager: fakeOverlayManager,
             loadConfig: { .default },
             makeBreakTimer: { _ in fakeTimer },
@@ -57,10 +94,16 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         coordinator.start()
         scheduledTick?()
         scheduledTick?()
-        scheduledTick?()
 
-        XCTAssertEqual(fakeTimer.advanceCalls, [1, 1, 1])
+        XCTAssertEqual(fakeTimer.advanceCalls, [1, 1, 3])
         XCTAssertEqual(fakeOverlayManager.events, [.show(1, AppConfig.defaultBreakOverlayMessageText), .hide])
+        XCTAssertEqual(
+            Array(fakeStatusItemController.statusDisplayStates.suffix(2)),
+            [
+                .active(phase: .work, remainingSeconds: 300),
+                .active(phase: .work, remainingSeconds: 297)
+            ]
+        )
     }
 
     func testHiddenActiveBreakPausesCountdownUntilOverlayBecomesVisibleAgain() {

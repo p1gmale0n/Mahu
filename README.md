@@ -32,7 +32,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - If reminders are paused or resumed during an active break, Mahu only changes future reminder state and menu labels; the current break countdown and `Skip` behavior continue unchanged.
 - Pause state is runtime-only; Mahu always launches with reminders enabled.
 - Default schedule is 20 minutes of work and 20 seconds of break.
-- Timers advance only while the Mac is awake; elapsed sleep time is not reconciled yet, so the current interval resumes after wake.
+- Short sleep preserves the current work or break countdown, while wake after at least 5 minutes of recorded sleep reconciles state: active work resets to a fresh full work interval, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - Missing config creates a default config file and continues running.
 - Invalid JSON or unsupported config durations, including values below 1 second, values that exceed one-second `TimeInterval` precision, or non-finite values, fall back to defaults and continue running.
@@ -128,7 +128,6 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Launch at login.
 - Settings UI.
 - Manual start-break menu action.
-- Sleep/wake timer reconciliation.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
 - Multi-display and fullscreen Spaces hardening.
 
@@ -143,6 +142,10 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Choose `Resume Reminders`, then confirm the tray icon returns to normal brightness and the next break appears only after a full fresh work interval from Mahu's current runtime settings.
 - With `"showStatusItemTimerState": true`, choose `Resume Reminders` and confirm the status item returns to a fresh full work-interval countdown.
 - During an active break, toggle `Pause Reminders` and `Resume Reminders`, then confirm the existing countdown and `Skip` behavior stay unchanged.
+- Wait until the work timer is near expiration, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu starts a fresh full work interval instead of showing an immediate break.
+- Repeat with a sleep shorter than 5 minutes and confirm the current work or break countdown resumes from the previous remaining time.
+- Pause reminders, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu stays paused, does not show a break, and still starts a fresh full work interval only after `Resume Reminders`.
+- Start an active break, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu closes the stale break, starts a fresh work interval, and does not play `break-completion.caf`.
 - Confirm `Quit` still exits the app.
 - Confirm the status item visually uses the transparent tray glyph rather than the old SF Symbol or a visible square app-icon raster.
 - Check the tray icon in light mode, dark mode, and the highlighted menu-bar state; this readability proof is still manual-only. If the tray asset is unavailable during local debugging, confirm Mahu still shows a non-empty fallback icon.

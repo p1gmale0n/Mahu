@@ -15,11 +15,116 @@ func makeCurrentUptimeProvider(_ values: [TimeInterval]) -> () -> TimeInterval {
     }
 }
 
+func makeCurrentWallClockDateProvider(_ values: [Date]) -> () -> Date {
+    var remainingValues = values
+    var lastValue = values.last ?? Date(timeIntervalSinceReferenceDate: 0)
+
+    return {
+        if let nextValue = remainingValues.first {
+            remainingValues.removeFirst()
+            lastValue = nextValue
+        }
+
+        return lastValue
+    }
+}
+
 final class CancellationSpy {
     private(set) var cancelCallCount = 0
 
     func cancel() {
         cancelCallCount += 1
+    }
+}
+
+@MainActor
+final class FakeSleepWakeObserverRegistrar {
+    @MainActor
+    private final class Observation {
+        private let willSleep: @MainActor () -> Void
+        private let didWake: @MainActor () -> Void
+        private(set) var isCancelled = false
+
+        init(
+            willSleep: @escaping @MainActor () -> Void,
+            didWake: @escaping @MainActor () -> Void
+        ) {
+            self.willSleep = willSleep
+            self.didWake = didWake
+        }
+
+        func fireWillSleep() {
+            guard isCancelled == false else {
+                return
+            }
+
+            willSleep()
+        }
+
+        func fireDidWake() {
+            guard isCancelled == false else {
+                return
+            }
+
+            didWake()
+        }
+
+        func cancel() -> Bool {
+            guard isCancelled == false else {
+                return false
+            }
+
+            isCancelled = true
+            return true
+        }
+    }
+
+    private(set) var registrationCount = 0
+    private(set) var willSleepCallCount = 0
+    private(set) var didWakeCallCount = 0
+    private(set) var cancelCount = 0
+    private var observations: [Observation] = []
+
+    func register(
+        willSleep: @escaping @MainActor () -> Void,
+        didWake: @escaping @MainActor () -> Void
+    ) -> SleepWakeObservationCancellation {
+        registrationCount += 1
+        let observation = Observation(
+            willSleep: { [weak self] in
+                self?.willSleepCallCount += 1
+                willSleep()
+            },
+            didWake: { [weak self] in
+                self?.didWakeCallCount += 1
+                didWake()
+            }
+        )
+        observations.append(observation)
+
+        return { [weak self, weak observation] in
+            guard let self, let observation, observation.cancel() else {
+                return
+            }
+
+            self.cancelCount += 1
+        }
+    }
+
+    func fireWillSleep() {
+        observations.last?.fireWillSleep()
+    }
+
+    func fireDidWake() {
+        observations.last?.fireDidWake()
+    }
+
+    func fireAllWillSleep() {
+        observations.forEach { $0.fireWillSleep() }
+    }
+
+    func fireAllDidWake() {
+        observations.forEach { $0.fireDidWake() }
     }
 }
 
@@ -113,12 +218,7 @@ final class FakeStatusItemController: StatusItemControlling {
             return
         }
 
-        let text: String
-        if remindersPaused {
-            text = statusDisplayFormatter.string(for: .paused)
-        } else if let currentStatusDisplayState {
-            text = statusDisplayFormatter.string(for: currentStatusDisplayState)
-        } else {
+        guard let text = currentRenderedTimerText() else {
             return
         }
 
@@ -127,6 +227,25 @@ final class FakeStatusItemController: StatusItemControlling {
         }
 
         renderedTimerTexts.append(text)
+    }
+
+    private func currentRenderedTimerText() -> String? {
+        guard let currentStatusDisplayState else {
+            return remindersPaused ? statusDisplayFormatter.string(for: .paused) : nil
+        }
+
+        switch currentStatusDisplayState {
+        case let .active(phase, remainingSeconds):
+            if remindersPaused, phase == .work {
+                return statusDisplayFormatter.string(for: .paused)
+            }
+
+            return statusDisplayFormatter.string(
+                for: .active(phase: phase, remainingSeconds: remainingSeconds)
+            )
+        case .paused:
+            return statusDisplayFormatter.string(for: .paused)
+        }
     }
 }
 
@@ -179,6 +298,7 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
         case hide
     }
 
+    var hasActiveBreakSession = false
     var hasVisibleOverlayWindows = false {
         didSet {
             guard hasVisibleOverlayWindows != oldValue else {
@@ -192,10 +312,12 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
     private(set) var events: [Event] = []
     private(set) var skipHandler: (() -> Void)?
     var showBreakResult = true
+    var preservesActiveBreakSessionOnFailedShow = false
 
     func showBreak(remainingSeconds: TimeInterval, messageText: String, onSkip: @escaping () -> Void) -> Bool {
         events.append(.show(remainingSeconds, messageText))
         skipHandler = onSkip
+        hasActiveBreakSession = showBreakResult || preservesActiveBreakSessionOnFailedShow
         hasVisibleOverlayWindows = showBreakResult
         return showBreakResult
     }
@@ -207,6 +329,7 @@ final class FakeBreakOverlayManager: BreakOverlayManaging {
     func hideBreak() {
         events.append(.hide)
         skipHandler = nil
+        hasActiveBreakSession = false
         hasVisibleOverlayWindows = false
     }
 }

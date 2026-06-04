@@ -1,5 +1,23 @@
 # Session Handoff
 
+## 2026-06-03 / Sleep/Wake Plan Close-Out Task 9
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Close the sleep/wake plan without sequence deviations, mark Task 9 explicitly as no-deviation close-out, and keep real fullscreen-Space/external-display wake ordering as manual-only verification because test coverage uses fake sleep/wake delivery.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The remaining uncertainty is not coordinator logic but live WindowServer timing after sleep, which headless XCTest cannot prove. Keeping that limitation explicit in Post-Completion prevents the close-out loop from reopening on hardware-only acceptance details.
+- Next Steps: Let the external loop archive or finish the plan; on real hardware, manually verify lid-close and Apple-menu sleep/wake flows in normal desktops, fullscreen Spaces, and external-display configurations.
+
+## 2026-06-03 / Sleep/Wake Active Rest Task 5
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat long sleep during an active break as its own wake-reconciliation action that resets Mahu to a fresh work timer through the existing `.work` coordinator path, so overlay teardown, skip-handler cleanup, and no-sound behavior stay on the already-tested seams. Keep short sleep during rest non-destructive by only refreshing the wake baseline.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/AppCoordinatorTests -only-testing:MahuTests/AppCoordinatorBreakSoundTests`
+- Friction/CDD: `AppCoordinator.swift` is already above the local readability threshold, so this task kept new policy branching in `AppCoordinatorSupport.swift` and limited `AppCoordinator` edits to minimal action application. Focused `-only-testing` runs still rebuild the macOS targets, so validation remains slower than a pure unit-test harness.
+- Next Steps: Let the external loop pick up Task 6; keep the next sleep/wake regression coverage focused on runtime-settings, status-item, and observer-cancellation behavior; if coordinator sleep/wake policy grows again, split wake-application code into a dedicated support type instead of adding more branches inline.
+
 ## 2026-05-29 / Tray Timer Review Fixes
 
 🏁 Session Handoff:
@@ -377,3 +395,12 @@
 - Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; attempted `command -v swiftlint` and the command is not available in this environment.
 - Friction/CDD: The review gate still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so this pass can only prove build/test/package status. SwiftUI hosted inspection on macOS also remains awkward enough that truthful UI regression coverage was easier to achieve by simplifying the overlay layout than by traversing `NSHostingView` subviews that do not expose rendered text/buttons reliably.
 - Next Steps: Let the external review loop run again from this fix commit; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; keep manual hardware checks open for fullscreen Spaces, external-display behavior, and audible output characteristics of the bundled CAF clip.
+
+## 2026-06-03 / Sleep/Wake Review No-Issue Closure
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat this external review result as a genuine no-issue pass after re-reading `docs/plans/2026-06-03-sleep-wake-timer-reconciliation.md`, tracing the `AppCoordinator` sleep/wake paths into `wakeReconciliationAction(...)` and `LiveSleepWakeObservationRegistrar`, and confirming the only remaining local artifact was the review loop's scratch `output.txt`; ignore that file at the repo root so future clean passes do not look like product diffs.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; reviewed `Mahu/AppCoordinator.swift`, `Mahu/AppCoordinatorSupport.swift`, `Mahu/SleepWakeObservation.swift`, `MahuTests/AppCoordinatorSleepWakeAccountingTests.swift`, `MahuTests/AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift`, `MahuTests/LiveSleepWakeObservationRegistrarTests.swift`, and `output.txt` containing `NO ISSUES FOUND`.
+- Friction/CDD: The external review workflow still writes a repo-root `output.txt` scratch file even on clean rounds, which previously left a misleading dirty worktree and made the "commit all fixes" step ambiguous. This pass fixes that one artifact with `.gitignore`, but if the loop starts emitting additional scratch filenames they should move under an ignored tooling directory instead of repo root.
+- Next Steps: Let the external loop stop on the completion signal for this branch state; if a later pass reports a concrete defect, patch only the affected files, rerun the macOS XCTest command above, and keep external review scratch files out of tracked diffs.

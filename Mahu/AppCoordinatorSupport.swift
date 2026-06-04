@@ -31,7 +31,10 @@ protocol RuntimeSettingsStoring: AnyObject {
 
 typealias RepeatingTickScheduler = (TimeInterval, @escaping () -> Void) -> () -> Void
 typealias CurrentUptimeProvider = () -> TimeInterval
+typealias CurrentWallClockDateProvider = () -> Date
 typealias OverlayVisibilityChangeHandler = (Bool) -> Void
+
+let longSleepResetThresholdSeconds: TimeInterval = 300
 
 enum RuntimeSettingsScheduleUpdateAction {
     case none
@@ -74,6 +77,13 @@ enum PendingRuntimeSettingsDirective {
     case keep(BreakTimer.State)
     case replaceTimerAndAdvanceToRest(AppConfig)
     case replaceTimerAfterRest(AppConfig)
+}
+
+enum WakeReconciliationAction {
+    case none
+    case preservePausedWork
+    case resetActiveWork
+    case resetAfterActiveRest
 }
 
 struct RuntimeSettingsApplicationPolicy {
@@ -163,6 +173,30 @@ func elapsedTimeToConsume(
     return availableElapsedSeconds
 }
 
+func wakeReconciliationAction(
+    sleepStartedAt: Date?,
+    wokeAt: Date,
+    currentState: BreakTimer.State?,
+    remindersPaused: Bool,
+    longSleepThresholdSeconds: TimeInterval = longSleepResetThresholdSeconds
+) -> WakeReconciliationAction {
+    guard let sleepStartedAt,
+          let currentState else {
+        return .none
+    }
+
+    guard max(0, wokeAt.timeIntervalSince(sleepStartedAt)) >= longSleepThresholdSeconds else {
+        return .none
+    }
+
+    switch currentState.phase {
+    case .work:
+        return remindersPaused ? .preservePausedWork : .resetActiveWork
+    case .rest:
+        return .resetAfterActiveRest
+    }
+}
+
 @MainActor
 final class RuntimeSettingsStore: RuntimeSettingsStoring {
     private static let logger = Logger(subsystem: "Mahu", category: "RuntimeSettingsStore")
@@ -204,6 +238,7 @@ final class RuntimeSettingsStore: RuntimeSettingsStoring {
 
 @MainActor
 protocol BreakOverlayManaging: AnyObject {
+    var hasActiveBreakSession: Bool { get }
     var hasVisibleOverlayWindows: Bool { get }
     var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler? { get set }
     @discardableResult

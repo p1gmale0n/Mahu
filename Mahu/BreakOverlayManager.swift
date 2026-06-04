@@ -131,6 +131,10 @@ final class BreakOverlayManager {
     private var screenObservationCancellation: BreakScreenObservationCancellation?
     var onVisibleOverlayWindowsChange: OverlayVisibilityChangeHandler?
 
+    var hasActiveBreakSession: Bool {
+        viewModel != nil
+    }
+
     var hasVisibleOverlayWindows: Bool {
         activeOverlays.isEmpty == false
     }
@@ -223,7 +227,6 @@ final class BreakOverlayManager {
         )
 
         guard hasVisibleOverlayWindows else {
-            tearDownActiveBreak(restorePreviousApplication: false)
             return false
         }
 

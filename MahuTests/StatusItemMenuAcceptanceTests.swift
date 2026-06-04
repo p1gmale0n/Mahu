@@ -52,6 +52,31 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         XCTAssertEqual(resumeInvocationCount, 1)
     }
 
+    func testConfiguringReminderActionsAfterInstallEnablesReminderToggle() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        var pauseInvocationCount = 0
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+
+        controller.install()
+        XCTAssertFalse(try menuItem(named: "Pause Reminders", in: statusItem.menu).isEnabled)
+
+        controller.configureReminderActions(
+            onPause: { pauseInvocationCount += 1 },
+            onResume: {}
+        )
+
+        XCTAssertTrue(try menuItem(named: "Pause Reminders", in: statusItem.menu).isEnabled)
+
+        try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
+        XCTAssertEqual(pauseInvocationCount, 1)
+    }
+
     func testFreshStatusItemControllerStartsEnabledAfterPreviousControllerWasPaused() {
         let firstStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(firstStatusItem) }

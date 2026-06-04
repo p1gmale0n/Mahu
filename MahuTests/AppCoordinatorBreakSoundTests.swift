@@ -245,4 +245,107 @@ final class AppCoordinatorBreakSoundTests: XCTestCase {
         XCTAssertEqual(fakeOverlayManager.events, [.show(2, AppConfig.defaultBreakOverlayMessageText), .update(1)])
         XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
     }
+
+    func testLongSleepDuringActiveRestDoesNotPlayBreakCompletionSound() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let restTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 4)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: initialConfig.workDurationSeconds)
+        )
+        let sleepDates = [
+            Date(timeIntervalSinceReferenceDate: 9_000),
+            Date(timeIntervalSinceReferenceDate: 9_000 + longSleepResetThresholdSeconds + 20)
+        ]
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            breakCompletionSoundPlayer: fakeSoundPlayer,
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: initialConfig),
+            loadConfig: { initialConfig },
+            makeBreakTimer: { _ in
+                timerCreationCount += 1
+                return timerCreationCount == 1 ? restTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([110, 120, 121]),
+            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [
+                .show(4, AppConfig.defaultBreakOverlayMessageText),
+                .update(4),
+                .hide
+            ]
+        )
+        XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
+    }
+
+    func testLongSleepDuringActiveRestPreservesOverlayTeardownInvariantsWithoutNaturalCompletionPaths() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let restTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 9),
+            skipState: .init(phase: .work, remainingSeconds: 123)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: initialConfig.workDurationSeconds)
+        )
+        let sleepDates = [
+            Date(timeIntervalSinceReferenceDate: 10_000),
+            Date(timeIntervalSinceReferenceDate: 10_000 + longSleepResetThresholdSeconds + 12)
+        ]
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: initialConfig),
+            loadConfig: { initialConfig },
+            makeBreakTimer: { _ in
+                timerCreationCount += 1
+                return timerCreationCount == 1 ? restTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([130, 140, 141]),
+            currentWallClockDate: makeCurrentWallClockDateProvider(sleepDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        XCTAssertNotNil(fakeOverlayManager.skipHandler)
+
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [
+                .show(9, AppConfig.defaultBreakOverlayMessageText),
+                .update(9),
+                .hide
+            ]
+        )
+        XCTAssertNil(fakeOverlayManager.skipHandler)
+        XCTAssertEqual(restTimer.advanceCalls, [1])
+        XCTAssertEqual(restTimer.skipBreakCallCount, 0)
+    }
 }

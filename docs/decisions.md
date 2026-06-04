@@ -2,6 +2,21 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-03 | External review artifact hygiene | Ignore the external review loop's root `output.txt` scratch file and treat clean no-issue closures as documentation-only close-out, not product diffs. | Clean review passes currently leave an untracked repo-root artifact even when the tracked tree is correct, which makes the final commit step ambiguous and noisy. |
+| 2026-06-03 | Sleep/wake cancellation synchronization | Replace the live sleep/wake registrar's shared cancellation `Bool` with a synchronized cancellation state object. | The follow-up review found that the shared mutable local flag was touched from observer callbacks and teardown concurrently, which could reintroduce lifecycle races or Swift exclusivity issues after the earlier synchronous-delivery fix. |
+| 2026-06-03 | Break overlay startup retry preservation | Keep the current break session state alive when startup-time display resync temporarily leaves zero overlay windows, so the next retry reuses the original previous-app capture. | The review found that the zero-window startup path tore down the entire session and lost the pre-break app capture, violating the documented "do not recapture the previous app" invariant under transient display-loss races. |
+| 2026-06-03 | Tray timer width stabilization | Freeze timer-mode status-item width to the widest observed title instead of leaving the item in `variableLength` mode for every countdown update. | The review found that valid long-duration timer text could cross minute digit boundaries and make the menu-bar item shrink mid-countdown, violating the stable-width tray timer requirement. |
+| 2026-06-03 | Sleep/wake live delivery ordering | Deliver live `willSleep` and `didWake` notifications synchronously onto the main actor instead of bouncing them through fire-and-forget tasks. | A review found that queued lifecycle callbacks could race the first post-wake timer tick or suspend before `willSleep` bookkeeping ran, which breaks the core sleep/wake reconciliation contract on real hardware. |
+| 2026-06-03 | Break completion overflow handling | Preserve already accrued awake time when a late tick finishes a break by carrying any post-rest overflow into the next work interval after the overlay tears down. | External review found that the coordinator dropped overflow elapsed on `rest -> work`, which under-counted work time after UI stalls or debugger pauses. |
+| 2026-06-03 | Sleep/wake review hardening | Settle already-earned awake time at `willSleep` before discarding the sleep interval on wake, and make the live sleep/wake registrar suppress queued callbacks after cancellation. | Review exposed short-sleep timer drift plus a teardown race where queued lifecycle callbacks could still mutate coordinator state after cancellation. |
+| 2026-06-03 | Sleep/wake plan review close-out | Mark the still-in-place sleep/wake plan explicitly completed at its current `docs/plans/` path until the external review loop no longer depends on that location. | The review automation still opens the original plan path, so a completed-status marker removes the false “in progress” signal without breaking the next review pass. |
+| 2026-06-03 | Sleep/wake plan close-out | Close the sleep/wake reconciliation plan without task-sequence changes and keep live fullscreen-Space/external-display wake timing explicitly manual-only in Post-Completion. | The code and automated validation are complete, but XCTest still uses fake lifecycle delivery and cannot prove real WindowServer ordering after sleep; documenting that boundary prevents the automation loop from stalling or overstating acceptance. |
+| 2026-06-03 | Sleep/wake documentation contract | Document sleep/wake reconciliation as shipped behavior: short sleep preserves phase/countdown, long sleep uses a fixed 300-second threshold, and lifecycle observation relies on public `NSWorkspace` notifications rather than config or private APIs. | Task 8 needs durable product and engineering docs that match the implemented coordinator policy so future agents do not reintroduce the old "awake-time only" story or assume configurable/private sleep hooks. |
+| 2026-06-03 | Sleep/wake active-rest policy | Treat long sleep during an active break as a silent break teardown that resets Mahu to a fresh work interval, while short sleep preserves the current break countdown and overlay state. | Task 5 must prevent a stale break from resuming after a long away-from-keyboard sleep, but it must not trigger natural break completion side effects or disturb short sleep behavior. |
+| 2026-06-03 | Sleep/wake paused-work policy | Treat long sleep during paused work as baseline-only reconciliation that preserves the paused menu state, clears pending wake-side effects, and defers the fresh work interval to the existing resume path using current runtime settings. | Task 4 must keep paused reminders non-destructive on wake while still preventing stale elapsed consumption and preserving the established pause/resume contract. |
+| 2026-06-03 | Sleep/wake active-work reset policy | Treat wake after at least 300 seconds of recorded sleep as a fresh-work reset only when Mahu is in active work and reminders are not paused; shorter sleeps still only refresh the uptime baseline. | Task 3 must prevent near-expired work timers from triggering an immediate post-wake break without prematurely changing paused-work or active-rest semantics scheduled for later tasks. |
+| 2026-06-03 | Sleep/wake coordinator baseline | Inject sleep/wake observation and wall-clock seams into `AppCoordinator`, but keep `didWake` without prior `willSleep` non-destructive by only refreshing the awake-time baseline in Task 2. | Task 2 needs lifecycle registration and a future long-sleep measurement seam now, while preserving current timer/rest state until the explicit long-sleep reset policy lands in later tasks. |
+| 2026-06-03 | Sleep/wake observation seam | Add a dedicated `SleepWakeObservation` registrar based on public `NSWorkspace` sleep/wake notifications, and keep deterministic delivery/cancellation in test doubles instead of embedding observer setup in `AppCoordinator`. | Task 1 needs testable lifecycle observation now, while the coordinator policy work comes later; matching the existing focus/screen seam pattern is the smallest way to keep notification code isolated and cancellation behavior provable. |
 | 2026-05-31 | Runtime settings review hardening | Reject unsupported durations at both runtime-update and disk-save boundaries, keep runtime settings/test doubles idempotent on repeated identical updates, and extract runtime-settings policy state out of `AppCoordinator.swift`. | Review found that the new runtime settings foundation could accept live schedules that `load()` would later reject, while the fake store/tests overstated notification behavior on no-op updates and `AppCoordinator.swift` had drifted past the local readability limit. |
 | 2026-05-31 | Runtime settings persistence hardening | Preserve `config.json` symlinks on save by resolving and writing to the target file instead of atomically replacing the symlink path itself. | Review found that `Data.write(..., .atomic)` on the symlink path silently converted a symlinked config into a regular file, breaking shared dotfile-style setups after the first runtime save. |
 | 2026-05-31 | Runtime settings plan close-out | Keep the completed runtime-settings foundation plan at its original `docs/plans/` path during the active review loop, but mark it explicitly completed and document the post-review archival rule. | The current external review workflow still targets the original path, so immediate archival would make documentation cleaner but break the next automated close-out pass. |
@@ -116,6 +131,118 @@
 | 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
+
+## 2026-06-03 / Sleep/Wake Review Hardening
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** External review found two real short-sleep edge cases in the newly shipped reconciliation flow. `AppCoordinator.handleWillSleep()` only recorded the wall-clock sleep start, so awake time that had already elapsed between the last scheduled tick and the actual sleep event was discarded on wake instead of being charged to the active work/break phase. The same review also pointed out that `LiveSleepWakeObservationRegistrar` spawned `Task { @MainActor ... }` deliveries without checking cancellation inside the queued task body, so `cancel()` could remove observers while already-posted `willSleep`/`didWake` callbacks still executed during teardown.
+
+**Decision:** Settle already-earned awake time in `handleWillSleep()` before recording the sleep start, while still discarding only the actual sleep interval on wake. Also make the live sleep/wake registrar check its cancellation flag inside queued `Task` deliveries and add regression tests for the queued-callback cancellation path plus pre-sleep awake-time accounting during active work, active rest, and paused work.
+
+**Rationale:** Short sleep must exclude only the suspended interval, not awake time Mahu had already earned before the machine slept. Cancellation also needs to be truthful at the queued-task boundary because lifecycle callbacks that arrive after teardown can silently corrupt coordinator state even when the observer itself was removed correctly.
+
+**Consequences:** Short sleep now preserves timer progress earned just before the machine slept, active-break countdown updates no longer drift by up to a tick across repeated short sleep/wake cycles, and stale queued sleep/wake callbacks become no-ops after cancellation. The existing long-sleep threshold remains on the current wall-clock contract from the original plan; this review fix only closes the newly confirmed awake-time/accounting race.
+
+**Alternatives Considered:** Keep settling elapsed time only on the next post-wake tick; rejected because that still loses or delays already-earned awake time and makes immediate post-wake phase state inaccurate. Add a heavier coalescer object for sleep/wake notifications; rejected because the existing registrar only needed queued-task cancellation awareness, not event coalescing.
+
+## 2026-06-03 / Sleep/Wake Plan Review Close-Out
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** The sleep/wake plan is fully checked off, but the current external review loop still references the original file under `docs/plans/2026-06-03-sleep-wake-timer-reconciliation.md`. Leaving it without an explicit status marker makes the file look active even though the implementation and documentation work are complete.
+
+**Decision:** Keep the plan at its current path for the duration of the active review loop, but add an explicit completed-status block at the top that says the work is done and only archival is pending after external review.
+
+**Rationale:** The review automation needs a stable path, but humans and future agents should not have to infer plan completion from a wall of checked boxes alone.
+
+**Consequences:** The next review pass can still open the original plan path, while the repo no longer gives a false signal that the sleep/wake work is still in progress. Once the review loop no longer depends on the original location, the plan can move to `docs/plans/completed/` without another status rewrite.
+
+**Alternatives Considered:** Archive the plan immediately; rejected because the current review loop still targets the original path. Leave the path unchanged with no explicit status marker; rejected because that keeps the plan state ambiguous for the next human or agent reader.
+
+## 2026-06-03 / Sleep/Wake Coordinator Baseline Handling
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** Task 2 adds coordinator-owned sleep/wake lifecycle wiring before the long-sleep reset policy exists. The coordinator needs testable observation registration and a wall-clock seam for future duration measurement, but a plain `didWake` callback without a recorded `willSleep` must not recreate timers, hide overlays, or otherwise mutate the current phase.
+
+**Decision:** Inject `SleepWakeObservationRegistrar` and `CurrentWallClockDateProvider` into `AppCoordinator`, register and cancel the observation with coordinator lifecycle, record wall-clock sleep start on `willSleep`, and make `didWake` without prior `willSleep` only refresh `lastTickUptime` instead of resetting timer state.
+
+**Rationale:** This is the smallest Task 2 change that prepares the coordinator for later long-sleep threshold logic while preserving the existing awake-time-only behavior. Keeping the wake path non-destructive also prevents false timer resets from stray wake notifications or startup-order edge cases.
+
+**Consequences:** `AppCoordinator` now owns explicit sleep/wake lifecycle seams and teardown, future tasks can compute sleep duration without rereading config or teaching `BreakTimer` about wall-clock time, and the next scheduler tick after wake no longer consumes stale elapsed time from before the wake callback.
+
+**Alternatives Considered:** Add the observation later together with the long-sleep reset logic; rejected because Task 2 explicitly needs lifecycle wiring and baseline protection first, and deferring the seam would make later policy changes larger and riskier.
+
+## 2026-06-03 / Sleep/Wake Active Work Reset Threshold
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** Task 3 introduces the first destructive wake policy. Mahu already records `willSleep`/`didWake` timestamps and refreshes the uptime baseline, but it still needs a narrow rule that prevents a nearly expired work timer from showing a break right after a long lid-close while leaving paused-work and active-rest handling for later tasks.
+
+**Decision:** Add an internal `longSleepResetThresholdSeconds` constant set to `300`, and on `didWake` reset to a fresh work timer only when Mahu has a recorded sleep start, the elapsed wall-clock sleep is at least that threshold, the current phase is active work, and reminders are not paused.
+
+**Rationale:** This is the smallest Task 3 policy that matches the product goal without widening scope into paused or rest semantics too early. Using an internal constant keeps the config contract stable until there is a settings surface, while short sleeps and stray wake events still preserve the current countdown.
+
+**Consequences:** Active work no longer carries a near-expired timer through lunch-length sleeps, the next tick starts from a fresh work interval instead of an immediate break, and future tasks can layer paused/rest-specific wake behavior on top of the same baseline-refresh flow.
+
+**Alternatives Considered:** Make long-sleep reset unconditional for every phase; rejected because it would silently change paused reminders and active breaks before those behaviors are specified and tested in later tasks.
+
+## 2026-06-03 / Sleep/Wake Paused Work Semantics
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** Task 4 needs long-sleep wake handling for paused reminders without changing the existing pause/resume menu contract. Mahu already refreshes the uptime baseline on wake and resumes work from current runtime settings, but paused-work behavior needs an explicit rule so long sleep does not show a break, consume hidden elapsed time, or resurrect any deferred runtime-schedule action from before the pause.
+
+**Decision:** Treat long sleep during paused work as a baseline-only wake reconciliation path: keep reminders paused, clear pending elapsed time, refresh the uptime baseline, reset the runtime-settings policy to current settings, and let the existing resume flow create the fresh work timer from the current runtime settings when the user resumes reminders.
+
+**Rationale:** This is the smallest Task 4 policy that keeps wake behavior non-destructive while preserving the already-shipped pause/resume contract. By leaving the fresh interval creation on the resume path, the coordinator avoids a second paused-only timer lifecycle and keeps `BreakTimer` sleep/wake-unaware.
+
+**Consequences:** Long sleep while paused no longer risks stale elapsed consumption or an immediate post-resume break, pause state remains visible and intact after wake, and later active-rest work can use the same wake routing without inheriting paused-work side effects.
+
+**Alternatives Considered:** Recreate the work timer immediately on wake even while paused; rejected because the user-facing reset is only needed when reminders resume, and immediate timer replacement would add extra paused-state lifecycle churn without changing visible behavior.
+
+## 2026-06-03 / Sleep/Wake Active Rest Semantics
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** Task 5 extends long-sleep reconciliation into the active-rest phase. Mahu already preserves break countdown state across short sleeps by refreshing the uptime baseline on wake, but a long sleep during an active break should not resume an obsolete overlay or play the natural completion sound when the user returns.
+
+**Decision:** Add a dedicated active-rest wake reconciliation action that resets Mahu to a fresh work timer from current runtime settings after a long sleep, and let the existing `.work` coordinator path hide the stale overlay. Keep short sleep during rest non-destructive so the current break countdown and overlay continue normally after wake.
+
+**Rationale:** This is the smallest Task 5 change that reuses the shipped overlay teardown and status update seams instead of duplicating hide logic or threading special-case sound handling through `handleDidWake()`. Keeping the reset on the normal `.work` path also preserves `Skip` teardown invariants without teaching `BreakTimer` about sleep/wake.
+
+**Consequences:** Long sleep during an active break now closes the stale overlay without completion audio and restarts work from a fresh interval, while short sleep still resumes the same break countdown. The wake-routing enum grows by one case, but the coordinator change stays minimal and future rest-specific regressions remain easy to test in isolation.
+
+**Alternatives Considered:** Do nothing on wake during rest; rejected because the old break would incorrectly resume after a long away period. Hide the overlay directly inside `handleDidWake()` and then separately recreate the timer; rejected because that would duplicate `.work` transition behavior and make sound/skip side effects easier to regress.
+
+## 2026-06-03 / Sleep/Wake Documentation Contract
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** The sleep/wake reconciliation implementation is already complete, but `README.md` and `AGENTS.md` still describe Mahu as awake-time-only and still list sleep/wake reconciliation as deferred work. Task 8 needs the durable product docs and agent-facing invariants to match the shipped behavior and preserve the chosen public-API boundary.
+
+**Decision:** Update `README.md` and `AGENTS.md` to describe sleep/wake reconciliation as shipped behavior: short sleep preserves the current phase/countdown after a baseline refresh, long sleep is defined by an internal fixed 300-second threshold, paused reminders stay paused until resume, active breaks close silently into fresh work without completion sound, and lifecycle observation relies on public `NSWorkspace` sleep/wake notifications rather than config-driven thresholds or private APIs.
+
+**Rationale:** This is the smallest durable documentation change that prevents future agents from reintroducing the old non-reconciled timer story or widening scope into live config reload and private system hooks. Recording the threshold and public-API choice alongside the product behavior keeps the implementation constraints visible where the repo expects them.
+
+**Consequences:** README manual checks now cover long sleep, short sleep, paused reminders, and active-break wake scenarios; AGENTS product invariants no longer list sleep/wake reconciliation as deferred; and future work can build on the fixed-threshold/public-notification contract without re-discovering it from code alone.
+
+**Alternatives Considered:** Leave the docs unchanged and rely on tests; rejected because this repo treats README and AGENTS as active product/engineering contracts for future agent work. Expose the long-sleep threshold as a config field in docs now; rejected because the shipped implementation intentionally keeps it internal until there is a settings surface.
 
 ## 2026-05-31 / Runtime Settings Documentation Contract
 
@@ -1938,3 +2065,131 @@
 **Consequences:** Oversized runtime config saves now fail deterministically with logging and a `false` return value instead of producing a self-invalidating `config.json`. Future Settings UI work can surface that failure explicitly without having to debug why a "successful" save vanished after relaunch.
 
 **Alternatives Considered:** Remove the 64 KiB load limit; rejected because that limit already protects config parsing from unbounded file growth and was not part of this review scope. Allow oversized saves and rely on caller-side truncation; rejected because it keeps the persistence contract internally inconsistent and too easy to misuse.
+
+## 2026-06-03 / Sleep Wake Second Review Hardening
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake and status-item review hardening
+
+**Context:** A second external review pass on the sleep/wake reconciliation branch surfaced two branch-relevant behavior gaps and one latent crash path. `StatusItemController` published an active pause/resume menu item even when its handlers had not been configured yet, which left an ordinary menu click on a `preconditionFailure` path. The same review also showed that timer-mode pause rendering incorrectly replaced an active break countdown with `Paused`, even though the shipped contract says pause/resume during an active break must change only future reminder state and menu labels. Local verification additionally found that `AppCoordinator.handleDidWake()` reset `runtimeSettingsPolicy` on every wake, so short sleep could silently discard deferred runtime-settings updates that were supposed to apply at the next break or after the current break ended.
+
+**Decision:** Keep the reminder toggle menu item disabled until handlers are configured and rebuild the installed menu once handlers arrive; preserve active-break countdown text in timer mode even when reminders are paused, while still dimming the icon and flipping the menu label; and only reset `runtimeSettingsPolicy` on wake paths that actually perform long-sleep reconciliation instead of on every `didWake`.
+
+**Rationale:** Disabling an unavailable action is the smallest fix that removes a latent crash without inventing a new initializer contract. Preserving the active break countdown keeps the tray UI aligned with the documented break semantics. Restricting runtime-settings-policy reset to true long-sleep reconciliation prevents short sleep from erasing already accepted next-break/post-rest schedule updates while still refreshing the uptime baseline so sleep time is not consumed.
+
+**Consequences:** Install-before-configure call order is now safe for `StatusItemController`, active breaks keep showing live `MM:SS` countdowns in timer mode while reminders are paused, and short sleep or wake-without-long-sleep no longer cancels deferred runtime-settings application policies. Future reviewers can exercise these paths through dedicated status-item and sleep/wake runtime-settings regressions instead of relying on implicit coordinator behavior.
+
+**Alternatives Considered:** Keep the `preconditionFailure`; rejected because a menu action should not crash the app when the safer disabled-state pattern fits naturally. Continue showing `Paused` during active breaks; rejected because it hides the very countdown the product contract says must stay visible. Reset runtime-settings policy on every wake; rejected because it treats non-destructive wake paths as if they had performed a full long-sleep reset and silently loses deferred settings changes.
+
+## 2026-06-03 / Break Overlay Coordinator State
+
+**Date:** 2026-06-03
+
+**Area:** Break overlay coordinator state
+
+**Context:** A second external review pass found that `BreakOverlayManager.showBreak(...)` can intentionally return `false` while still preserving a dormant break session during startup/display races. `AppCoordinator` tracked only a local `isShowingBreak` flag derived from that return value, so later `.work` transitions could skip `hideBreak()` even after the dormant session recreated visible windows. That left overlay teardown and focus/session cleanup out of sync with the real manager state.
+
+**Decision:** Split the coordinator's notion of break presence into two signals: `BreakOverlayManaging.hasActiveBreakSession` for session existence and `hasVisibleOverlayWindows` for actual visible windows. `AppCoordinator` now keys rest/work teardown and hidden-break countdown behavior off the manager's explicit session state instead of the last `showBreak()` return value.
+
+**Rationale:** This is the smallest review fix that closes the dormant-session leak without rewriting the oversized coordinator or broadening the overlay manager contract beyond one additional state signal.
+
+**Consequences:** A startup/display race can still preserve a dormant break session, but the coordinator now tears it down correctly once the break ends or sleep/wake reconciliation resets to work. Regression coverage now proves that a dormant session which later becomes visible does not survive into the next work interval.
+
+**Alternatives Considered:** Keep the local `isShowingBreak` boolean and force `showBreak()` never to return `false` for dormant sessions; rejected because the coordinator still needs an honest visible/non-visible result for rest countdown policy. Replace the whole coordinator/overlay handshake with a richer enum state machine; rejected for this review pass because it would expand scope deep into an already high-friction file.
+
+## 2026-06-03 / Break Completion Overflow Handling
+
+**Date:** 2026-06-03
+
+**Area:** Break completion overflow handling
+
+**Context:** A follow-up external review found that `AppCoordinator.consumeElapsedTime(...)` stopped as soon as a tick advanced `rest -> work`, then `handle(state: .work)` immediately zeroed `pendingElapsedSeconds` while hiding the overlay. If the app was stalled long enough for a single tick to include both the end of the break and part of the next work interval, Mahu silently dropped that already elapsed awake time and restarted work from a falsely full duration.
+
+**Decision:** Preserve any remaining `pendingElapsedSeconds` after a natural `rest -> work` transition, let the normal `.work` path tear down the overlay first, then recursively consume the carried overflow against the current work timer.
+
+**Rationale:** This is the smallest coordinator-local fix that keeps the existing break teardown, sound, and runtime-settings seams intact while restoring correct awake-time accounting after long ticks or debugger pauses.
+
+**Consequences:** Late break-completion ticks now hide the overlay and then continue advancing the next work interval from the same accrued awake time instead of discarding it. Review coverage now proves the carried-overflow path directly, so future timer refactors can catch this under-counting regression without manual reproduction.
+
+**Alternatives Considered:** Keep the current zeroing behavior; rejected because it undercounts work time after any large awake-time delta that crosses the end of a break. Move the overflow logic into `handle(state:)`; rejected because it would further overload the already-large coordinator state handler and blur the difference between natural break completion and other `.work` transitions such as skip or long-sleep reset.
+
+## 2026-06-03 / Sleep/Wake Live Delivery Ordering
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** A second external review pass identified that `LiveSleepWakeObservationRegistrar` received `NSWorkspace.willSleepNotification` and `didWakeNotification`, then re-dispatched them through `Task { @MainActor ... }`. That made the critical bookkeeping asynchronous: `handleWillSleep()` could miss the pre-suspend window entirely, and `handleDidWake()` could run after the first post-wake timer tick had already consumed stale elapsed time.
+
+**Decision:** Keep the public-notification seam, but deliver live sleep/wake callbacks synchronously onto the main actor. The registrar now invokes the handlers immediately on the current thread when already on the main thread, and otherwise blocks through `DispatchQueue.main.sync` before returning from the observer callback. The live-registrar tests now assert synchronous delivery instead of queued-task cancellation semantics.
+
+**Rationale:** The sleep/wake feature is fundamentally ordering-sensitive. Preserving the existing seam but making delivery synchronous is the smallest fix that restores the guarantee that sleep bookkeeping happens before any subsequent timer progression or suspend boundary can overtake it.
+
+**Consequences:** Real `willSleep`/`didWake` handling now preserves the intended causal order relative to the coordinator's timer tick path, so long-sleep detection and baseline refresh no longer depend on task scheduling luck. The tests now prove the stronger contract directly: once `NotificationCenter.post(...)` returns, the corresponding Mahu sleep/wake handler has already run.
+
+**Alternatives Considered:** Keep the `Task { @MainActor ... }` hop and add more regression coverage; rejected because extra tests cannot remove the race itself. Register observers on `OperationQueue.main`; rejected because NotificationCenter still enqueues those callbacks asynchronously, leaving the same ordering hole between lifecycle delivery and the next timer tick.
+
+## 2026-06-03 / Sleep/Wake Cancellation Synchronization
+
+**Date:** 2026-06-03
+
+**Area:** Sleep/wake timer reconciliation
+
+**Context:** A follow-up review of the synchronous live sleep/wake registrar found that `LiveSleepWakeObservationRegistrar` still shared a plain captured `Bool` between the notification callbacks and the cancellation closure. Those closures can run on different threads, so the earlier fix still left teardown and delivery racing on unsynchronized mutable state.
+
+**Decision:** Replace the shared local `Bool` with a small synchronized cancellation state object, and have both observer callbacks and the cancellation closure consult that shared state before delivering or removing observers.
+
+**Rationale:** This is the smallest fix that preserves the current public-notification seam and synchronous-delivery ordering while removing the last shared-mutable-state race from the registrar implementation.
+
+**Consequences:** Sleep/wake observer teardown is now idempotent without relying on unsynchronized captured locals, and future lifecycle fixes can build on the stronger guarantee that late callbacks will observe a thread-safe cancelled state before touching coordinator code.
+
+**Alternatives Considered:** Keep the local `Bool` and rely on main-thread delivery by convention; rejected because the implementation already explicitly handles non-main delivery and therefore needs a real synchronization boundary. Move the whole registrar behind an actor; rejected because that would complicate a currently small seam without improving the synchronous delivery contract.
+
+## 2026-06-03 / External Review Artifact Hygiene
+
+**Date:** 2026-06-03
+
+**Area:** External review workflow
+
+**Context:** The external review loop reported `NO ISSUES FOUND`, and local verification confirmed the sleep/wake branch behavior by re-reading the plan, tracing `AppCoordinator` and `SleepWakeObservation`, and running the full XCTest suite. The only remaining worktree noise was an untracked repo-root `output.txt` scratch file written by the review loop itself, which is not part of Mahu's product or engineering artifacts.
+
+**Decision:** Ignore the review loop's root `output.txt` scratch artifact in `.gitignore`, keep it out of product commits, and treat no-issue review rounds as documentation-only close-out rather than inventing unrelated code changes.
+
+**Rationale:** This is the smallest repo-owned fix that makes clean review passes truthfully look clean while preserving the explicit durable handoff trail required by the workflow.
+
+**Consequences:** Future no-issue review passes no longer leave a misleading dirty worktree because of this one scratch file, and the external-loop completion step can focus on tracked product/docs changes only. If the project later needs a committed root-level `output.txt` for some legitimate reason, this ignore rule should be revisited or the generated artifact should move to a more specific path.
+
+**Alternatives Considered:** Leave `output.txt` untracked and document the ambiguity every time; rejected because it keeps recurring workflow noise in the repo root. Ignore a broader pattern such as `*.txt`; rejected because it could hide legitimate project files.
+
+## 2026-06-03 / Break Overlay Startup Retry Preservation
+
+**Date:** 2026-06-03
+
+**Area:** Break overlay display reconciliation
+
+**Context:** Review of the display-hotplug/startup resync path found that `BreakOverlayManager.showBreak(...)` tore down the entire break session when the immediate post-registration resync temporarily left zero overlay windows. That cleared the original `previousFrontmostApplication`, so the next retry would capture a different frontmost app and violate the break invariant against recapturing during resync.
+
+**Decision:** Keep the current break session state alive when startup-time resync yields zero visible overlay windows, return `false` to the caller, and let the next retry reuse the existing view model and original previous-app capture.
+
+**Rationale:** This is the smallest local fix that matches the existing mid-break zero-window preservation behavior without widening `BreakOverlayManager` responsibilities or changing the coordinator contract.
+
+**Consequences:** A transient no-display startup race no longer loses the original app-restoration target. Future retries during the same break can recreate overlay windows without recapturing frontmost state or replacing the shared countdown/skip session.
+
+**Alternatives Considered:** Keep tearing down the session and accept recapture on the next retry; rejected because it breaks an explicit product invariant. Force `showBreak(...)` to stay `true` even with zero windows; rejected because the coordinator still needs an accurate visible/non-visible signal for countdown and sound behavior.
+
+## 2026-06-03 / Tray Timer Width Stabilization
+
+**Date:** 2026-06-03
+
+**Area:** Status item timer presentation
+
+**Context:** Review of the optional timer-mode tray UI found that `StatusItemController` left the item in `NSStatusItem.variableLength` mode for every title update. With valid long-duration timers, minute digits can cross boundaries such as `100:00 -> 99:59`, which shrinks the item width mid-countdown and makes the tray icon drift horizontally.
+
+**Decision:** Keep the existing countdown text format, but measure timer-mode title width and pin the status item to the widest observed length for the current enabled session instead of letting every countdown tick recalculate a smaller `variableLength` frame.
+
+**Rationale:** This is the smallest fix that restores the documented stable-width tray behavior without changing the existing text contract, introducing a custom status-item view, or narrowing supported schedule durations.
+
+**Consequences:** Timer mode still renders the same title strings, but the menu-bar item no longer shrinks when the countdown crosses minute digit boundaries. Regression tests now lock down both ordinary countdown updates and the `100:00 -> 99:59` edge case directly.
+
+**Alternatives Considered:** Cap supported durations to keep all timer text inside two minute digits; rejected because it would silently narrow Mahu's general schedule contract. Switch to a different display format such as `HH:MM:SS`; rejected because that would expand scope into a user-facing contract change instead of a review hardening fix.

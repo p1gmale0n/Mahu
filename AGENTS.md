@@ -34,6 +34,8 @@
 - MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
 - Treat launch-loaded `config.json` as the persistence/backward-compatibility layer and keep a single in-process runtime settings source of truth for coordinator and future Settings UI updates.
 - Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
+- Short sleep/wake cycles must preserve the current work/rest phase and countdown while refreshing the awake-time baseline so sleep time is not consumed on the next tick.
+- Long sleep/wake cycles of at least 300 seconds must reset active work to a fresh work interval from current runtime settings, keep paused reminders paused until resume, and close active breaks silently into fresh work without playing the completion sound.
 - If the config is missing or invalid, use 20-20-20 defaults and keep the app running.
 - Keep timer, config, status item, and overlay responsibilities separated so deferred features can be added without rewriting the core timer flow.
 - Treat possible App Store release as a constraint: avoid private APIs and invasive input capture.
@@ -42,7 +44,6 @@
 - Launch at login.
 - Settings UI.
 - Manual start-break menu action.
-- Sleep/wake timer reconciliation.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
 - Multi-display/fullscreen Spaces hardening.
 

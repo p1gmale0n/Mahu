@@ -90,6 +90,159 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         XCTAssertEqual(resumedTimer.advanceCalls, [1])
     }
 
+    func testLongSleepWhileRemindersArePausedKeepsRemindersPausedAndDoesNotShowBreak() throws {
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1)
+        )
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: fakeOverlayManager,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 200, 201]),
+            currentWallClockDate: makeCurrentWallClockDateProvider([
+                Date(timeIntervalSinceReferenceDate: 4_000),
+                Date(timeIntervalSinceReferenceDate: 4_000 + longSleepResetThresholdSeconds + 1)
+            ]),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+
+        pauseReminders()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+        scheduledTick?()
+
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true])
+        XCTAssertTrue(fakeTimer.advanceCalls.isEmpty)
+        XCTAssertTrue(fakeOverlayManager.events.isEmpty)
+    }
+
+    func testLongSleepWhilePausedResetsBaselineSoResumeDoesNotConsumeHiddenWorkTime() throws {
+        let startupConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 42)
+        )
+        let resumedTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds - 1)]
+        )
+        var createdTimers = 0
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in
+                defer { createdTimers += 1 }
+                return createdTimers == 0 ? initialTimer : resumedTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 1_000, 1_000, 1_001, 1_002]),
+            currentWallClockDate: makeCurrentWallClockDateProvider([
+                Date(timeIntervalSinceReferenceDate: 5_000),
+                Date(timeIntervalSinceReferenceDate: 5_000 + longSleepResetThresholdSeconds + 10)
+            ]),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+        let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
+
+        pauseReminders()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+        resumeReminders()
+        scheduledTick?()
+
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true, false])
+        XCTAssertEqual(initialTimer.advanceCalls, [])
+        XCTAssertEqual(resumedTimer.advanceCalls, [1])
+    }
+
+    func testResumeAfterLongSleepWhilePausedStartsFreshWorkIntervalFromCurrentRuntimeSettings() throws {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let runtimeEditedConfig = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 45,
+            showStatusItemTimerState: true
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 120)
+        )
+        let resumedTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: runtimeEditedConfig.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: runtimeEditedConfig.workDurationSeconds - 1)]
+        )
+        var createdConfigs: [AppConfig] = []
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: { startupConfig },
+            makeBreakTimer: { config in
+                createdConfigs.append(config)
+                return createdConfigs.count == 1 ? initialTimer : resumedTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([50, 500, 500, 501, 502]),
+            currentWallClockDate: makeCurrentWallClockDateProvider([
+                Date(timeIntervalSinceReferenceDate: 6_000),
+                Date(timeIntervalSinceReferenceDate: 6_000 + longSleepResetThresholdSeconds + 30)
+            ]),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+        let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
+
+        pauseReminders()
+        runtimeSettingsStore.update(runtimeEditedConfig)
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+        resumeReminders()
+        scheduledTick?()
+
+        XCTAssertEqual(createdConfigs, [startupConfig, runtimeEditedConfig])
+        XCTAssertEqual(initialTimer.advanceCalls, [])
+        XCTAssertEqual(resumedTimer.advanceCalls, [1])
+        XCTAssertEqual(
+            fakeStatusItemController.renderedTimerTexts,
+            ["02:00", "Paused", "10:00", "09:59"]
+        )
+    }
+
     func testPauseAndResumeUpdateStatusMenuStateExactlyOncePerEffectiveStateChange() throws {
         let fakeStatusItemController = FakeStatusItemController()
 
