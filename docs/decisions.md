@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-04 | Config JSONC tolerance | Keep `config.json` as the persisted format, tolerate JSONC-style comments and trailing commas on read, and continue writing strict JSON. | The config is currently user-edited and Zed can insert JSONC comments, but migrating to YAML or adding a parser dependency would add more complexity than needed before the future Settings UI. |
 | 2026-06-03 | Break overlay dormant-session recovery | Preserve a dormant break session even when break start finds zero active displays, and materialize windows later from screen-change events instead of retrying with a new session. | Review found that the zero-display start path dropped session state, delayed recovery until the next tick, and could recapture the wrong previous app once displays returned. |
 | 2026-06-03 | Config write durability sync | Fsync the managed Mahu config directory after `renameat`, and fsync the parent directory too when the Mahu directory was created in the same write. | Review found that atomic temp-file replacement still reported success before the directory entries themselves were durable across crash or power loss. |
 | 2026-06-03 | Config write TOCTOU hardening | Write config/default files through directory file descriptors and atomic `renameat` instead of path-based preflight plus `Data.write`. | Review found that symlink checks in `ConfigStore` were still racy between validation and the eventual write path. |
@@ -150,6 +151,22 @@
 | 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
+
+## 2026-06-04 / Config JSONC Tolerance
+
+**Date:** 2026-06-04
+
+**Area:** Config parsing
+
+**Context:** Mahu's config is still manually edited through `~/Library/Application Support/Mahu/config.json`, and the project-root `config.json` can be a symlink to that file. The user commented out a line in Zed, which produced JSONC-like `//` syntax; the current strict `JSONDecoder` path treated the file as invalid and fell back to default 20-20-20 settings with tray timer disabled.
+
+**Decision:** Keep `config.json` as the persisted format, tolerate JSONC-style `//` comments, `/* ... */` comments, and trailing commas on read, and continue writing strict JSON through `ConfigStore.save(_:)`. Implement this with a small scanner-based preprocessor rather than a regex-only transform or a new YAML/JSON5 dependency.
+
+**Rationale:** This directly fixes the user's manual-edit workflow without a config migration, new package dependency, or dual-format precedence rules. Scanner-based preprocessing can preserve string literals like URLs and comment-looking text, while strict JSON output remains compatible with the existing save path and future Settings UI.
+
+**Consequences:** Users can temporarily comment optional config lines and keep custom durations/tray settings after relaunch. Malformed JSONC, invalid explicit field types, unsupported durations, and filesystem hardening behavior still fall back as before. YAML remains a possible future choice only if manual config grows substantially and outlives the planned Settings UI.
+
+**Alternatives Considered:** Migrate to YAML; rejected for now because it requires a Swift YAML dependency, migration plan, and source-of-truth rules if both JSON and YAML exist. Add a third-party JSON5 parser; rejected as unnecessary for the current small config surface. Keep strict JSON and only update docs; rejected because it leaves the current editor-driven failure mode unfixed.
 
 ## 2026-06-03 / Launch at Login Config Architecture
 
