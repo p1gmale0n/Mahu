@@ -96,12 +96,12 @@ The change keeps the existing config model, filesystem hardening, and no-live-re
 
 ### Task 3: Wire JSONC preprocessing into ConfigStore load only
 
-- [ ] update `ConfigStore.loadRegularConfig(from:)` to read raw bytes with the existing 64 KiB cap before preprocessing
-- [ ] decode raw bytes as UTF-8 text, preprocess JSONC text into strict JSON data, and pass sanitized data to existing `JSONDecoder`
-- [ ] keep existing unsupported-duration, decoding-error, and filesystem fallback behavior unchanged
-- [ ] keep `ConfigStore.save(_:)` and default config creation strict JSON with no comments/trailing commas
-- [ ] add new source/test files to `Mahu.xcodeproj/project.pbxproj` target membership as needed
-- [ ] run targeted config test suite - must pass before Task 4
+- [x] update `ConfigStore.loadRegularConfig(from:)` to read raw bytes with the existing 64 KiB cap before preprocessing
+- [x] decode raw bytes as UTF-8 text, preprocess JSONC text into strict JSON data, and pass sanitized data to existing `JSONDecoder`
+- [x] keep existing unsupported-duration, decoding-error, and filesystem fallback behavior unchanged
+- [x] keep `ConfigStore.save(_:)` and default config creation strict JSON with no comments/trailing commas
+- [x] add new source/test files to `Mahu.xcodeproj/project.pbxproj` target membership as needed
+- [x] run targeted config test suite - must pass before Task 4
 
 ### Task 4: Harden regressions and preserve existing contracts
 

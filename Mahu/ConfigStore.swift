@@ -119,8 +119,9 @@ struct ConfigStore {
 
     private func loadRegularConfig(from readableConfigURL: URL) -> AppConfig {
         do {
-            let data = try loadConfigData(from: readableConfigURL)
-            let config = try JSONDecoder().decode(AppConfig.self, from: data)
+            let rawData = try loadConfigData(from: readableConfigURL)
+            let preprocessedData = try preprocessConfigData(rawData)
+            let config = try JSONDecoder().decode(AppConfig.self, from: preprocessedData)
             guard config.hasSupportedDurations else {
                 Self.logger.warning(
                     "Ignoring config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
@@ -143,6 +144,34 @@ struct ConfigStore {
             Self.logger.error("Failed to load config at \(self.configURL.path, privacy: .private): \(String(describing: error), privacy: .private)")
             return .default
         }
+    }
+
+    private func preprocessConfigData(_ rawData: Data) throws -> Data {
+        let decodingContext = DecodingError.Context(
+            codingPath: [],
+            debugDescription: "Config data must be valid UTF-8 JSON text."
+        )
+        guard let rawConfigText = String(data: rawData, encoding: .utf8) else {
+            throw DecodingError.dataCorrupted(decodingContext)
+        }
+
+        let sanitizedConfigText: String
+        do {
+            sanitizedConfigText = try ConfigJSONPreprocessor.preprocess(rawConfigText)
+        } catch {
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: [],
+                    debugDescription: "Config JSONC preprocessing failed: \(error)"
+                )
+            )
+        }
+
+        guard let sanitizedConfigData = sanitizedConfigText.data(using: .utf8) else {
+            throw DecodingError.dataCorrupted(decodingContext)
+        }
+
+        return sanitizedConfigData
     }
 
     private func createDefaultConfigFile() -> AppConfig {

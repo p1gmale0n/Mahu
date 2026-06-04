@@ -73,12 +73,15 @@ final class ConfigStoreJSONCTests: XCTestCase {
     func testLoadPreservesStringsContainingCommentLikeTextEscapedQuotesAndUnicode() throws {
         let store = makeStore()
         let customMessage = #"Focus // not a comment /* still text */ \"quoted\" https://example.com/пауза 🌿"#
+        let encodedCustomMessage = try XCTUnwrap(
+            String(data: try JSONEncoder().encode(customMessage), encoding: .utf8)
+        )
         try writeRawConfig(
             """
             {
               "workDurationSeconds": 300,
               "breakDurationSeconds": 45,
-              "breakOverlayMessageText": "\(customMessage)",
+              "breakOverlayMessageText": \(encodedCustomMessage),
               // Keep the trailing comma to prove string safety during preprocessing.
             }
             """,
