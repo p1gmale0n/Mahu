@@ -28,7 +28,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Work timer starts automatically on launch.
 - Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
 - While reminders are paused, Mahu keeps the same tray icon asset but visually dims the status item icon until reminders are resumed.
-- Choosing `Resume Reminders` re-enables reminders and starts a fresh full work interval from the config that Mahu loaded on launch instead of resuming a partially elapsed one.
+- Choosing `Resume Reminders` re-enables reminders and starts a fresh full work interval from Mahu's current in-process runtime settings instead of resuming a partially elapsed one.
 - If reminders are paused or resumed during an active break, Mahu only changes future reminder state and menu labels; the current break countdown and `Skip` behavior continue unchanged.
 - Pause state is runtime-only; Mahu always launches with reminders enabled.
 - Default schedule is 20 minutes of work and 20 seconds of break.
@@ -46,7 +46,9 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - When a break ends or `Skip` is pressed, Mahu restores the previously frontmost app when possible.
 - When a visible break ends naturally, Mahu plays bundled `break-completion.caf` once through an AVFoundation-backed player so the user can return attention without watching the screen.
 - Pressing `Skip` closes the break without playing the completion sound.
-- Live config reload is out of scope; runtime settings changes still require editing the config file before launch or between runs.
+- Mahu keeps a single in-process runtime settings source of truth initialized from launch-loaded config.
+- Live config reload is out of scope; editing `config.json` while Mahu is running does not change timers or UI until the next launch.
+- A future Settings UI should update runtime settings first and persist through `config.json`; manual JSON edits remain the compatibility/persistence layer, not a live control surface.
 
 ## Project Structure
 
@@ -60,8 +62,8 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
 - `Makefile`: local build shortcut that creates `build/Mahu.app`.
 - `docs/decisions.md`: architectural and process decisions.
-- `docs/plans/`: active implementation plans that are still in progress.
-- `docs/plans/completed/`: archived completed implementation plans, including MVP, overlay refinements, tray icon work, reminder pause/resume, paused-icon, break-completion sound, and app-coordinator support refactor history.
+- `docs/plans/`: current implementation plans, including in-progress work and any just-completed plan that is still being reviewed at its original path.
+- `docs/plans/completed/`: archived completed implementation plans once their close-out review loop is finished, including MVP, overlay refinements, tray icon work, reminder pause/resume, paused-icon, break-completion sound, and app-coordinator support refactor history.
 
 ## Configuration
 
@@ -85,6 +87,8 @@ Notes:
 - `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`, with `Paused` shown while reminders are paused.
 - `breakOverlayMessageText` defaults to `Время отвлечься`; omit it to keep backward-compatible behavior, or set it to any non-empty Unicode string to change the break title.
 - Empty or whitespace-only `breakOverlayMessageText` values normalize back to the default title, while `null` or non-string values make Mahu fall back to the full default config like other malformed config edits.
+- `config.json` is read at launch to seed Mahu's runtime settings. Editing the file while the app is already running does not apply changes immediately because Mahu intentionally has no file watcher or implicit reload loop.
+- Runtime-only updates inside the app should target the shared in-process settings source first and persist back to `config.json`; this foundation exists for a future Settings UI even though no Settings window ships yet.
 - Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
 - Mahu reads `config.json` only when the configured path is a regular file or a symlink resolving to one. Directories, pipes, broken symlinks, unreadable targets, and files larger than 64 KiB are ignored, and Mahu falls back to the default schedule.
 - Use shorter values locally if you want to manually exercise the overlay flow faster.
@@ -136,7 +140,7 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - With `"showStatusItemTimerState": true`, confirm native `NSStatusItem` width, truncation, and spacing remain acceptable in live menu-bar rendering; XCTest verifies controller state but not the real system layout.
 - Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders`, the tray icon visibly dims without looking disabled, and no break overlay appears once the previously running work interval would have elapsed.
 - With `"showStatusItemTimerState": true`, choose `Pause Reminders` and confirm the status item shows `Paused` while keeping the same dimmed tray icon.
-- Choose `Resume Reminders`, then confirm the tray icon returns to normal brightness and the next break appears only after a full fresh work interval from the config loaded when Mahu launched.
+- Choose `Resume Reminders`, then confirm the tray icon returns to normal brightness and the next break appears only after a full fresh work interval from Mahu's current runtime settings.
 - With `"showStatusItemTimerState": true`, choose `Resume Reminders` and confirm the status item returns to a fresh full work-interval countdown.
 - During an active break, toggle `Pause Reminders` and `Resume Reminders`, then confirm the existing countdown and `Skip` behavior stay unchanged.
 - Confirm `Quit` still exits the app.

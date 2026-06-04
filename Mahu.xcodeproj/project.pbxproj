@@ -51,6 +51,10 @@
 			A00000000000000000000099 /* StatusItemTimerDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000098 /* StatusItemTimerDisplayTests.swift */; };
 			A0000000000000000000009B /* AppCoordinatorStatusItemDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */; };
 			A0000000000000000000009D /* AppCoordinatorStatusItemPauseResumeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000009C /* AppCoordinatorStatusItemPauseResumeTests.swift */; };
+			A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000009E /* ConfigStorePersistenceTests.swift */; };
+			A000000000000000000000A1 /* AppCoordinatorRuntimeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */; };
+			A000000000000000000000A2 /* AppCoordinatorRuntimeSettingsRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */; };
+			A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -111,6 +115,10 @@
 			A00000000000000000000098 /* StatusItemTimerDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemTimerDisplayTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemDisplayTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000009C /* AppCoordinatorStatusItemPauseResumeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemPauseResumeTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000009E /* ConfigStorePersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStorePersistenceTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorRuntimeSettingsTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorRuntimeSettingsRegressionTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSettingsStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -186,13 +194,17 @@
 				A0000000000000000000005A /* AppCoordinatorBreakSoundTests.swift */,
 					A00000000000000000000058 /* BreakCompletionSoundPlayerTests.swift */,
 					A0000000000000000000004C /* AppCoordinatorReminderPauseTests.swift */,
-					A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */,
-					A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */,
+				A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */,
+				A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */,
+				A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */,
+				A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */,
 					A0000000000000000000009C /* AppCoordinatorStatusItemPauseResumeTests.swift */,
 					A00000000000000000000016 /* AppCoordinatorTestSupport.swift */,
-					A0000000000000000000000A /* ConfigStoreTests.swift */,
-					A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
-				A00000000000000000000093 /* ConfigStoreStatusItemTimerTests.swift */,
+				A0000000000000000000000A /* ConfigStoreTests.swift */,
+				A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
+				A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
+				A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
+			A00000000000000000000093 /* ConfigStoreStatusItemTimerTests.swift */,
 				A00000000000000000000097 /* StatusDisplayFormatterTests.swift */,
 				A0000000000000000000000C /* BreakTimerTests.swift */,
 					A00000000000000000000017 /* BreakOverlayTestSupport.swift */,
@@ -355,13 +367,17 @@
 					A00000000000000000000059 /* AppCoordinatorBreakSoundTests.swift in Sources */,
 					A00000000000000000000057 /* BreakCompletionSoundPlayerTests.swift in Sources */,
 					A0000000000000000000004D /* AppCoordinatorReminderPauseTests.swift in Sources */,
-					A00000000000000000000038 /* AppCoordinatorBreakPresentationTests.swift in Sources */,
-					A0000000000000000000009B /* AppCoordinatorStatusItemDisplayTests.swift in Sources */,
+				A00000000000000000000038 /* AppCoordinatorBreakPresentationTests.swift in Sources */,
+				A000000000000000000000A1 /* AppCoordinatorRuntimeSettingsTests.swift in Sources */,
+				A000000000000000000000A2 /* AppCoordinatorRuntimeSettingsRegressionTests.swift in Sources */,
+				A0000000000000000000009B /* AppCoordinatorStatusItemDisplayTests.swift in Sources */,
 					A0000000000000000000009D /* AppCoordinatorStatusItemPauseResumeTests.swift in Sources */,
 					A00000000000000000000032 /* AppCoordinatorTestSupport.swift in Sources */,
 					A00000000000000000000033 /* BreakOverlayTestSupport.swift in Sources */,
 				A00000000000000000000026 /* ConfigStoreTests.swift in Sources */,
 				A0000000000000000000005D /* ConfigStoreSizeLimitTests.swift in Sources */,
+				A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
+				A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
 				A00000000000000000000092 /* ConfigStoreStatusItemTimerTests.swift in Sources */,
 				A00000000000000000000096 /* StatusDisplayFormatterTests.swift in Sources */,
 				A00000000000000000000028 /* BreakTimerTests.swift in Sources */,

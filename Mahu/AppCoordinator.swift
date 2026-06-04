@@ -11,17 +11,20 @@ final class AppCoordinator {
     private let currentUptime: CurrentUptimeProvider
 
     private var cancelTick: (() -> Void)?
+    private var cancelRuntimeSettingsObservation: (() -> Void)?
     private var breakTimer: BreakTimerControlling?
+    private var runtimeSettingsStore: RuntimeSettingsStoring?
+    private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
     private var isShowingBreak = false
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
     private var pendingElapsedSeconds: TimeInterval = 0
-    private var activeConfig: AppConfig?
 
     init(
         statusItemController: StatusItemControlling? = nil,
         overlayManager: BreakOverlayManaging? = nil,
         breakCompletionSoundPlayer: BreakCompletionSoundPlaying? = nil,
+        runtimeSettingsStore: RuntimeSettingsStoring? = nil,
         loadConfig: @escaping () -> AppConfig = { ConfigStore().load() },
         makeBreakTimer: @escaping (AppConfig) -> BreakTimerControlling = { BreakTimer(config: $0) },
         scheduleRepeatingTick: @escaping RepeatingTickScheduler = LiveRepeatingScheduler.schedule,
@@ -30,6 +33,7 @@ final class AppCoordinator {
         self.statusItemController = statusItemController ?? StatusItemController()
         self.overlayManager = overlayManager ?? BreakOverlayManager()
         self.breakCompletionSoundPlayer = breakCompletionSoundPlayer ?? BreakCompletionSoundPlayer()
+        self.runtimeSettingsStore = runtimeSettingsStore
         self.loadConfig = loadConfig
         self.makeBreakTimer = makeBreakTimer
         self.scheduleRepeatingTick = scheduleRepeatingTick
@@ -54,8 +58,13 @@ final class AppCoordinator {
         )
         statusItemController.install()
 
-        let config = loadConfig()
-        activeConfig = config
+        let runtimeSettingsStore = runtimeSettingsStore ?? RuntimeSettingsStore(initialSettings: loadConfig())
+        self.runtimeSettingsStore = runtimeSettingsStore
+        cancelRuntimeSettingsObservation = runtimeSettingsStore.addObserver { [weak self] newSettings in
+            self?.handleRuntimeSettingsChange(newSettings)
+        }
+        let config = runtimeSettingsStore.currentSettings
+        runtimeSettingsPolicy.reset(startupSettings: config)
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
         remindersPaused = false
@@ -115,7 +124,10 @@ final class AppCoordinator {
         var shouldPlayBreakCompletionSound = false
 
         while true {
-            let elapsedToConsume = elapsedToConsume(for: latestState)
+            let elapsedToConsume = elapsedTimeToConsume(
+                pendingElapsedSeconds: pendingElapsedSeconds,
+                for: latestState
+            )
             guard elapsedToConsume > 0 else {
                 break
             }
@@ -146,26 +158,9 @@ final class AppCoordinator {
         }
     }
 
-    private func elapsedToConsume(for state: BreakTimer.State) -> TimeInterval {
-        guard pendingElapsedSeconds > 0 else {
-            return 0
-        }
-
-        let availableElapsedSeconds = min(pendingElapsedSeconds, state.remainingSeconds)
-        guard availableElapsedSeconds > 0 else {
-            return 0
-        }
-
-        if state.remainingSeconds >= AppConfig.subsecondPrecisionThresholdSeconds {
-            let wholeSeconds = floor(availableElapsedSeconds)
-            return wholeSeconds > 0 ? wholeSeconds : 0
-        }
-
-        return availableElapsedSeconds
-    }
-
     private func handle(state: BreakTimer.State) {
-        updateStatusItemDisplay(for: state)
+        let state = applyPendingRuntimeSettingsIfNeeded(to: state)
+        statusItemController.setStatusDisplayState(.active(phase: state.phase, remainingSeconds: state.remainingSeconds))
 
         switch state.phase {
         case .work:
@@ -181,7 +176,7 @@ final class AppCoordinator {
             } else {
                 isShowingBreak = overlayManager.showBreak(
                     remainingSeconds: state.remainingSeconds,
-                    messageText: activeConfig?.breakOverlayMessageText ?? AppConfig.defaultBreakOverlayMessageText
+                    messageText: runtimeSettingsStore?.currentSettings.breakOverlayMessageText ?? AppConfig.defaultBreakOverlayMessageText
                 ) { [weak self] in
                     self?.skipBreak()
                 }
@@ -193,10 +188,40 @@ final class AppCoordinator {
         }
     }
 
-    private func updateStatusItemDisplay(for state: BreakTimer.State) {
-        statusItemController.setStatusDisplayState(
-            .active(phase: state.phase, remainingSeconds: state.remainingSeconds)
-        )
+    private func handleRuntimeSettingsChange(_ newSettings: AppConfig) {
+        statusItemController.setShowsTimerState(newSettings.showStatusItemTimerState)
+
+        let currentPhase = breakTimer?.state.phase
+        let changeDirective = runtimeSettingsPolicy.handleChange(newSettings, currentPhase: currentPhase, remindersPaused: remindersPaused)
+
+        guard case .restartActiveWork(let updatedSettings) = changeDirective else {
+            return
+        }
+
+        pendingElapsedSeconds = 0
+        lastTickUptime = currentUptime()
+        let newBreakTimer = makeBreakTimer(updatedSettings)
+        breakTimer = newBreakTimer
+        handle(state: newBreakTimer.state)
+    }
+
+    private func applyPendingRuntimeSettingsIfNeeded(to state: BreakTimer.State) -> BreakTimer.State {
+        switch runtimeSettingsPolicy.applyPendingIfNeeded(to: state) {
+        case .keep(let currentState):
+            return currentState
+        case .replaceTimerAndAdvanceToRest(let settings):
+            let newBreakTimer = makeBreakTimer(settings)
+            breakTimer = newBreakTimer
+            pendingElapsedSeconds = 0
+            lastTickUptime = currentUptime()
+            return newBreakTimer.advance(by: settings.workDurationSeconds)
+        case .replaceTimerAfterRest(let settings):
+            let newBreakTimer = makeBreakTimer(settings)
+            breakTimer = newBreakTimer
+            pendingElapsedSeconds = 0
+            lastTickUptime = currentUptime()
+            return newBreakTimer.state
+        }
     }
 
     private func handleOverlayVisibilityChange(_ isVisible: Bool) {
@@ -252,8 +277,9 @@ final class AppCoordinator {
             pendingElapsedSeconds = 0
             lastTickUptime = currentUptime()
 
-            if let activeConfig {
-                breakTimer = makeBreakTimer(activeConfig)
+            if let currentSettings = runtimeSettingsStore?.currentSettings {
+                runtimeSettingsPolicy.reset(startupSettings: currentSettings)
+                breakTimer = makeBreakTimer(currentSettings)
             }
         }
 
@@ -265,6 +291,7 @@ final class AppCoordinator {
     }
 
     isolated deinit {
+        cancelRuntimeSettingsObservation?()
         cancelTick?()
     }
 }

@@ -204,4 +204,58 @@ final class AppCoordinatorBreakPresentationTests: XCTestCase {
         XCTAssertEqual(legacyConfig.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
         XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText)])
     }
+
+    func testRuntimeBreakOverlayMessageChangeAppliesToNextBreakOnly() throws {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            breakOverlayMessageText: "Initial message"
+        )
+        let updatedConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            breakOverlayMessageText: "Next break message"
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 20),
+                .init(phase: .rest, remainingSeconds: 25)
+            ],
+            skipState: .init(phase: .work, remainingSeconds: 1)
+        )
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 102, 103, 104, 105])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+
+        runtimeSettingsStore.update(updatedConfig)
+        let skipBreak = try XCTUnwrap(fakeOverlayManager.skipHandler)
+        skipBreak()
+        scheduledTick?()
+
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [
+                .show(20, "Initial message"),
+                .hide,
+                .show(25, "Next break message")
+            ]
+        )
+    }
 }

@@ -200,4 +200,96 @@ final class AppCoordinatorStatusItemDisplayTests: XCTestCase {
             )
         }
     }
+
+    func testRuntimeTimerDisplayToggleAppliesImmediatelyAndPreservesCurrentTimerText() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: false
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: 299)]
+        )
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([10, 11])
+        )
+
+        coordinator.start()
+
+        runtimeSettingsStore.update(
+            AppConfig(
+                workDurationSeconds: 300,
+                breakDurationSeconds: 20,
+                showStatusItemTimerState: true
+            )
+        )
+        scheduledTick?()
+
+        XCTAssertEqual(fakeStatusItemController.showsTimerStateUpdates, [false, true])
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "04:59"])
+        XCTAssertEqual(
+            fakeStatusItemController.statusDisplayStates,
+            [
+                .active(phase: .work, remainingSeconds: 300),
+                .active(phase: .work, remainingSeconds: 299)
+            ]
+        )
+    }
+
+    func testRuntimeTimerDisplayToggleDoesNotRecreateTimerOrOverlay() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: false
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: startupConfig.breakDurationSeconds)
+        )
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: fakeOverlayManager,
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in
+                timerCreationCount += 1
+                return fakeTimer
+            },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([20, 21])
+        )
+
+        coordinator.start()
+
+        runtimeSettingsStore.update(
+            AppConfig(
+                workDurationSeconds: 300,
+                breakDurationSeconds: 20,
+                showStatusItemTimerState: true
+            )
+        )
+        runtimeSettingsStore.update(startupConfig)
+
+        XCTAssertEqual(timerCreationCount, 1)
+        XCTAssertEqual(fakeOverlayManager.events, [.show(20, AppConfig.defaultBreakOverlayMessageText)])
+        XCTAssertEqual(fakeStatusItemController.showsTimerStateUpdates, [false, true, false])
+    }
 }

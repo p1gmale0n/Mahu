@@ -34,16 +34,17 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         XCTAssertTrue(fakeTimer.advanceCalls.isEmpty)
     }
 
-    func testResumeStartsFreshWorkIntervalFromConfigLoadedAtLaunch() throws {
+    func testResumeStartsFreshWorkIntervalFromCurrentRuntimeSettingsSource() throws {
         let startupConfig = AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20)
         let runtimeEditedConfig = AppConfig(workDurationSeconds: 600, breakDurationSeconds: 45)
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
         let fakeStatusItemController = FakeStatusItemController()
         let initialTimer = FakeBreakTimer(
             state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
             statesToReturn: [.init(phase: .work, remainingSeconds: 295)]
         )
         let resumedTimer = FakeBreakTimer(
-            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+            state: .init(phase: .work, remainingSeconds: runtimeEditedConfig.workDurationSeconds),
             statesToReturn: [.init(phase: .work, remainingSeconds: 299)]
         )
         var createdConfigs: [AppConfig] = []
@@ -54,6 +55,7 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         let coordinator = AppCoordinator(
             statusItemController: fakeStatusItemController,
             overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: runtimeSettingsStore,
             loadConfig: {
                 defer { loadConfigCallCount += 1 }
                 return loadConfigCallCount == 0 ? startupConfig : runtimeEditedConfig
@@ -77,12 +79,13 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         let resumeReminders = try XCTUnwrap(fakeStatusItemController.resumeRemindersHandler)
 
         pauseReminders()
+        runtimeSettingsStore.update(runtimeEditedConfig)
         resumeReminders()
         uptime = 26
         scheduledTick?()
 
-        XCTAssertEqual(loadConfigCallCount, 1)
-        XCTAssertEqual(createdConfigs, [startupConfig, startupConfig])
+        XCTAssertEqual(loadConfigCallCount, 0)
+        XCTAssertEqual(createdConfigs, [startupConfig, runtimeEditedConfig])
         XCTAssertEqual(initialTimer.advanceCalls, [5])
         XCTAssertEqual(resumedTimer.advanceCalls, [1])
     }

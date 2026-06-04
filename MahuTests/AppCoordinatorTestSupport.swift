@@ -131,6 +131,38 @@ final class FakeStatusItemController: StatusItemControlling {
 }
 
 @MainActor
+final class FakeRuntimeSettingsStore: RuntimeSettingsStoring {
+    private(set) var currentSettings: AppConfig
+    private(set) var updates: [AppConfig] = []
+    private var observers: [UUID: (AppConfig) -> Void] = [:]
+
+    init(currentSettings: AppConfig = .default) {
+        self.currentSettings = currentSettings
+    }
+
+    @discardableResult
+    func addObserver(_ observer: @escaping (AppConfig) -> Void) -> () -> Void {
+        let observerID = UUID()
+        observers[observerID] = observer
+
+        return { [weak self] in
+            self?.observers.removeValue(forKey: observerID)
+        }
+    }
+
+    func update(_ newSettings: AppConfig) {
+        guard newSettings.hasSupportedDurations, newSettings != currentSettings else {
+            return
+        }
+
+        currentSettings = newSettings
+        updates.append(newSettings)
+        let activeObservers = Array(observers.values)
+        activeObservers.forEach { $0(newSettings) }
+    }
+}
+
+@MainActor
 final class FakeBreakCompletionSoundPlayer: BreakCompletionSoundPlaying {
     private(set) var playCallCount = 0
 

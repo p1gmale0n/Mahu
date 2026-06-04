@@ -32,6 +32,7 @@
 - Break screen foreground centering must be bounded by the actual overlay window size: keep `BreakOverlayView` using `GeometryReader` (or an equivalent explicit-size container) so `scaledToFill()` background imagery cannot expand layout and shift content on the built-in laptop display.
 - When a visible break ends naturally, play bundled `break-completion.caf` once; pressing `Skip` must not play the completion sound.
 - MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
+- Treat launch-loaded `config.json` as the persistence/backward-compatibility layer and keep a single in-process runtime settings source of truth for coordinator and future Settings UI updates.
 - Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
 - If the config is missing or invalid, use 20-20-20 defaults and keep the app running.
 - Keep timer, config, status item, and overlay responsibilities separated so deferred features can be added without rewriting the core timer flow.

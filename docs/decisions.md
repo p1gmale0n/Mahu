@@ -2,6 +2,15 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-31 | Runtime settings review hardening | Reject unsupported durations at both runtime-update and disk-save boundaries, keep runtime settings/test doubles idempotent on repeated identical updates, and extract runtime-settings policy state out of `AppCoordinator.swift`. | Review found that the new runtime settings foundation could accept live schedules that `load()` would later reject, while the fake store/tests overstated notification behavior on no-op updates and `AppCoordinator.swift` had drifted past the local readability limit. |
+| 2026-05-31 | Runtime settings persistence hardening | Preserve `config.json` symlinks on save by resolving and writing to the target file instead of atomically replacing the symlink path itself. | Review found that `Data.write(..., .atomic)` on the symlink path silently converted a symlinked config into a regular file, breaking shared dotfile-style setups after the first runtime save. |
+| 2026-05-31 | Runtime settings plan close-out | Keep the completed runtime-settings foundation plan at its original `docs/plans/` path during the active review loop, but mark it explicitly completed and document the post-review archival rule. | The current external review workflow still targets the original path, so immediate archival would make documentation cleaner but break the next automated close-out pass. |
+| 2026-05-29 | Runtime settings foundation | Apply runtime duration changes through coordinator-owned schedule policies: restart active work immediately on work-duration changes, defer break-duration-only work updates to the next break, and defer active-rest duration changes until the break ends or is skipped. | Task 5 needs deterministic runtime duration behavior without teaching `BreakTimer` about config mutation or restarting the visible break overlay. |
+| 2026-05-31 | Runtime settings foundation | Document runtime settings as a single in-process source of truth seeded from launch-loaded `config.json`, with manual JSON remaining persistence-only and no runtime file watching. | Task 8 needs README/AGENTS to match the shipped architecture so future Settings UI work does not reintroduce direct JSON reads or imply live reload that Mahu does not support. |
+| 2026-05-29 | Runtime settings foundation | Route runtime UI-only settings changes through a coordinator-owned `RuntimeSettingsStoring` observer that immediately updates the status-item timer mode, while leaving active-break overlay text untouched until the next break. | Task 4 needs live in-process UI updates without recreating the timer or overlay, and the break message policy explicitly forbids mutating an already visible break. |
+| 2026-05-29 | Runtime settings foundation | Make `AppCoordinator` consume an injectable `RuntimeSettingsStoring` source, falling back to a one-time launch `loadConfig()` only when no store is provided. | Task 3 needs coordinator startup, resume, and break presentation to read current in-memory settings without repeated disk loads, while preserving existing tests and the no-file-watcher boundary. |
+| 2026-05-29 | Runtime settings foundation | Add `ConfigStore.save(_:)` as a disk-only persistence API that creates the config directory, writes atomic JSON, and reports failure with a boolean plus logging. | Task 2 needs future runtime settings flows to persist manual-config-compatible JSON without introducing file watching, runtime rollback coupling, or filesystem behavior inside the runtime store. |
+| 2026-05-29 | Runtime settings foundation | Introduce a `@MainActor` `RuntimeSettingsStore` that reuses `AppConfig` as the in-memory runtime value, exposes observer callbacks for accepted changes, and has no direct `ConfigStore` dependency. | Task 1 needs a single injectable runtime source of truth for future coordinator/UI work, but adding a second settings model or letting the runtime store read disk would increase scope and blur the no-live-reload boundary. |
 | 2026-05-29 | Overlay message review hardening | Reuse `AppConfig.normalizedBreakOverlayMessageText` below the config layer, center multiline overlay titles inside a bounded width, strengthen legacy-config tests, and document whitespace fallback plus custom-title display resync in README manual checks. | Review found the config boundary normalized blank message text more strictly than the overlay view-model path, the missing-field tests could pass on full-config fallback, and the shipped docs did not explicitly cover whitespace fallback or custom-title persistence during display resync. |
 | 2026-05-29 | Coordinator overlay message wiring | Make `AppCoordinator` pass `activeConfig.breakOverlayMessageText` into `showBreak`, with the default title only as a defensive fallback. | The config is loaded once at launch and cached on the coordinator already, so this is the smallest place to connect launch-time configuration to break presentation without introducing live reload or moving overlay policy into SwiftUI/AppKit seams. |
 | 2026-05-29 | Overlay message plan close-out | Close the configurable overlay-message plan without sequence changes and keep physical-display text layout/readability checks explicit in Post-Completion manual verification. | The implementation and automated validation are complete, but XCTest/builds cannot prove real NSWindow rendering, text wrapping, or multi-display readability during a live break, so the final plan state must distinguish shipped automation from remaining hardware-only verification. |
@@ -108,7 +117,103 @@
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
+## 2026-05-31 / Runtime Settings Documentation Contract
+
+**Date:** 2026-05-31
+
+**Area:** Runtime settings foundation
+
+**Context:** The runtime settings foundation is already implemented, but README and AGENTS still described resume behavior and config ownership mostly in launch-config terms. Task 8 needs the durable docs to distinguish launch-time JSON persistence from the in-process runtime settings source that future Settings UI work should use.
+
+**Decision:** Document `config.json` as launch-loaded persistence/backward-compatibility only, describe the runtime settings store as the single in-process source of truth for coordinator behavior, and explicitly state that editing the file while Mahu is running does not trigger live reload.
+
+**Rationale:** The code now supports runtime settings policies without repeated disk reads, so leaving docs on the old model would encourage future agents to wire UI changes through direct JSON reads or assume live file watching exists. A doc-level contract is the smallest way to preserve the architecture boundary.
+
+**Consequences:** README manual checks and product notes now describe fresh resume intervals in terms of current runtime settings, while AGENTS preserves the same invariant for future implementation work. Users still edit `config.json` manually today, but the docs no longer imply that runtime file edits are immediately effective.
+
+**Alternatives Considered:** Leave README/AGENTS unchanged and rely on code/tests alone; rejected because this repo explicitly treats those docs as product and engineering invariants for future agent work.
+
+## 2026-05-29 / Runtime Schedule Update Policies
+
+**Date:** 2026-05-29
+
+**Area:** Runtime settings foundation
+
+**Context:** Task 5 introduces live duration-update behavior on top of the runtime settings store. The plan requires three different policies: active work must restart immediately only when work duration changes, break-duration-only changes during work must affect the next break without resetting the current countdown, and active-rest duration changes must preserve the visible overlay and only apply after the break finishes or is skipped.
+
+**Decision:** Keep all schedule-update policy in `AppCoordinator`. On accepted runtime settings changes, restart the work timer immediately when the work duration changes during active work, queue break-duration-only work updates for the next work-to-rest transition, queue active-rest duration changes for the next rest-to-work transition, and keep paused-work duration changes as stored runtime state that is consumed by the existing resume path.
+
+**Rationale:** `AppCoordinator` already owns timer replacement, break presentation, and pause/resume semantics, so it is the smallest place to adapt runtime schedules without pushing config-mutation logic into `BreakTimer` or restarting the current overlay. Separating immediate and deferred actions also preserves the plan's visible-break invariants while still making the next relevant phase use the newest settings.
+
+**Consequences:** Runtime duration edits now follow explicit, test-locked policies across active work, paused work, natural break completion, and skip. The coordinator gained a small deferred-action state, but `BreakTimer` remains a pure countdown state machine and active-break overlays are not recreated by settings changes.
+
+**Alternatives Considered:** Recreate `BreakTimer` on every duration change; rejected because break-duration-only work edits would incorrectly reset the current work interval and active-rest edits would disrupt the visible break. Add mutable schedule-update APIs to `BreakTimer`; rejected because the plan explicitly keeps timer/config policy out of the state machine.
+
 ## 2026-05-29 / Shared Timer Display Formatting
+
+## 2026-05-29 / Runtime UI-only Settings Routing
+
+**Date:** 2026-05-29
+
+**Area:** Runtime settings foundation
+
+**Context:** Task 4 introduces the first observer-driven runtime settings behavior. The plan requires `showStatusItemTimerState` to apply immediately, forbids recreating the timer or current overlay when that flag changes, and keeps `breakOverlayMessageText` scoped to the next break instead of mutating an already visible break.
+
+**Decision:** Subscribe `AppCoordinator` to `RuntimeSettingsStoring` updates, route accepted changes through a small coordinator handler, and make that handler immediately call `StatusItemControlling.setShowsTimerState(_:)` while relying on the existing break-start path to pick up the latest overlay message for future breaks only.
+
+**Rationale:** The coordinator already owns timer lifecycle plus status/overlay routing, so it is the smallest place to react to runtime settings without teaching `BreakTimer` about settings changes or pushing policy into AppKit edges. Using the current break-start lookup for message text preserves the plan's explicit "next break only" rule with no active-break mutation path.
+
+**Consequences:** Runtime tray timer toggles now update immediately and preserve subsequent status text rendering, but active breaks keep their current title until they end or are skipped. Later schedule-update tasks can extend the same observer path for duration changes without revisiting the UI-only policy boundary.
+
+**Alternatives Considered:** Let `RuntimeSettingsStore` reach into UI objects directly; rejected because it would blur the runtime-state and presentation boundaries. Recreate the timer or re-show the break overlay on every update; rejected because Task 4 explicitly treats these settings as UI-only and forbids current-break disruption.
+
+## 2026-05-29 / App Coordinator Runtime Settings Source
+
+**Date:** 2026-05-29
+
+**Area:** Runtime settings foundation
+
+**Context:** Task 3 moves `AppCoordinator` off the old cached `activeConfig` path and needs to prove that coordinator startup and resume behavior read from a single runtime settings source instead of repeatedly calling `ConfigStore.load()`. The plan still forbids file watching and keeps `BreakTimer` free of settings concerns, so the smallest correct change is at the coordinator boundary.
+
+**Decision:** Let `AppCoordinator` accept an optional injected `RuntimeSettingsStoring`, lazily create a `RuntimeSettingsStore(initialSettings: loadConfig())` only when no store is supplied, and read current settings from that store for startup, resume resets, and break message lookup.
+
+**Rationale:** This preserves existing default ergonomics for production and most tests, while giving focused tests and future Settings UI code a real runtime source-of-truth seam. Reading current settings from the store removes the old `activeConfig` cache without teaching `BreakTimer` about config reloads or adding runtime disk reads.
+
+**Consequences:** Coordinator ticks no longer need or perform repeated config loads, injected stores can drive future runtime-update policies, and pause/resume now resets from the current runtime settings source rather than a stale launch-only copy. Actual observer-driven UI updates are still deferred to the next task.
+
+**Alternatives Considered:** Keep the `activeConfig` cache and only wrap startup load in a store; rejected because resume and break-message paths would still read stale settings outside the new source of truth. Move runtime-settings logic into `BreakTimer`; rejected because it would violate the plan's pure state-machine boundary.
+
+## 2026-05-29 / Config Persistence API
+
+**Date:** 2026-05-29
+
+**Area:** Runtime settings foundation
+
+**Context:** Task 2 needs a persistence seam for future runtime settings updates, but the plan explicitly keeps `ConfigStore` responsible for disk I/O only and rejects file watching or hidden reloads. The runtime store from Task 1 also must stay filesystem-free, so save behavior belongs in `ConfigStore` with focused tests around directory creation, round-trip encoding, and write failure handling.
+
+**Decision:** Add `ConfigStore.save(_:) -> Bool`, make it create the `~/Library/Application Support/Mahu` parent directory as needed, write `AppConfig` as atomic JSON to `config.json`, and report write failures through logging plus a `false` return value instead of throwing into callers by default.
+
+**Rationale:** A boolean return is the smallest contract that lets later coordinator/runtime code detect persistence failure without entangling Task 2 with user-facing error plumbing yet. Keeping save atomic and in `ConfigStore` preserves the manual-JSON compatibility boundary, while directory creation mirrors the existing default-file bootstrap behavior.
+
+**Consequences:** Later runtime settings flows can accept in-memory updates immediately and attempt persistence separately, which matches the plan's note that disk save failure should not force runtime rollback. Tests now lock the no-file-watcher contract together with round-trip load compatibility and deterministic failure handling.
+
+**Alternatives Considered:** Put persistence into `RuntimeSettingsStore`; rejected because it would make the runtime source touch the filesystem and blur the launch-load/runtime-update separation. Throw save errors directly as the only API; rejected for now because Task 2 does not yet have a caller-side error presentation path and a small boolean contract is enough to keep behavior testable.
+
+## 2026-05-29 / Runtime Settings Foundation
+
+**Date:** 2026-05-29
+
+**Area:** Runtime settings foundation
+
+**Context:** The runtime-settings plan needs a single in-process source of truth before any Settings UI exists, while the repository explicitly keeps manual JSON as launch-time persistence only and rejects hidden live reloads. Task 1 only needs the seam and tests, so introducing extra model translation or a disk-aware singleton would add coupling before coordinator policies are wired.
+
+**Decision:** Add a `@MainActor` `RuntimeSettingsStore` that stores `AppConfig` directly, exposes observer callbacks for accepted updates, and remains injectable through a `RuntimeSettingsStoring` protocol with no `ConfigStore` dependency.
+
+**Rationale:** Reusing `AppConfig` is the smallest correct move because the persisted and runtime settings fields are still identical at this stage. MainActor isolation fits upcoming UI/coordinator usage, callback-based observation is enough for task-scoped tests and future routing, and keeping disk I/O out of the runtime store preserves the no-file-watcher/no-hidden-reload boundary.
+
+**Consequences:** Future coordinator work can subscribe to a single runtime settings source without rereading JSON or teaching `BreakTimer` about settings changes. If later tasks require persistence on update or richer observation primitives, they can layer that around this seam instead of replacing the runtime value model immediately.
+
+**Alternatives Considered:** Add a separate `AppSettings` model now; rejected because it would duplicate the current shape without solving an immediate problem. Let the runtime store own `ConfigStore.load()` or persistence; rejected because that would couple Task 1 to disk behavior and muddy the plan's explicit separation between launch-time config loading and runtime updates.
 
 ## 2026-05-29 / Coordinator Overlay Message Wiring
 
@@ -1769,3 +1874,67 @@
 **Consequences:** Every overlay entry path now treats blank and whitespace-only titles consistently, long custom titles center more predictably when they wrap, the backward-compatible config tests now fail if omitted-message JSON falls all the way back to `.default`, and future reviewers can see the missing manual verification cases directly in README and the completed plan header. If the product later needs a hard maximum title length instead of view-level wrapping, that should be added explicitly at the config boundary.
 
 **Alternatives Considered:** Leave normalization duplicated across `AppConfig` and the view-model; rejected because the weaker lower-layer fallback allowed divergent behavior outside the config path. Add a config-length limit for `breakOverlayMessageText`; rejected for now because the feature contract still allows any non-empty Unicode string and the immediate problem was rendering/readability, not storage size.
+
+## 2026-05-31 / Runtime Settings Review Hardening
+
+**Date:** 2026-05-31
+
+**Area:** Runtime settings review hardening
+
+**Context:** Review of the runtime-settings foundation found two correctness gaps and one false-green test seam. `RuntimeSettingsStore.update(_:)` accepted unsupported schedules that `ConfigStore.load()` would later reject, `ConfigStore.save(_:)` happily persisted finite-but-unsupported durations that the next launch would drop back to defaults, and `FakeRuntimeSettingsStore` still notified observers for identical no-op updates even though the production store did not.
+
+**Decision:** Reject unsupported durations at both the runtime-store update boundary and the disk-save boundary, keep repeated identical runtime-setting updates as no-ops in both production and fake stores, extract runtime-settings policy/pending-action state into `RuntimeSettingsApplicationPolicy`, split dedicated runtime-store tests out of the already-oversized `ConfigStoreTests.swift`, and add regression coverage that identical runtime updates do not recreate timers or duplicate coordinator UI output.
+
+**Rationale:** The runtime settings source of truth must not accept schedules that its own persistence layer rejects on the next launch, and review-proof tests need to mirror production idempotence closely enough to catch repeated-update regressions instead of inventing extra observer churn.
+
+**Consequences:** Invalid runtime schedules now leave the current in-memory settings untouched, invalid finite saves return `false` without touching disk, the fake/runtime tests agree on no-op update behavior, `AppCoordinator.swift` drops back under the local readability threshold, and the runtime-store coverage no longer grows a 300+ line config test file. Future Settings UI work can still decide whether rejected updates surface user-facing errors, but it no longer has to patch over silent live-state corruption first.
+
+**Alternatives Considered:** Leave validation only at JSON load time; rejected because that creates split-brain behavior between current runtime state and the next launch. Let the fake store keep broadcasting no-op updates for convenience; rejected because it made coordinator tests less truthful than the shipped store behavior.
+
+## 2026-05-31 / Runtime Settings Persistence Hardening
+
+**Date:** 2026-05-31
+
+**Area:** Runtime settings persistence hardening
+
+**Context:** Review reproduced that `Data.write(..., .atomic)` against `~/Library/Application Support/Mahu/config.json` replaces the symlink itself with a regular file instead of updating the symlink target, even though `ConfigStore.load()` explicitly supports regular-file symlink configs.
+
+**Decision:** Resolve `config.json` symlinks before saving and write atomically to the resolved target path while preserving the symlink entry itself.
+
+**Rationale:** Users who manage Mahu config through dotfiles or shared symlink targets should not have that setup silently broken by the first in-app save. Resolving the target is the smallest fix that preserves the existing load contract.
+
+**Consequences:** Runtime saves now keep symlink-based config setups intact and update the target file the same way `load()` already reads it. If a symlink resolves to an unwritable or nonsensical target, save still fails deterministically with logging instead of mutating the config path into a different filesystem object.
+
+**Alternatives Considered:** Reject all symlink-backed saves; rejected because `load()` already treats regular-file symlinks as supported config and review exposed real user breakage in that supported path. Keep writing to the symlink path directly; rejected because atomic rename semantics destroy the symlink contract.
+
+## 2026-05-31 / Runtime Settings Plan Close-Out
+
+**Date:** 2026-05-31
+
+**Area:** Runtime settings plan close-out
+
+**Context:** The runtime-settings foundation plan was complete, but the current external review workflow still targeted the original file path under `docs/plans/`. Archiving it immediately would make the folder layout cleaner while also breaking the next automated review pass.
+
+**Decision:** Mark the plan as completed in place, update README and the plan note to explain that the active review loop may temporarily keep a completed plan at its original path, and archive it only after close-out review is finished.
+
+**Rationale:** Preserving a stable review target for the next automated iteration is more important than eager physical archival, as long as the documentation stays explicit about the temporary state.
+
+**Consequences:** Future reviewers can still open the expected plan path during this loop, while humans and agents no longer get a false signal that every file under `docs/plans/` is necessarily in progress. Once the review loop ends, the plan can still move to `docs/plans/completed/` without changing the documented rule again.
+
+**Alternatives Considered:** Move the plan immediately; rejected because the next external review pass is likely to look up the original path. Leave README and the plan note untouched; rejected because that keeps the documented project structure false in the meantime.
+
+## 2026-05-31 / Config Save Size-Limit Parity
+
+**Date:** 2026-05-31
+
+**Area:** Runtime settings persistence hardening
+
+**Context:** A second review pass found that `ConfigStore.load()` rejects `config.json` files larger than 64 KiB, but `ConfigStore.save(_:)` did not enforce the same cap. A future runtime-settings caller could therefore save an oversized `breakOverlayMessageText`, get a `true` result, and still lose all persisted settings on the next launch when load fell back to defaults.
+
+**Decision:** Make `ConfigStore.save(_:)` reject encoded JSON payloads larger than the existing 64 KiB load limit before touching the filesystem, and add regression coverage for oversize save attempts.
+
+**Rationale:** The persistence API must not report success for configs that the same app will immediately treat as invalid on the next launch. Enforcing parity at the save boundary is the smallest fix that preserves the existing load contract and avoids silent persistence corruption.
+
+**Consequences:** Oversized runtime config saves now fail deterministically with logging and a `false` return value instead of producing a self-invalidating `config.json`. Future Settings UI work can surface that failure explicitly without having to debug why a "successful" save vanished after relaunch.
+
+**Alternatives Considered:** Remove the 64 KiB load limit; rejected because that limit already protects config parsing from unbounded file growth and was not part of this review scope. Allow oversized saves and rely on caller-side truncation; rejected because it keeps the persistence contract internally inconsistent and too easy to misuse.

@@ -57,6 +57,39 @@ struct ConfigStore {
             .appendingPathComponent("config.json", isDirectory: false)
     }
 
+    @discardableResult
+    func save(_ config: AppConfig) -> Bool {
+        guard config.hasSupportedDurations else {
+            Self.logger.warning(
+                "Refusing to save config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
+            )
+            return false
+        }
+
+        do {
+            let data = try JSONEncoder().encode(config)
+            guard data.count <= Self.maximumConfigFileBytes else {
+                Self.logger.warning(
+                    "Refusing to save config at \(self.configURL.path, privacy: .private) because the encoded JSON exceeds the supported size limit of \(Self.maximumConfigFileBytes, privacy: .public) bytes."
+                )
+                return false
+            }
+
+            let writableConfigURL = try resolvedWritableConfigURL()
+            try FileManager.default.createDirectory(
+                at: writableConfigURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: writableConfigURL, options: .atomic)
+            return true
+        } catch {
+            Self.logger.error(
+                "Failed to save config at \(self.configURL.path, privacy: .private): \(String(describing: error), privacy: .private)"
+            )
+            return false
+        }
+    }
+
     func load() -> AppConfig {
         switch configFileLocation() {
         case .missing:
@@ -110,6 +143,19 @@ struct ConfigStore {
         } catch {
             Self.logger.error("Failed to create default config at \(self.configURL.path, privacy: .private): \(String(describing: error), privacy: .private)")
             return .default
+        }
+    }
+
+    private func resolvedWritableConfigURL() throws -> URL {
+        do {
+            let configResourceType = try fileResourceType(at: configURL)
+            guard configResourceType == .symbolicLink else {
+                return configURL
+            }
+
+            return configURL.resolvingSymlinksInPath()
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return configURL
         }
     }
 
