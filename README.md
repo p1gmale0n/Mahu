@@ -53,6 +53,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Mahu/Assets.xcassets/`: app asset catalog, including the macOS `AppIcon` generated from `icon.png`.
 - `Mahu/Assets.xcassets/TrayIconTemplate.imageset/`: tray-optimized transparent template glyph artwork derived from the same source motif as the app icon.
 - `Mahu/Resources/`: bundled app resources, including `background.png` for the overlay and `sound.wav` for natural break completion.
+- `source-assets/`: source/staging artwork and audio assets used to produce bundled app resources.
 - `Mahu/PrivacyInfo.xcprivacy`: privacy manifest for required-reason APIs used by the app target.
 - `MahuTests/`: unit tests for config, timer, coordinator, status item, and overlay logic.
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
