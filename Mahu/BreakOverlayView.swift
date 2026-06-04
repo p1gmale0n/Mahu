@@ -37,7 +37,12 @@ struct BreakOverlayView: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            Image("background")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+
+            Color.black.opacity(0.48)
                 .ignoresSafeArea()
 
             VStack(spacing: 24) {

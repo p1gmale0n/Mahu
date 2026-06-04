@@ -28,13 +28,15 @@ final class BreakOverlayViewTests: XCTestCase {
     }
 
     func testBreakOverlayViewContainsRequiredTextAndSkipLabel() {
+        let body = BreakOverlayView(viewModel: BreakOverlayViewModel(remainingSeconds: 65)).body
         let textLiterals = extractStringLiterals(
-            from: BreakOverlayView(viewModel: BreakOverlayViewModel(remainingSeconds: 65)).body
+            from: body
         )
 
         XCTAssertTrue(textLiterals.contains("Время отвлечься"))
         XCTAssertTrue(textLiterals.contains("01:05"))
         XCTAssertTrue(textLiterals.contains("Skip"))
+        XCTAssertTrue(textLiterals.contains("background"))
     }
 
     func testOverlayWindowCanBecomeKeyAndMain() {

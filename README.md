@@ -30,7 +30,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - Missing config creates a default config file and continues running.
 - Invalid JSON or unsupported config durations, including values below 1 second, fall back to defaults and continue running.
-- Break overlay is dark and minimal, shows `Время отвлечься`, displays a countdown, and includes `Skip`.
+- Break overlay uses a bundled `background.png` image with a dark readability treatment, shows `Время отвлечься`, displays a countdown, and includes `Skip`.
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
 - Overlay windows are raised above normal apps and the app is activated when the break starts.
@@ -40,6 +40,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 ## Project Structure
 
 - `Mahu/`: app sources.
+- `Mahu/Resources/`: bundled app resources, including the break-overlay background image.
 - `MahuTests/`: unit tests for config, timer, coordinator, status item, and overlay logic.
 - `Mahu.xcodeproj/`: Xcode project and shared scheme.
 - `Makefile`: local build shortcut that creates `build/Mahu.app`.
