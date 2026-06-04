@@ -2,6 +2,9 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-22 | Tray status icon contract | Document the shipped status-item icon contract as `TrayIconTemplate` first, then a copied/resized compiled app icon fallback, both forced to an 18x18 template image. | The menu bar needs compact tray-specific artwork for readability, but Mahu still must avoid an empty status item if the tray asset lookup fails at runtime. |
+| 2026-05-22 | Status item icon fallback | Make the production status-item icon provider prefer `TrayIconTemplate`, then fall back to a copied/resized app icon, with both paths returning an 18x18 template image copy. | This removes the old SF Symbol, keeps the menu bar icon path resilient if the tray asset is missing, and avoids mutating shared `NSImage` cache instances while staying inside `StatusItemController`. |
+| 2026-05-22 | Tray icon asset packaging | Add a dedicated `TrayIconTemplate` asset catalog image set derived from `icon.png`, plus a small loader that marks loaded images as template images. | The menu bar icon needs asset-backed proof before replacing the SF Symbol, and forcing template behavior in code keeps tintability explicit regardless of asset naming. |
 | 2026-05-20 | Agent instructions | Keep `AGENTS.md` compact and omit unverifiable build/test commands until project manifests exist. | At the time of the decision, the repository had no app sources, manifests, README, or CI; speculative commands would mislead future agents. |
 | 2026-05-20 | Documentation | Keep a basic README as the human-facing project overview and update it with behavior, setup, structure, and verification changes. | The user wants README to stay current, and future agents need a stable source for project status without reading only agent instructions. |
 | 2026-05-20 | MVP scope | Build the first version around 20-20-20 defaults, icon-only status menu with Quit, config-file settings, fullscreen break overlay, countdown, and Skip. | This keeps the first implementation small while preserving extension seams for settings UI, launch at login, sleep/wake handling, and App Store release work. |
@@ -49,6 +52,10 @@
 | 2026-05-22 | Overlay hot-plug lifecycle verification | Prove hot-plug focus/restore semantics with focused XCTest coverage instead of changing `BreakOverlayManager` behavior when the current implementation already preserves those invariants. | Task 4 is about preventing regressions in previous-app capture, observer teardown, and focus bounce-back after display changes; tests are the smallest correct change when runtime behavior is already aligned with the contract. |
 | 2026-05-22 | Overlay hot-plug documentation | Document active-break display hot-plug as shipped overlay behavior and keep live config reload explicitly out of scope. | The implementation is already present, so README and AGENTS must preserve the runtime contract for future agents while avoiding accidental scope creep into settings reload. |
 | 2026-05-22 | Overlay hot-plug acceptance verification | Close Task 6 with deterministic XCTest/build proof and documented manual-only hardware follow-up instead of blocking on unavailable monitor or Spaces checks. | The codebase now has focused tests for add/remove/resize/focus/state invariants plus green `xcodebuild` and `make build`; physical display hot-plugging and fullscreen Spaces still require real hardware and should stay explicit manual validation instead of keeping the automation loop open forever. |
+| 2026-05-22 | Overlay hot-plug review fixes | Make display reconciliation collision-tolerant, tear down active overlay resources on manager deinit, and split overlay support types out of `BreakOverlayManager.swift` while closing the remaining plan/README follow-up. | Review found a potential duplicate-key crash when display identifiers collide, missing observer/window cleanup on teardown, and stale documentation around the completed hot-plug plan and retry semantics. |
+| 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
+| 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
+| 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
 ## 2026-05-22 / Overlay Content Centering Implementation
 
@@ -113,6 +120,54 @@
 **Consequences:** Documentation now matches the implemented overlay lifecycle and gives deterministic manual verification targets, but hardware-dependent hot-plug and Spaces behavior still remain manual-only proof.
 
 **Alternatives Considered:** Leave docs unchanged until manual hardware verification is complete; rejected because that would preserve stale behavior descriptions after the feature shipped.
+
+## 2026-05-22 / Status Item Icon Provider Seam
+
+**Date:** 2026-05-22
+
+**Area:** Status item icon provider seam
+
+**Context:** The tray-icon plan needs focused tests around status-item image selection before replacing the current SF Symbol with bundled artwork.
+
+**Decision:** Keep status-item image setup inside `StatusItemController`, but add a minimal injected `statusIconProvider: () -> NSImage?` that defaults to the production icon provider.
+
+**Rationale:** This is the smallest seam that lets XCTest assert the exact installed `NSImage` instance without moving menu-bar responsibilities into `AppCoordinator` or introducing broader abstractions before the tray-asset work exists.
+
+**Consequences:** Later tasks can test production asset selection and fallback behavior through the same controller entrypoint while preserving the existing icon-only menu contract.
+
+**Alternatives Considered:** Move icon loading into `AppCoordinator`; rejected because it would blur AppKit ownership boundaries. Introduce a protocol-backed icon service; rejected because Task 1 only needs a single-function seam.
+
+## 2026-05-22 / Tray Icon Asset Packaging
+
+**Date:** 2026-05-22
+
+**Area:** Tray icon asset packaging
+
+**Context:** Task 2 needs a real tray-icon asset and automated proof that production code can load it from the hosted app bundle before the default status item icon switches away from the SF Symbol.
+
+**Decision:** Add `Mahu/Assets.xcassets/TrayIconTemplate.imageset/` with 1x and 2x PNGs generated from the source-controlled root `icon.png`, and expose a small `StatusItemController.makeTrayTemplateStatusIcon(bundle:)` helper that copies the asset-backed `NSImage` and marks it as a template image.
+
+**Rationale:** Keeping the tray artwork in the existing asset catalog matches the app-icon workflow and lets Xcode compile it into the app bundle automatically. Making template behavior explicit in code preserves tintability even if asset metadata or naming conventions change later.
+
+**Consequences:** Tests can now verify hosted-bundle asset loading without yet changing the production default icon selection order. The helper is intentionally narrow so Task 3 can add fallback/resizing logic without moving status-item ownership out of `StatusItemController`.
+
+**Alternatives Considered:** Reuse the full-color app icon directly in the menu bar; rejected because the plan already calls out readability and contrast issues at 16-18 pt. Keep the asset outside `Assets.xcassets`; rejected because the app already uses an asset catalog for icon-derived artwork and bundle lookup should stay conventional.
+
+## 2026-05-22 / Tray Status Icon Contract
+
+**Date:** 2026-05-22
+
+**Area:** Tray status icon contract
+
+**Context:** The tray-icon implementation is complete, and the remaining work is to document the exact shipped icon-selection behavior in the human-facing docs and durable decision log.
+
+**Decision:** Treat the status-item icon contract as `TrayIconTemplate` first and a copied/resized compiled app icon second, with both paths returning an explicit 18x18 template image owned by `StatusItemController`.
+
+**Rationale:** The tray asset keeps the menu bar readable across light, dark, and highlighted states because it is derived from the source artwork but simplified for template rendering. The compiled app icon fallback is less ideal visually, yet it is the smallest resilient fallback that prevents Mahu from launching with a blank status item if asset lookup fails.
+
+**Consequences:** README and future reviews should describe the tray icon as bundled artwork rather than an SF Symbol, while still calling out that the app icon path is only a runtime resilience fallback. The status-item layer remains the single owner of image loading, copying, resizing, and template enforcement.
+
+**Alternatives Considered:** Switch back to the old SF Symbol when asset loading fails; rejected because it would reintroduce unrelated artwork and hide tray-asset packaging regressions. Use the compiled app icon as the primary menu-bar image; rejected because the plan already identified readability and contrast issues at menu-bar size.
 
 ## 2026-05-22 / Overlay Hot-Plug Acceptance Verification
 
@@ -890,7 +945,23 @@
 
 **Context:** The review follow-up identified that `BreakOverlayManager` reads `NSScreen.screens` only when `showBreak()` starts. If a monitor is connected, disconnected, or resized during an active break, the current overlay windows are not reconciled until a later break cycle. The user explicitly decided not to pursue live config reload because future GUI settings should own runtime configuration changes.
 
-**Decision:** Create `docs/plans/2026-05-22-overlay-display-hotplug.md` around public AppKit screen-parameter notifications, injected test seams, and incremental active-overlay resync inside `BreakOverlayManager`. The plan keeps `AppCoordinator`, timer flow, and config loading out of scope.
+**Decision:** Create `docs/plans/completed/2026-05-22-overlay-display-hotplug.md` around public AppKit screen-parameter notifications, injected test seams, and incremental active-overlay resync inside `BreakOverlayManager`. The plan keeps `AppCoordinator`, timer flow, and config loading out of scope.
+
+## 2026-05-22 / Overlay Hot-Plug Review Fixes
+
+**Date:** 2026-05-22
+
+**Area:** Overlay hot-plug review fixes
+
+**Context:** Parallel review surfaced one concrete hot-plug crash risk and one teardown gap after the plan landed: `BreakOverlayManager` assumed unique display identifiers when reconciling active overlays, and it only removed observers/windows through explicit `hideBreak()` calls. The same review also confirmed that the now-completed hot-plug plan still lived in the active plans folder and README was missing the retry/no-visible-overlay runtime note.
+
+**Decision:** Group active overlays by display id instead of building a trap-prone unique-key dictionary, prefer exact display matches before falling back to same-id overlays, use an ordinal fallback when a live screen lacks `NSScreenNumber`, tear down active overlay resources during manager deinit without restoring the previous app, extract overlay support/window types into a focused sidecar file, and archive the hot-plug plan under `docs/plans/completed/` while updating README behavior/structure notes.
+
+**Rationale:** Mirrored or duplicated display snapshots can legitimately collide on fallback ids, and hot-plug reconciliation should degrade to reuse/rebuild rather than crash. Observer and window cleanup should not depend on app-lifetime ownership alone, especially in a codebase that keeps adding review-driven lifecycle hardening. The file split keeps `BreakOverlayManager.swift` below its previous 366-line size before additional hot-plug edits accumulate.
+
+**Consequences:** Active-break screen-change pings now tolerate identifier collisions, manager teardown no longer leaks observation callbacks or stray windows, regression coverage explicitly protects the no-op and collision paths, and the finished hot-plug plan no longer masquerades as an active task. Manual real-display and fullscreen-Space validation still remains the only proof for WindowServer-specific behavior.
+
+**Alternatives Considered:** Trust `NSScreenNumber` and keep `Dictionary(uniqueKeysWithValues:)`; rejected because the fallback path was still a real crash vector. Leave cleanup bound only to `hideBreak()`; rejected because future ownership changes would silently reintroduce leaks. Keep the finished plan in `docs/plans/`; rejected because it leaves stale queue state for future agents.
 
 **Rationale:** Display hot-plugging is a runtime overlay-window concern, not a timer or config concern. Incremental resync can preserve the active break, shared view model, previous-frontmost app restore, and focus retention while adding/removing/replacing only the affected windows.
 
@@ -913,3 +984,51 @@
 **Consequences:** Future tasks can implement window resync in the manager without reworking observer ownership, and repeated screen-parameter bursts are collapsed before they reach overlay reconciliation.
 
 **Alternatives Considered:** Add screen-notification logic directly to `BreakOverlayManager.swift`; rejected because it would further grow an already-large file and mix lifecycle with observer plumbing. Delay the seam until full resync work; rejected because the plan requires testable observer injection first.
+
+## 2026-05-22 / Overlay Startup Hot-Plug Race
+
+**Date:** 2026-05-22
+
+**Area:** Overlay startup hot-plug race
+
+**Context:** The hot-plug implementation created its initial overlay windows from one display snapshot and only then installed the live screen observer. A monitor attach, detach, or resize during that setup window could miss the only screen-change notification and leave Mahu out of sync until another display event happened.
+
+**Decision:** Run one immediate reconciliation pass against the latest `screenProvider()` result after `showBreak()` installs the focus and screen observers but before the final activation returns.
+
+**Rationale:** This closes the setup race with a local `BreakOverlayManager` change, keeps the shared countdown and `Skip` state intact, and avoids pushing display lifecycle concerns into `AppCoordinator`.
+
+**Consequences:** Active-break hot-plugging now self-heals if the display topology changes during break startup, and a focused registrar-driven regression test protects the edge case. Real hardware is still required to prove exact WindowServer timing around cable plug/unplug events.
+
+**Alternatives Considered:** Register the screen observer before the initial snapshot; rejected because notifications could still arrive before `viewModel` and active overlays exist, which would require a broader lifecycle rewrite. Ignore the race; rejected because it violates the active-break display resync requirement under a realistic timing edge case.
+
+## 2026-05-22 / Review Lifecycle And Focus Docs Fixes
+
+**Date:** 2026-05-22
+
+**Area:** Review lifecycle and focus docs fixes
+
+**Context:** The second review pass found that `AppCoordinator` and `BreakOverlayManager` both perform cleanup from ordinary `deinit` despite being `@MainActor` types, and README/manual-plan text still implied stronger hidden-input protection than the shipped public-API bounce-back approach can actually provide.
+
+**Decision:** Switch both teardown paths to `isolated deinit` so timer invalidation, observer cancellation, window teardown, and previous-app restore cleanup stay on the main actor, and narrow the human-facing focus-retention documentation to best-effort `Cmd+Tab` bounce-back wording instead of promising zero leaked keystrokes.
+
+**Rationale:** Ordinary `deinit` is not actor-isolated, so main-thread-only cleanup in a global-actor type should not rely on release happening on the right thread by accident. The focus-retention implementation intentionally avoids input capture and therefore cannot honestly guarantee that no keystroke reaches another app before Mahu reactivates.
+
+**Consequences:** Teardown no longer depends on `MainActor.assumeIsolated` or off-main `Timer.invalidate()` luck, and future acceptance/manual checks should not pressure agents into undocumented Accessibility/event-tap behavior just to satisfy an overstated requirement.
+
+**Alternatives Considered:** Add explicit `stop()` or `shutdown()` calls and keep ordinary `deinit`; rejected because the current architecture already relies on deallocation cleanup and `isolated deinit` is supported by the toolchain in this repo. Keep the stronger hidden-input wording; rejected because it overpromises behavior that public notifications alone cannot guarantee.
+
+## 2026-05-22 / App Icon Asset Catalog
+
+**Date:** 2026-05-22
+
+**Area:** App icon asset catalog
+
+**Context:** The user provided `icon.png` at the repository root and asked to make it the application icon. The Xcode target already declared `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`, but the project had no asset catalog.
+
+**Decision:** Generate the standard macOS app icon sizes from `icon.png`, store them under `Mahu/Assets.xcassets/AppIcon.appiconset`, and add `Assets.xcassets` to the app target resources.
+
+**Rationale:** App icons are compiled by Xcode from asset catalogs and tied to the target's app-icon build setting. This is the native path for bundle icons and keeps generated sizes explicit in source control.
+
+**Consequences:** The app now builds with a packaged `AppIcon`; if the source artwork changes later, regenerate all appiconset PNG sizes together. The original image was non-square, so generation center-cropped it to a square before resizing.
+
+**Alternatives Considered:** Use a raw PNG or hand-built `.icns`; rejected because the target already expects an asset-catalog `AppIcon` and asset catalogs are easier to validate through `xcodebuild`.

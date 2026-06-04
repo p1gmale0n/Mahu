@@ -3,7 +3,7 @@
 ## Status
 
 - Implementation changes are complete in the repo as of 2026-05-21.
-- Manual hardware verification is still pending for hidden-input safety after `Cmd+Tab`, previous-app restore after break end or `Skip`, external displays, and fullscreen Spaces.
+- Manual hardware verification is still pending for `Cmd+Tab` bounce-back timing, previous-app restore after break end or `Skip`, external displays, and fullscreen Spaces.
 
 ## Overview
 
@@ -132,7 +132,7 @@ Validation notes:
 - Build and run `build/Mahu.app` locally.
 - Temporarily set short config durations and wait for the overlay.
 - Press `Cmd+Tab` while the overlay is visible and verify Mahu quickly returns to the front.
-- Type after attempting `Cmd+Tab` and verify input is not accidentally going to a hidden app behind the overlay.
+- Type immediately after attempting `Cmd+Tab` only to characterize bounce-back timing; the current public-API approach does not guarantee that zero keystrokes leak before Mahu reactivates.
 - Let a break end naturally and also press `Skip`, then verify focus returns to the app that was frontmost before Mahu activated the overlay.
 - Test with an external display if available.
 - Test with a fullscreen app/Space and document any remaining limitations.

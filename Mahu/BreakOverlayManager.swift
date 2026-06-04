@@ -1,44 +1,9 @@
 import AppKit
 import Foundation
 import OSLog
-import SwiftUI
-
-struct DisplayDescriptor: Equatable, Hashable {
-    let id: String
-    let frame: CGRect
-
-    init(frame: CGRect, id: String? = nil) {
-        self.id = id ?? "\(frame.origin.x),\(frame.origin.y),\(frame.size.width),\(frame.size.height)"
-        self.frame = frame
-    }
-}
-
-struct PreviousFrontmostApplication {
-    let reactivate: () -> Void
-}
-
-@MainActor
-protocol BreakOverlayWindowing: AnyObject {
-    func show()
-    func close()
-}
-
-@MainActor
-protocol BreakOverlayWindowBuilding {
-    func makeWindow(for display: DisplayDescriptor, viewModel: BreakOverlayViewModel) -> BreakOverlayWindowing
-}
 
 typealias BreakFocusObservationCancellation = @MainActor () -> Void
 typealias BreakFocusObservationRegistrar = @MainActor (@escaping () -> Void) -> BreakFocusObservationCancellation
-
-enum LiveScreenProvider {
-    static func activeDisplays() -> [DisplayDescriptor] {
-        NSScreen.screens.map {
-            let screenNumber = ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue
-            return DisplayDescriptor(frame: $0.frame, id: screenNumber)
-        }
-    }
-}
 
 @MainActor
 enum LiveBreakFocusObservationRegistrar {
@@ -193,6 +158,10 @@ final class BreakOverlayManager {
         )
     }
 
+    isolated deinit {
+        tearDownActiveBreak(restorePreviousApplication: false)
+    }
+
     @discardableResult
     func showBreak(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void = {}) -> Bool {
         let displays = screenProvider()
@@ -201,7 +170,7 @@ final class BreakOverlayManager {
         }
 
         let previousFrontmostApplication = activeOverlays.isEmpty ? previousAppCapture() : self.previousFrontmostApplication
-        hideBreak(restorePreviousApplication: false)
+        tearDownActiveBreak(restorePreviousApplication: false)
 
         let viewModel = BreakOverlayViewModel(remainingSeconds: remainingSeconds) { [weak self] in
             self?.hideBreak()
@@ -222,6 +191,11 @@ final class BreakOverlayManager {
         replaceScreenObservation(screenObservationRegistrar { [weak self] in
             self?.handleScreenChange()
         })
+        reconcileActiveOverlays(
+            for: screenProvider(),
+            using: viewModel,
+            activateOnChange: false
+        )
         appActivator()
         return true
     }
@@ -231,10 +205,10 @@ final class BreakOverlayManager {
     }
 
     func hideBreak() {
-        hideBreak(restorePreviousApplication: true)
+        tearDownActiveBreak(restorePreviousApplication: true)
     }
 
-    private func hideBreak(restorePreviousApplication: Bool) {
+    private func tearDownActiveBreak(restorePreviousApplication: Bool) {
         let previousFrontmostApplication = restorePreviousApplication ? previousFrontmostApplication : nil
 
         replaceFocusObservation(nil)
@@ -271,16 +245,24 @@ final class BreakOverlayManager {
         }
 
         let displays = screenProvider()
+        reconcileActiveOverlays(for: displays, using: viewModel, activateOnChange: true)
+    }
+
+    private func reconcileActiveOverlays(
+        for displays: [DisplayDescriptor],
+        using viewModel: BreakOverlayViewModel,
+        activateOnChange: Bool
+    ) {
         guard displays.isEmpty == false else {
             return
         }
 
-        var overlaysByDisplayID = Dictionary(uniqueKeysWithValues: activeOverlays.map { ($0.display.id, $0) })
+        var overlaysByDisplayID = activeOverlaysByDisplayID()
         var nextActiveOverlays: [ActiveOverlay] = []
         var didChangeWindows = false
 
         for display in displays {
-            guard let existingOverlay = overlaysByDisplayID.removeValue(forKey: display.id) else {
+            guard let existingOverlay = takeActiveOverlay(for: display, from: &overlaysByDisplayID) else {
                 let window = windowBuilder.makeWindow(for: display, viewModel: viewModel)
                 window.show()
                 nextActiveOverlays.append(ActiveOverlay(display: display, window: window))
@@ -301,66 +283,40 @@ final class BreakOverlayManager {
         }
 
         if overlaysByDisplayID.isEmpty == false {
-            overlaysByDisplayID.values.forEach { $0.window.close() }
+            overlaysByDisplayID.values.flatMap { $0 }.forEach { $0.window.close() }
             didChangeWindows = true
         }
 
         activeOverlays = nextActiveOverlays
 
-        if didChangeWindows {
+        if didChangeWindows && activateOnChange {
             appActivator()
         }
     }
-}
 
-@MainActor
-final class LiveBreakOverlayWindowBuilder: BreakOverlayWindowBuilding {
-    func makeWindow(for display: DisplayDescriptor, viewModel: BreakOverlayViewModel) -> BreakOverlayWindowing {
-        LiveBreakOverlayWindow(display: display, viewModel: viewModel)
-    }
-}
-
-final class BreakOverlayWindow: NSWindow {
-    override var canBecomeKey: Bool {
-        true
+    private func activeOverlaysByDisplayID() -> [String: [ActiveOverlay]] {
+        activeOverlays.reduce(into: [:]) { partialResult, overlay in
+            partialResult[overlay.display.id, default: []].append(overlay)
+        }
     }
 
-    override var canBecomeMain: Bool {
-        true
-    }
-}
+    private func takeActiveOverlay(
+        for display: DisplayDescriptor,
+        from overlaysByDisplayID: inout [String: [ActiveOverlay]]
+    ) -> ActiveOverlay? {
+        guard var overlays = overlaysByDisplayID[display.id], overlays.isEmpty == false else {
+            return nil
+        }
 
-@MainActor
-final class LiveBreakOverlayWindow: BreakOverlayWindowing {
-    let window: NSWindow
+        let matchingIndex = overlays.firstIndex { $0.display == display } ?? overlays.startIndex
+        let overlay = overlays.remove(at: matchingIndex)
 
-    init(display: DisplayDescriptor, viewModel: BreakOverlayViewModel) {
-        let window = BreakOverlayWindow(
-            contentRect: display.frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
+        if overlays.isEmpty {
+            overlaysByDisplayID.removeValue(forKey: display.id)
+        } else {
+            overlaysByDisplayID[display.id] = overlays
+        }
 
-        window.level = .screenSaver
-        window.backgroundColor = .clear
-        window.isOpaque = false
-        window.hasShadow = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        window.isMovable = false
-        window.ignoresMouseEvents = false
-        window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: BreakOverlayView(viewModel: viewModel))
-
-        self.window = window
-    }
-
-    func show() {
-        window.makeKeyAndOrderFront(nil)
-    }
-
-    func close() {
-        window.orderOut(nil)
-        window.close()
+        return overlay
     }
 }

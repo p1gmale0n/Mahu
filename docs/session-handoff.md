@@ -1,5 +1,32 @@
 # Session Handoff
 
+## 2026-05-22 / Second Review Pass 4 Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Add one immediate display reconciliation pass after `showBreak()` registers the screen observer so monitor changes that land during overlay startup are not lost; keep the fix inside `BreakOverlayManager` and prove it with a focused registrar-driven regression test instead of widening `AppCoordinator` scope.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `swiftlint version`, but the command is not available in this environment.
+- Friction/CDD: The review gate still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is not installed here, so lint cannot be proven reproducibly in this environment. Real monitor and fullscreen-Space timing behavior at the exact break-start boundary remains manual-only proof.
+- Next Steps: Let the external loop run the next review iteration; if hardware is available, manually verify plugging or unplugging a monitor during the first moment of break presentation; add a tracked lint command or install `swiftlint` if future review gates require lint proof.
+
+## 2026-05-22 / External Review Pass 5 - No Actionable Findings
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Leave the tracked code untouched because the external review output reported `NO ISSUES FOUND`, `git diff --name-status` and `git diff --cached --name-status` were empty, and the referenced hot-plug plan already marks `icon.png` plus `images/` as unrelated untracked workspace artifacts that must stay out of review-close commits.
+- Validation: `git status --short`; `git diff --name-status`; `git diff --cached --name-status`; `sed -n '1,220p' docs/plans/completed/2026-05-22-overlay-display-hotplug.md`
+- Friction/CDD: The loop still asks for a close-out commit even when the only worktree changes are unrelated untracked artifacts, which creates pressure either to sweep in junk or to mint an empty/artificial fix commit. Clarify whether a handoff-only commit is the intended closure for a no-op review pass.
+- Next Steps: Commit only this durable handoff note with the standard review-close message and let the external loop finish; if a later pass reports a real issue, keep the scope limited to the affected tracked files and rerun the required verification.
+
+## 2026-05-22 / Overlay Hot-Plug Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Make active-overlay reconciliation tolerant of duplicate display identifiers, add deinit teardown for screen/focus observers plus live overlay windows without restoring the previous app, and extract display/window support types into a sidecar source file so `BreakOverlayManager.swift` stops growing past the local readability threshold.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `swiftlint`, but the command is not installed in this environment.
+- Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this review round can only prove XCTest/build evidence after code changes. Real mirrored-display, external-display, and fullscreen-Space behavior still remains manual-only because headless XCTest cannot prove live WindowServer composition.
+- Next Steps: Run the next external review iteration against this branch; if a later pass still targets overlay lifecycle, keep new edits out of `BreakOverlayManager.swift` unless they also move more support code into focused sidecar files; manually verify hot-plug plus fullscreen-Space behavior on hardware when available.
+
 ## 2026-05-22 / Overlay Display Hot-Plug Task 3
 
 🏁 Session Handoff:
@@ -62,6 +89,15 @@
 - Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `swiftlint`
 - Friction/CDD: The repo still has no tracked lint command, and `swiftlint` is not installed in this environment, so this iteration can only prove build/test green status plus the attempted-but-unavailable lint step. Manual live-overlay verification on real displays/fullscreen Spaces is still pending by design.
 - Next Steps: Run the next external review iteration against this branch; manually verify that a transient display/Space transition still yields a full visible break once the overlay appears; add a tracked lint command only if future review gates require lint evidence.
+
+## 2026-05-22 / Second Review Pass 4 Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Switch `AppCoordinator` and `BreakOverlayManager` teardown to `isolated deinit` so main-actor cleanup no longer depends on release happening on the right thread by accident; narrow focus-retention docs back to the shipped best-effort bounce-back contract instead of implying hidden-input blocking that the public-API approach cannot guarantee.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `swiftlint` discovery via `command -v swiftlint` and the tool is still unavailable in this environment.
+- Friction/CDD: The review gate still wants lint evidence, but the repo still has no tracked lint command and `swiftlint` is not installed here, so lint cannot be proven reproducibly from the repository alone. Real `Cmd+Tab` bounce-back timing, external-display hot-plug, and fullscreen-Space behavior remain manual-only by design.
+- Next Steps: Let the external loop run the next review iteration; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; when doing manual hardware validation, treat `Cmd+Tab` typing as characterization of a best-effort race window, not as a zero-leak guarantee.
 
 ## 2026-05-22 / Review Iteration Fixes
 

@@ -192,7 +192,7 @@ final class AppCoordinator {
         handle(state: state)
     }
 
-    deinit {
+    isolated deinit {
         cancelTick?()
     }
 }

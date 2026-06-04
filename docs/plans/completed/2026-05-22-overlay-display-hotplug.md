@@ -1,5 +1,9 @@
 # Overlay Display Hot-Plug
 
+## Status
+
+- Completed on 2026-05-22.
+
 ## Overview
 
 - Add active-break display hot-plug handling so Mahu keeps break overlay windows synchronized when displays are connected, disconnected, or resized during a break.

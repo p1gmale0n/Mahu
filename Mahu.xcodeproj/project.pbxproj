@@ -32,6 +32,8 @@
 			A00000000000000000000038 /* AppCoordinatorBreakPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */; };
 			A00000000000000000000039 /* BreakScreenObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* BreakScreenObservation.swift */; };
 			A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */; };
+			A0000000000000000000003B /* BreakOverlaySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001F /* BreakOverlaySupport.swift */; };
+			A0000000000000000000003C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000046 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +75,8 @@
 			A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorBreakPresentationTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000001D /* BreakScreenObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakScreenObservation.swift; sourceTree = "<group>"; };
 			A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBreakScreenObservationRegistrarTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000001F /* BreakOverlaySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakOverlaySupport.swift; sourceTree = "<group>"; };
+			A00000000000000000000046 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,7 +122,9 @@
 				A00000000000000000000012 /* BreakOverlayView.swift */,
 				A00000000000000000000013 /* BreakOverlayManager.swift */,
 				A0000000000000000000001D /* BreakScreenObservation.swift */,
+				A0000000000000000000001F /* BreakOverlaySupport.swift */,
 				A0000000000000000000000E /* StatusItemController.swift */,
+				A00000000000000000000046 /* Assets.xcassets */,
 				A00000000000000000000045 /* Resources */,
 				A00000000000000000000005 /* Info.plist */,
 			);
@@ -258,6 +264,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A0000000000000000000003C /* Assets.xcassets in Resources */,
 				A00000000000000000000036 /* background.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -278,6 +285,7 @@
 				A0000000000000000000002C /* BreakOverlayView.swift in Sources */,
 				A0000000000000000000002D /* BreakOverlayManager.swift in Sources */,
 				A00000000000000000000039 /* BreakScreenObservation.swift in Sources */,
+				A0000000000000000000003B /* BreakOverlaySupport.swift in Sources */,
 				A0000000000000000000002A /* StatusItemController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

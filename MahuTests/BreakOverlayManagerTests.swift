@@ -159,6 +159,41 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(activationCount, 2)
     }
 
+    func testShowBreakResyncsDisplaysChangedBeforeScreenObserverRegistrationCompletes() {
+        let builtInDisplay = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        let externalDisplay = DisplayDescriptor(
+            frame: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
+            id: "external"
+        )
+        var displays = [builtInDisplay]
+        let windowBuilder = FakeOverlayWindowBuilder()
+        var activationCount = 0
+        let manager = BreakOverlayManager(
+            screenProvider: { displays },
+            windowBuilder: windowBuilder,
+            focusObservationRegistrar: { _ in
+                displays = [builtInDisplay, externalDisplay]
+                return {}
+            },
+            screenObservationRegistrar: { _ in {} },
+            appActivator: { activationCount += 1 }
+        )
+
+        manager.showBreak(remainingSeconds: 20)
+
+        XCTAssertEqual(windowBuilder.createdDisplays, [builtInDisplay, externalDisplay])
+        XCTAssertEqual(windowBuilder.windows.count, 2)
+        XCTAssertEqual(windowBuilder.windows[0].showCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[0].closeCallCount, 0)
+        XCTAssertEqual(windowBuilder.windows[1].showCallCount, 1)
+        XCTAssertEqual(windowBuilder.windows[1].closeCallCount, 0)
+        XCTAssertTrue(windowBuilder.createdViewModels.allSatisfy { $0 === manager.viewModel })
+        XCTAssertEqual(activationCount, 1)
+    }
+
     func testScreenChangeRemovesDisplayDuringActiveBreak() {
         let builtInDisplay = DisplayDescriptor(
             frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
@@ -262,5 +297,100 @@ final class BreakOverlayManagerTests: XCTestCase {
         XCTAssertEqual(originalWindow.closeCallCount, 0)
         XCTAssertEqual(screenObserver.cancelCount, 0)
         XCTAssertEqual(activationCount, 1)
+    }
+
+    func testScreenChangeWithUnchangedDisplaysKeepsExistingWindowsWithoutReactivation() {
+        let builtInDisplay = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        let externalDisplay = DisplayDescriptor(
+            frame: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
+            id: "external"
+        )
+        let displays = [builtInDisplay, externalDisplay]
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let screenObserver = FakeBreakScreenObserverRegistrar()
+        var activationCount = 0
+        let manager = BreakOverlayManager(
+            screenProvider: { displays },
+            windowBuilder: windowBuilder,
+            screenObservationRegistrar: screenObserver.register,
+            appActivator: { activationCount += 1 }
+        )
+
+        manager.showBreak(remainingSeconds: 20)
+        let originalWindows = windowBuilder.windows
+
+        screenObserver.fire()
+
+        XCTAssertEqual(windowBuilder.createdDisplays, displays)
+        XCTAssertEqual(windowBuilder.windows.count, 2)
+        XCTAssertTrue(windowBuilder.windows[0] === originalWindows[0])
+        XCTAssertTrue(windowBuilder.windows[1] === originalWindows[1])
+        XCTAssertEqual(originalWindows.map(\.showCallCount), [1, 1])
+        XCTAssertEqual(originalWindows.map(\.closeCallCount), [0, 0])
+        XCTAssertEqual(activationCount, 1)
+    }
+
+    func testScreenChangeKeepsMirroredDisplaysWhenDisplayIdentifiersCollide() {
+        let mirroredDisplays = [
+            DisplayDescriptor(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080), id: "mirror"),
+            DisplayDescriptor(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080), id: "mirror")
+        ]
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let screenObserver = FakeBreakScreenObserverRegistrar()
+        var activationCount = 0
+        let manager = BreakOverlayManager(
+            screenProvider: { mirroredDisplays },
+            windowBuilder: windowBuilder,
+            screenObservationRegistrar: screenObserver.register,
+            appActivator: { activationCount += 1 }
+        )
+
+        manager.showBreak(remainingSeconds: 20)
+        let originalWindows = windowBuilder.windows
+
+        screenObserver.fire()
+
+        XCTAssertEqual(windowBuilder.createdDisplays, mirroredDisplays)
+        XCTAssertEqual(windowBuilder.windows.count, 2)
+        XCTAssertTrue(windowBuilder.windows[0] === originalWindows[0])
+        XCTAssertTrue(windowBuilder.windows[1] === originalWindows[1])
+        XCTAssertEqual(originalWindows.map(\.showCallCount), [1, 1])
+        XCTAssertEqual(originalWindows.map(\.closeCallCount), [0, 0])
+        XCTAssertEqual(activationCount, 1)
+    }
+
+    func testManagerDeinitCancelsObserversAndClosesWindowsWithoutRestoringPreviousApp() {
+        let display = DisplayDescriptor(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            id: "built-in"
+        )
+        let windowBuilder = FakeOverlayWindowBuilder()
+        let focusObserver = FakeBreakFocusObserverRegistrar()
+        let screenObserver = FakeBreakScreenObserverRegistrar()
+        var restoreCallCount = 0
+        var manager: BreakOverlayManager? = BreakOverlayManager(
+            screenProvider: { [display] },
+            windowBuilder: windowBuilder,
+            previousAppCapture: {
+                PreviousFrontmostApplication {
+                    restoreCallCount += 1
+                }
+            },
+            focusObservationRegistrar: focusObserver.register,
+            screenObservationRegistrar: screenObserver.register,
+            appActivator: {}
+        )
+
+        manager?.showBreak(remainingSeconds: 20)
+        let originalWindow = windowBuilder.windows[0]
+        manager = nil
+
+        XCTAssertEqual(focusObserver.cancelCount, 1)
+        XCTAssertEqual(screenObserver.cancelCount, 1)
+        XCTAssertEqual(originalWindow.closeCallCount, 1)
+        XCTAssertEqual(restoreCallCount, 0)
     }
 }
