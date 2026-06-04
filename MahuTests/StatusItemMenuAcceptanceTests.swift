@@ -111,6 +111,35 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
     }
 
+    func testTimerModePauseAndResumeTransitionsKeepMenuTitlesCorrect() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 300))
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(button.title, "05:00")
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+
+        controller.setRemindersPaused(true)
+
+        XCTAssertEqual(button.title, "Paused")
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+
+        controller.setRemindersPaused(false)
+
+        XCTAssertEqual(button.title, "05:00")
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+    }
+
     private func invokeMenuItem(named title: String, in menu: NSMenu?) throws {
         let item = try menuItem(named: title, in: menu)
         let target = try XCTUnwrap(item.target as AnyObject?)

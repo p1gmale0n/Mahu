@@ -14,6 +14,8 @@ protocol StatusItemControlling: AnyObject {
     func install()
     func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void)
     func setRemindersPaused(_ paused: Bool)
+    func setShowsTimerState(_ showsTimerState: Bool)
+    func setStatusDisplayState(_ statusDisplayState: StatusDisplayState)
 }
 
 typealias RepeatingTickScheduler = (TimeInterval, @escaping () -> Void) -> () -> Void

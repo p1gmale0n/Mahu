@@ -23,7 +23,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 ## Current Behavior
 
 - Menu-bar-only app with `LSUIElement = true`.
-- Icon-only status item with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`.
+- Status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text or `Paused`.
 - The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset: a transparent, glyph-only template silhouette derived from the app icon motif, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
 - Work timer starts automatically on launch.
 - Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
@@ -73,13 +73,15 @@ Example:
 ```json
 {
   "workDurationSeconds": 1200,
-  "breakDurationSeconds": 20
+  "breakDurationSeconds": 20,
+  "showStatusItemTimerState": false
 }
 ```
 
 Notes:
 
 - `1200` seconds = 20 minutes.
+- `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`, with `Paused` shown while reminders are paused.
 - Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
 - Mahu reads `config.json` only when the configured path is a regular file or a symlink resolving to one. Directories, pipes, broken symlinks, unreadable targets, and files larger than 64 KiB are ignored, and Mahu falls back to the default schedule.
 - Use shorter values locally if you want to manually exercise the overlay flow faster.
@@ -118,7 +120,6 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 
 - Launch at login.
 - Settings UI.
-- Remaining-time display in the status item.
 - Manual start-break menu action.
 - Sleep/wake timer reconciliation.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
@@ -127,9 +128,13 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 ## Manual Checks
 
 - Confirm the app has no Dock icon.
-- Confirm the status item appears and initially shows `Pause Reminders` plus `Quit`.
+- With default or missing `showStatusItemTimerState`, confirm the status item stays icon-only and initially shows `Pause Reminders` plus `Quit`.
+- With `"showStatusItemTimerState": true`, confirm the menu bar shows the same tray icon plus `MM:SS` during work and break countdowns.
+- With `"showStatusItemTimerState": true`, confirm native `NSStatusItem` width, truncation, and spacing remain acceptable in live menu-bar rendering; XCTest verifies controller state but not the real system layout.
 - Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders`, the tray icon visibly dims without looking disabled, and no break overlay appears once the previously running work interval would have elapsed.
+- With `"showStatusItemTimerState": true`, choose `Pause Reminders` and confirm the status item shows `Paused` while keeping the same dimmed tray icon.
 - Choose `Resume Reminders`, then confirm the tray icon returns to normal brightness and the next break appears only after a full fresh work interval from the config loaded when Mahu launched.
+- With `"showStatusItemTimerState": true`, choose `Resume Reminders` and confirm the status item returns to a fresh full work-interval countdown.
 - During an active break, toggle `Pause Reminders` and `Resume Reminders`, then confirm the existing countdown and `Skip` behavior stay unchanged.
 - Confirm `Quit` still exits the app.
 - Confirm the status item visually uses the transparent tray glyph rather than the old SF Symbol or a visible square app-icon raster.

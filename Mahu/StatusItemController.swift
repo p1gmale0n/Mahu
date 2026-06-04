@@ -12,8 +12,12 @@ final class StatusItemController: NSObject {
     private var resumeRemindersHandler: (() -> Void)?
     private let applicationTerminator: () -> Void
     private let statusIconProvider: () -> NSImage?
+    private let statusDisplayFormatter = StatusDisplayFormatter()
 
     private var remindersPaused = false
+    private var showsTimerState = false
+    private var statusDisplayState: StatusDisplayState?
+    private var installedStatusIcon: NSImage?
 
     init(
         statusItem: NSStatusItem? = nil,
@@ -28,13 +32,12 @@ final class StatusItemController: NSObject {
     }
 
     func install() {
-        if let button = statusItem.button {
-            button.title = ""
-            button.image = statusIconProvider()
-            button.image?.isTemplate = true
-            button.imagePosition = .imageOnly
+        if installedStatusIcon == nil {
+            installedStatusIcon = statusIconProvider()
+            installedStatusIcon?.isTemplate = true
         }
 
+        applyStatusItemDisplay()
         applyReminderVisualState()
 
         statusItem.menu = makeMenu()
@@ -51,8 +54,28 @@ final class StatusItemController: NSObject {
         }
 
         remindersPaused = paused
+        applyStatusItemDisplay()
         applyReminderVisualState()
         statusItem.menu = makeMenu()
+    }
+
+    func setShowsTimerState(_ showsTimerState: Bool) {
+        guard self.showsTimerState != showsTimerState else {
+            return
+        }
+
+        self.showsTimerState = showsTimerState
+        applyStatusItemDisplay()
+    }
+
+    func setStatusDisplayState(_ statusDisplayState: StatusDisplayState) {
+        self.statusDisplayState = statusDisplayState
+
+        guard showsTimerState else {
+            return
+        }
+
+        applyStatusItemDisplay()
     }
 
     @objc private func quit() {
@@ -122,6 +145,33 @@ final class StatusItemController: NSObject {
 
         button.alphaValue = remindersPaused ? Self.pausedStatusItemAlpha : Self.normalStatusItemAlpha
         button.isEnabled = true
+    }
+
+    private func applyStatusItemDisplay() {
+        guard let button = statusItem.button else {
+            return
+        }
+
+        button.image = installedStatusIcon
+
+        if showsTimerState {
+            statusItem.length = NSStatusItem.variableLength
+            button.title = remindersPaused ? statusDisplayFormatter.string(for: .paused) : activeStatusDisplayText()
+            button.imagePosition = .imageLeading
+            return
+        }
+
+        statusItem.length = NSStatusItem.squareLength
+        button.title = ""
+        button.imagePosition = .imageOnly
+    }
+
+    private func activeStatusDisplayText() -> String {
+        guard let statusDisplayState else {
+            return ""
+        }
+
+        return statusDisplayFormatter.string(for: statusDisplayState)
     }
 
     private static func makeMenuBarStatusIconCopy(from image: NSImage) -> NSImage? {

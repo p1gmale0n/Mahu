@@ -2,6 +2,14 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-05-29 | Tray timer review hardening | Treat explicit `showStatusItemTimerState: null` as invalid config, and require the dedicated tray-timer coordinator XCTest files to be real Xcode target members with assertions that prove post-install status updates and exact work/rest state transitions. | The review found one config-contract leak plus false-green coverage gaps: `null` bypassed the documented whole-config fallback, two new XCTest files were not compiled into `MahuTests`, and some status-item assertions did not yet prove the production call order or natural-completion sequence precisely. |
+| 2026-05-29 | Tray timer plan archival | Archive the completed optional tray-timer plan under `docs/plans/completed/` and add an explicit completed-status marker in the file. | The repo and README treat `docs/plans/` as the active queue, so leaving a finished plan there misstates project state for future agents and review loops. |
+| 2026-05-29 | Tray timer plan close-out | Close the optional tray-timer plan without sequence changes, and explicitly keep native `NSStatusItem` width/truncation/spacing acceptance in Post-Completion manual checks. | The implementation landed task-by-task as planned, but XCTest still cannot prove real menu-bar rendering details, so the final plan state must distinguish complete automation from remaining live-UI verification. |
+| 2026-05-29 | Tray timer documentation contract | Document optional status-item timer mode as a config-backed shipped feature in `README.md` and `AGENTS.md`, while keeping default behavior icon-only and manual menu-bar readability verification explicit. | The implementation is already complete, so leaving docs in the old deferred-only state would mislead future agents about product invariants and config support. |
+| 2026-05-29 | Coordinator-to-status timer wiring | Let `AppCoordinator` push semantic `StatusDisplayState` updates plus the config-backed timer-mode flag through `StatusItemControlling`, while keeping paused-text rendering and AppKit title/image behavior inside `StatusItemController`. | The tray timer feature needs launch/tick/pause/resume/skip/coordinator lifecycle updates without moving AppKit concerns into `AppCoordinator` or duplicating pause-display rules outside the status-item edge. |
+| 2026-05-29 | Status item timer-mode presentation | Keep `StatusItemController` in icon-only mode by default, switch to `NSStatusItem.variableLength` plus cached icon-and-text rendering only when timer display is enabled, and let paused state override timer text with `Paused`. | The optional tray-timer feature must preserve the existing menu-bar contract and icon identity in default mode while localizing AppKit-specific width/title behavior inside `StatusItemController` for later coordinator wiring. |
+| 2026-05-29 | Shared timer display formatting | Centralize `MM:SS` and `Paused` status text in a small `StatusDisplayFormatter`/`StatusDisplayState` pair and reuse it from `BreakOverlayViewModel` instead of keeping a second countdown formatter there. | The new optional tray timer feature needs deterministic, AppKit-free text formatting that can be tested once and reused across UI surfaces without adding display-string logic to `AppCoordinator` or duplicating `safeDisplayWholeSeconds` handling. |
+| 2026-05-29 | Status item timer config contract | Add `showStatusItemTimerState: Bool` to `AppConfig`, decode a missing key as `false`, and keep invalid non-boolean values on the existing whole-config fallback path. | The optional tray-timer feature must preserve old `config.json` files and default runtime behavior, while malformed manual edits should still fail safely through the project's established config fallback contract. |
 | 2026-05-29 | Overlay geometry-bounded centering | Restore and preserve `GeometryReader` in `BreakOverlayView`, framing the background, dark layer, and foreground to the hosting window's exact size; this supersedes the same-day `Break overlay layout composition` simplification. | Manual testing showed the simplified fullscreen `ZStack` lets `scaledToFill()` expand the SwiftUI layout and shift the foreground on the built-in laptop display while external monitors may still look centered; geometry-bounded layout prevents future agents from reintroducing this MacBook-only centering regression without using display-specific offsets. |
 | 2026-05-29 | Break overlay layout composition | Simplify `BreakOverlayView` to a full-frame `ZStack` without `GeometryReader`, while keeping centered foreground content and fullscreen background fill. | `GeometryReader` was extra layout machinery for a view that already wants to occupy the full window; the simpler composition preserves behavior and makes rendered-body assertions less fragile. |
 | 2026-05-29 | Break overlay skip and startup visibility guards | Run break skip state transitions before final overlay teardown side effects, and treat startup resync that ends with zero visible overlays as a failed presentation instead of a successful break start. | This prevents `Skip` from accidentally triggering the natural-completion sound path and avoids activating Mahu when no overlay UI survives a transient zero-display snapshot. |
@@ -91,6 +99,118 @@
 | 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
+
+## 2026-05-29 / Shared Timer Display Formatting
+
+## 2026-05-29 / Tray Timer Plan Archival
+
+**Date:** 2026-05-29
+
+**Area:** Tray timer plan archival
+
+**Context:** The optional tray-timer implementation and Task 7 close-out were already complete, but the plan file still lived in `docs/plans/` without a completed-status marker. README and the repo's prior completed-plan fixes both treat `docs/plans/` as the active queue and `docs/plans/completed/` as the archive, so the branch state still implied unfinished work even after all feature checkboxes were marked done.
+
+**Decision:** Move `2026-05-29-optional-tray-timer-display.md` into `docs/plans/completed/` and add `Status: Completed (2026-05-29)` near the top of the archived file.
+
+**Rationale:** This is the smallest truthful fix for the review finding. It keeps the active-plan queue aligned with actual unfinished work and matches the archival pattern already used for other completed Mahu plans.
+
+**Consequences:** Future agents and review loops will no longer treat the optional tray-timer feature as still active just because its plan file remained in the wrong directory. If later follow-up work reopens this area, it should start from a new active plan instead of mutating the archived execution record.
+
+**Alternatives Considered:** Leave the file in `docs/plans/` because the checkboxes are already complete; rejected because that still contradicts README and prior archival conventions. Add only a completed-status line without moving the file; rejected because the active directory would still mix open and closed plans.
+
+## 2026-05-29 / Tray Timer Plan Close-Out
+
+**Date:** 2026-05-29
+
+**Area:** Tray timer plan close-out
+
+**Context:** Tasks 1 through 6 for the optional tray-timer feature were completed and validated in order, leaving only the final close-out section. The remaining ambiguity was not code scope but acceptance scope: XCTest proves config, formatting, controller wiring, coordinator updates, and build/package success, yet native menu-bar width, truncation, and spacing still depend on live `NSStatusItem` rendering.
+
+**Decision:** Keep the plan sequence unchanged, mark Task 7 complete with an explicit "no deviation" note, and add a Post-Completion manual-check bullet that calls out live `NSStatusItem` width/truncation/spacing as manual-only acceptance.
+
+**Rationale:** This closes the plan truthfully without inventing extra implementation work or leaving the final task open for an unautomatable UI detail. It also makes the remaining risk explicit for future humans or agents running the built app.
+
+**Consequences:** The plan can now be considered implementation-complete, while real menu-bar rendering proof remains a separate manual activity. If future automation adds reliable live menu-bar UI inspection, this manual limitation can be narrowed or removed.
+
+**Alternatives Considered:** Leave Task 7 open until someone performs manual checks; rejected because the task is specifically about plan close-out and would keep the automation loop running on non-automatable work. Treat the current Post-Completion readability note as sufficient; rejected because Task 7 asked for newly discovered manual limitations, and controller-state tests still do not cover actual width/truncation behavior.
+
+## 2026-05-29 / Tray Timer Documentation Contract
+
+**Date:** 2026-05-29
+
+**Area:** Tray timer documentation contract
+
+**Context:** The optional tray timer display is already implemented behind `showStatusItemTimerState`, but `README.md` and `AGENTS.md` still described timer text as deferred and did not spell out the shipped config contract or manual verification split between icon-only and timer-display modes.
+
+**Decision:** Update `README.md` and `AGENTS.md` so they describe icon-only mode as the default, document `showStatusItemTimerState` as the enabling config key for icon-plus-text/`Paused` behavior, remove the old deferred-feature claim, and keep real menu-bar readability checks explicit in the manual verification sections.
+
+**Rationale:** Future agents rely on these docs as product invariants; if they stay in the pre-feature state, they will treat shipped behavior as out of scope and risk undoing or misdocumenting the tray timer contract.
+
+**Consequences:** Documentation now matches runtime behavior and test coverage: icon-only remains the default, tray timer mode is an opt-in config behavior, and visual menu-bar proof still requires manual checks. If a later Settings UI exposes this option, the docs should add that control surface without changing the underlying default contract.
+
+**Alternatives Considered:** Keep the docs generic and mention only that status-item behavior is configurable; rejected because the exact config key and default behavior are part of the shipped manual-config contract. Leave `AGENTS.md` unchanged and document only in `README.md`; rejected because project invariants would remain stale for future implementation tasks.
+
+## 2026-05-29 / Coordinator-to-Status Timer Wiring
+
+**Date:** 2026-05-29
+
+**Area:** Coordinator-to-status timer wiring
+
+**Context:** The optional tray timer mode already had a config flag, formatter, and `StatusItemController` support, but the live app still needed coordinator-driven updates on startup, work/rest ticks, pause, resume, skip, and natural break completion. The wiring had to avoid pushing AppKit presentation decisions into `AppCoordinator.swift`, which is already near the local readability threshold.
+
+**Decision:** Extend `StatusItemControlling` with `setShowsTimerState(_:)` and `setStatusDisplayState(_:)`, let `AppCoordinator.start()` configure the mode from launch-loaded config, and push semantic `.active(...)` state updates from a small helper inside `handle(state:)` while leaving paused-text override behavior inside `StatusItemController`'s existing `setRemindersPaused(_:)` path.
+
+**Rationale:** This keeps the coordinator responsible only for semantic timer lifecycle state and preserves AppKit-specific string/title/image behavior at the status-item edge. Reusing the controller's paused override avoids duplicating `Paused` rendering rules or adding display-string knowledge to `AppCoordinator`.
+
+**Consequences:** Coordinator tests can now prove status-item updates across launch, work/rest ticks, pause/resume, skip, and natural completion with a fake seam. If future surfaces need the same semantic timer state, they can reuse `StatusDisplayState` without depending on AppKit.
+
+**Alternatives Considered:** Have `AppCoordinator` compute final display strings or paused text directly; rejected because that leaks presentation rules into orchestration code. Push raw `BreakTimer.State` into `StatusItemController`; rejected because the coordinator-to-view seam would then expose a timer implementation detail instead of the smaller shared display model.
+
+## 2026-05-29 / Status Item Timer-Mode Presentation
+
+**Date:** 2026-05-29
+
+**Area:** Status item timer-mode presentation
+
+**Context:** The new config-backed tray timer mode needs `StatusItemController` to render the same tray icon together with timer text or `Paused`, but Mahu must keep icon-only behavior and menu semantics unchanged by default. Re-fetching the icon on every pause/timer update would also break the existing "same image instance" contract that current pause/resume wiring tests already rely on.
+
+**Decision:** Keep `StatusItemController` icon-only by default, add small concrete-only setters for enabling timer mode and passing `StatusDisplayState`, switch the status item to `NSStatusItem.variableLength` only in timer mode, and cache the initially installed icon so later text/pause updates reuse the same image instance while paused state overrides the visible title to `Paused`.
+
+**Rationale:** This localizes all AppKit title/length/image-position behavior to the status-item edge, preserves the default square icon-only contract, and leaves protocol/coordinator expansion for the next task instead of bloating `AppCoordinator` early. Caching the icon avoids unnecessary provider churn and keeps the existing runtime identity behavior stable across pause/resume transitions.
+
+**Consequences:** Future Task 4 can wire launch/tick/pause updates through explicit status-display methods without changing how timer strings are formatted. Real menu-bar readability and truncation remain manual checks because XCTest cannot prove native menu-bar rendering details.
+
+**Alternatives Considered:** Move timer-mode state into `AppCoordinator` now; rejected because Task 3 is scoped to the controller edge and `AppCoordinator.swift` is already near the local readability threshold. Always use `variableLength`; rejected because icon-only mode must remain visually and behaviorally unchanged by default.
+
+**Date:** 2026-05-29
+
+**Area:** Shared timer display formatting
+
+**Context:** The optional tray timer display needs AppKit-free text generation for active work, active rest, and paused states, but Mahu already has countdown string logic embedded in `BreakOverlayViewModel`. Leaving overlay and status item formatting separate would duplicate `safeDisplayWholeSeconds` edge-case handling and make future formatting changes easy to drift.
+
+**Decision:** Introduce a small `StatusDisplayState` model plus `StatusDisplayFormatter`, make it own `MM:SS` and `Paused` rendering, and reuse it from `BreakOverlayViewModel` for countdown text instead of keeping a second formatter there.
+
+**Rationale:** A dedicated formatter keeps text generation out of `AppCoordinator` and `BreakTimer`, satisfies the new status-item seam without AppKit dependencies, and gives one deterministic place to test negative, fractional, non-finite, and very large durations.
+
+**Consequences:** Future status-item wiring can pass semantic state into the formatter directly, while overlay countdowns stay behaviorally unchanged but now share the same formatting contract. If a later feature needs different wording per surface, that should be modeled explicitly rather than reintroducing duplicated ad-hoc formatting.
+
+**Alternatives Considered:** Keep formatting only inside `BreakOverlayViewModel` and add a second status-item formatter later; rejected because it duplicates edge-case logic immediately. Put formatting helpers on `AppConfig`; rejected because config should remain about validation/defaults, not UI state rendering.
+
+## 2026-05-29 / Status Item Timer Config Contract
+
+**Date:** 2026-05-29
+
+**Area:** Status item timer config contract
+
+**Context:** The optional menu-bar timer display is config-backed, but Mahu already ships user-editable `config.json` files and defaults to icon-only tray behavior. The new key must not break existing configs that omit it, and malformed manual edits should continue using the current safe fallback path instead of creating partial or ambiguous runtime state.
+
+**Decision:** Add `showStatusItemTimerState: Bool` to `AppConfig`, make `AppConfig.default` encode it as `false`, decode a missing key as `false`, and let non-boolean values fail decoding so `ConfigStore.load()` falls back to `.default` through the existing invalid-config behavior.
+
+**Rationale:** Missing-key-as-false preserves backward compatibility for already-written config files and keeps icon-only as the default shipped UX. Reusing the current decode-failure fallback for invalid types avoids inventing a second recovery rule for one manual-config field and keeps the whole config contract consistent.
+
+**Consequences:** Existing configs without the new key continue loading as icon-only. New default configs persist the key explicitly, which makes the available option discoverable. If future config surface grows further, the same pattern can be reused for optional backward-compatible booleans, but field-by-field silent coercion should still be avoided.
+
+**Alternatives Considered:** Treat invalid non-boolean values as `false`; rejected because it hides manual config mistakes and diverges from the repo's existing invalid-config fallback semantics. Omit the key from encoded defaults; rejected because the feature would be less discoverable in the generated config file and harder to document consistently.
 
 ## 2026-05-28 / Break Completion Sound Seam
 
@@ -1529,3 +1649,19 @@
 **Consequences:** Focus and screen notifications that were queued for an old break lifecycle become harmless no-ops after cancellation, and new registrar tests now cover the queued-before-cancel case. This works for the current single-consumer overlay manager; if more consumers later share the same coalescers, the same cancellation contract should be preserved.
 
 **Alternatives Considered:** Track and cancel every outer scheduling task handle separately; rejected because the queued work still needs an authoritative in-object cancellation gate even if task handles are cancelled. Remove coalescing entirely; rejected because the project still wants burst suppression for duplicate AppKit notifications.
+
+## 2026-05-29 / Tray Timer Review Hardening
+
+**Date:** 2026-05-29
+
+**Area:** Tray timer review hardening
+
+**Context:** External review of the optional tray-timer work found two real contract holes and several false-green test signals. `AppConfig` decoded `showStatusItemTimerState` with `decodeIfPresent(... ) ?? false`, so a hand-edited `null` value was treated like a missing key instead of falling back through the repo's existing invalid-config path. The same review also showed that `AppCoordinatorStatusItemDisplayTests.swift` and `AppCoordinatorStatusItemPauseResumeTests.swift` existed on disk but were not target members in `Mahu.xcodeproj`, and some tray-timer tests did not yet prove the production call order or exact work/rest transition sequence.
+
+**Decision:** Treat an explicit `showStatusItemTimerState` key as required to decode as a real `Bool`; only a genuinely missing key defaults to `false`. Add the two dedicated coordinator timer-display suites to the `MahuTests` target, strengthen controller tests to cover post-install timer-mode updates and icon-only runtime state updates, and make natural-completion assertions compare exact `StatusDisplayState` sequences instead of ambiguous rendered-text containment.
+
+**Rationale:** Manual config editing is the only settings surface in the MVP, so `null` must be rejected consistently with every other invalid type. Review-proof coverage also needs to fail loudly when the coordinator timer-display suites are missing from the target or when a test only proves that some repeated string appeared rather than the intended work/rest transition order.
+
+**Consequences:** `showStatusItemTimerState: null` now falls back to `.default` alongside other malformed config values, the dedicated tray-timer coordinator tests run under `xcodebuild test`, and the strengthened AppKit/coordinator assertions better match the real startup call order. If future tray text differentiates work vs. rest beyond raw `MM:SS`, the exact-state assertions will keep that seam explicit instead of hiding it behind duplicate strings.
+
+**Alternatives Considered:** Keep treating `null` as "missing" for convenience; rejected because the plan and README both define invalid values as whole-config fallback territory. Leave the missing coordinator suites off-target and rely on plan prose; rejected because that creates silent coverage gaps. Keep the weaker string-based assertions; rejected because identical `00:01` strings can mask a missing rest-phase update.

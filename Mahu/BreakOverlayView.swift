@@ -7,6 +7,7 @@ final class BreakOverlayViewModel: ObservableObject {
     @Published private(set) var remainingSeconds: TimeInterval
 
     private let onSkip: () -> Void
+    private let statusDisplayFormatter = StatusDisplayFormatter()
 
     init(remainingSeconds: TimeInterval, onSkip: @escaping () -> Void = {}) {
         self.remainingSeconds = max(0, remainingSeconds)
@@ -18,10 +19,7 @@ final class BreakOverlayViewModel: ObservableObject {
     }
 
     var countdownText: String {
-        let safeSeconds = AppConfig.safeDisplayWholeSeconds(remainingSeconds)
-        let minutes = safeSeconds / 60
-        let seconds = safeSeconds % 60
-        return String(format: "%02lld:%02lld", minutes, seconds)
+        statusDisplayFormatter.string(for: .active(phase: .rest, remainingSeconds: remainingSeconds))
     }
 
     func updateRemainingSeconds(_ remainingSeconds: TimeInterval) {

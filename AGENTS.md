@@ -18,7 +18,7 @@
 - Run as a menu-bar app with no Dock icon: set `LSUIElement = true` and control it through an `NSStatusItem`.
 - Prefer a standard modern Xcode macOS app target with SwiftUI app lifecycle; use AppKit interop for status-item and overlay-window behavior.
 - MVP default schedule is 20-20-20: 20 minutes of work, then a 20-second break.
-- MVP status item is only an icon with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; remaining-time display is deferred.
+- MVP status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config may show the same icon plus `MM:SS` for active work/rest timers or `Paused` while reminders are paused.
 - While reminders are paused, keep the same status icon asset but dim it visually without disabling the menu-bar control.
 - When a break starts, create a borderless fullscreen `NSWindow` for every active display, not just the main display.
 - While a break is active, display additions, removals, and display-frame changes must resync overlay windows without restarting the break, recapturing the previous app, or replacing the shared countdown/`Skip` state.
@@ -29,7 +29,7 @@
 - Break screen should be dark and minimal, with a short message like `Время отвлечься`, a countdown until rest ends, and a `Skip` button.
 - Break screen should use the bundled background image with a dark readability layer so title, countdown, and `Skip` remain legible across displays.
 - Break screen foreground centering must be bounded by the actual overlay window size: keep `BreakOverlayView` using `GeometryReader` (or an equivalent explicit-size container) so `scaledToFill()` background imagery cannot expand layout and shift content on the built-in laptop display.
-- When a visible break ends naturally, play bundled `sound.wav` once; pressing `Skip` must not play the completion sound.
+- When a visible break ends naturally, play bundled `break-completion.caf` once; pressing `Skip` must not play the completion sound.
 - MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
 - Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
 - If the config is missing or invalid, use 20-20-20 defaults and keep the app running.
@@ -39,7 +39,6 @@
 ## Deferred Features
 - Launch at login.
 - Settings UI.
-- Remaining-time display in the status item.
 - Manual start-break menu action.
 - Sleep/wake timer reconciliation.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.

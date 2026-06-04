@@ -1,5 +1,50 @@
 # Session Handoff
 
+## 2026-05-29 / Tray Timer Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat the review finding as a repo-state issue rather than a runtime issue: archive the completed optional tray-timer plan under `docs/plans/completed/`, add an explicit `Status: Completed (2026-05-29)` marker, and record the archival decision so the active-plan queue matches actual unfinished work again.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; attempted `command -v swiftlint` and the command is not available in this environment.
+- Friction/CDD: The feature itself was complete, but the finished plan still sat in `docs/plans/`, which contradicted README and earlier archival conventions and made the backlog look falsely active. The review gate still implies lint proof, but the repo has no tracked lint command and `swiftlint` is unavailable here.
+- Next Steps: Let the external review loop re-run from this commit; if lint remains a hard gate, add a repo-owned lint command or provide `swiftlint` in the execution environment; keep real menu-bar width/readability checks manual on hardware because this fix only addressed plan-state drift.
+
+## 2026-05-29 / Optional Tray Timer Display Task 7
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Close the plan without sequence deviations, mark Task 7 explicitly as "no deviation", and keep native `NSStatusItem` width/truncation/spacing acceptance in Post-Completion because XCTest still cannot prove real menu-bar rendering.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`
+- Friction/CDD: The remaining uncertainty was not feature logic but native menu-bar rendering, which unit tests cannot fully exercise. Keeping that limitation explicit in the plan prevents the automation loop from stalling on a manual-only acceptance detail.
+- Next Steps: Let the external loop archive or finish the plan; on a real Mac menu bar, manually confirm timer-mode width, spacing, and truncation remain acceptable in light, dark, and highlighted states.
+
+## 2026-05-29 / Optional Tray Timer Display Task 3
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Keep timer-mode presentation localized to `StatusItemController`, preserve icon-only as the default square status-item contract, switch to variable-length only when timer display is enabled, and cache the installed tray icon so pause/timer updates keep the same image instance while paused text overrides the countdown with `Paused`.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/StatusItemControllerTests -only-testing:MahuTests/StatusItemMenuAcceptanceTests -only-testing:MahuTests/StatusItemTimerDisplayTests`
+- Friction/CDD: The first targeted green run was false-positive because the new `StatusItemTimerDisplayTests.swift` file had not been added to the Xcode test target yet. Fixing `Mahu.xcodeproj/project.pbxproj` and rerunning immediately closed that gap; future task work should always verify new XCTest files are target members before trusting `xcodebuild` output.
+- Next Steps: Let the external loop pick up Task 4; extend the status-item protocol/fake seam there instead of pushing coordinator wiring into this task; real menu-bar readability and truncation still remain manual-only checks on live macOS UI.
+
+## 2026-05-29 / Optional Tray Timer Display Task 2
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Add an AppKit-free `StatusDisplayState` plus `StatusDisplayFormatter` for `MM:SS` and `Paused`, and reuse that formatter from `BreakOverlayViewModel` instead of keeping a second countdown-string implementation.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/StatusDisplayFormatterTests`
+- Friction/CDD: `BreakOverlayViewModel` already owned countdown formatting, so leaving tray formatting separate would duplicate `AppConfig.safeDisplayWholeSeconds` edge-case behavior immediately. The targeted `-only-testing` run still compiles the wider macOS test target, so validation remains slower than a pure unit-only harness.
+- Next Steps: Let the external loop pick up Task 3; keep timer-display presentation rules inside `StatusItemController`; if timer text later diverges between overlay and status item, model that explicitly instead of reintroducing duplicated string formatting.
+
+## 2026-05-29 / Optional Tray Timer Display Task 1
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Add `showStatusItemTimerState` as a backward-compatible `AppConfig` boolean with missing-key default `false`, keep invalid non-boolean values on the existing whole-config fallback path, and place the new coverage in a dedicated config test file instead of bloating the already-large `ConfigStoreTests.swift`.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/ConfigStoreTests -only-testing:MahuTests/ConfigStoreSizeLimitTests -only-testing:MahuTests/ConfigStoreStatusItemTimerTests`
+- Friction/CDD: `ConfigStoreTests.swift` was already near the local readability threshold, so the new status-item-config scenarios were split into `ConfigStoreStatusItemTimerTests.swift` to avoid pushing one file past the team's cognitive-load guardrail. The active plan file is currently an untracked workspace artifact, so future automation should not assume every plan edit will appear as a tracked diff.
+- Next Steps: Let the external loop pick up Task 2; keep the tray-timer formatter/model free of AppKit; reuse `AppConfig.safeDisplayWholeSeconds` for display edge cases instead of duplicating countdown rounding rules.
+
 ## 2026-05-28 / Break Completion Sound Close-Out
 
 🏁 Session Handoff:

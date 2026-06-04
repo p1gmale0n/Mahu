@@ -8,8 +8,23 @@ struct AppConfig: Codable, Equatable {
 
     let workDurationSeconds: TimeInterval
     let breakDurationSeconds: TimeInterval
+    let showStatusItemTimerState: Bool
 
-    static let `default` = AppConfig(workDurationSeconds: 1_200, breakDurationSeconds: 20)
+    static let `default` = AppConfig(
+        workDurationSeconds: 1_200,
+        breakDurationSeconds: 20,
+        showStatusItemTimerState: false
+    )
+
+    init(
+        workDurationSeconds: TimeInterval,
+        breakDurationSeconds: TimeInterval,
+        showStatusItemTimerState: Bool = false
+    ) {
+        self.workDurationSeconds = workDurationSeconds
+        self.breakDurationSeconds = breakDurationSeconds
+        self.showStatusItemTimerState = showStatusItemTimerState
+    }
 
     var hasSupportedDurations: Bool {
         Self.isSupportedDuration(workDurationSeconds) &&
@@ -33,5 +48,22 @@ struct AppConfig: Codable, Equatable {
         duration.isFinite &&
             duration >= minimumSupportedDurationSeconds &&
             duration <= maximumSupportedDurationSeconds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case workDurationSeconds
+        case breakDurationSeconds
+        case showStatusItemTimerState
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        workDurationSeconds = try container.decode(TimeInterval.self, forKey: .workDurationSeconds)
+        breakDurationSeconds = try container.decode(TimeInterval.self, forKey: .breakDurationSeconds)
+        if container.contains(.showStatusItemTimerState) {
+            showStatusItemTimerState = try container.decode(Bool.self, forKey: .showStatusItemTimerState)
+        } else {
+            showStatusItemTimerState = false
+        }
     }
 }

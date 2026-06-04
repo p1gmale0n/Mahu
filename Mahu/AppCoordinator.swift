@@ -61,6 +61,7 @@ final class AppCoordinator {
         remindersPaused = false
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
+        statusItemController.setShowsTimerState(config.showStatusItemTimerState)
         handle(state: breakTimer.state)
         cancelTick = scheduleRepeatingTick(1) { [weak self] in
             self?.advanceTimer()
@@ -164,6 +165,8 @@ final class AppCoordinator {
     }
 
     private func handle(state: BreakTimer.State) {
+        updateStatusItemDisplay(for: state)
+
         switch state.phase {
         case .work:
             if isShowingBreak {
@@ -185,6 +188,12 @@ final class AppCoordinator {
                 }
             }
         }
+    }
+
+    private func updateStatusItemDisplay(for state: BreakTimer.State) {
+        statusItemController.setStatusDisplayState(
+            .active(phase: state.phase, remainingSeconds: state.remainingSeconds)
+        )
     }
 
     private func handleOverlayVisibilityChange(_ isVisible: Bool) {
@@ -245,11 +254,11 @@ final class AppCoordinator {
             }
         }
 
-        statusItemController.setRemindersPaused(false)
-
         if let breakTimer {
             handle(state: breakTimer.state)
         }
+
+        statusItemController.setRemindersPaused(false)
     }
 
     isolated deinit {

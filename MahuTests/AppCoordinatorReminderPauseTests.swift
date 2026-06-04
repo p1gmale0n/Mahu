@@ -39,10 +39,12 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         let runtimeEditedConfig = AppConfig(workDurationSeconds: 600, breakDurationSeconds: 45)
         let fakeStatusItemController = FakeStatusItemController()
         let initialTimer = FakeBreakTimer(
-            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds)
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: 295)]
         )
         let resumedTimer = FakeBreakTimer(
-            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds)
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: 299)]
         )
         var createdConfigs: [AppConfig] = []
         var loadConfigCallCount = 0

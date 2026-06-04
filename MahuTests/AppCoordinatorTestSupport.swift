@@ -65,11 +65,20 @@ final class FakeBreakTimer: BreakTimerControlling {
 }
 
 final class FakeStatusItemController: StatusItemControlling {
+    private let statusDisplayFormatter = StatusDisplayFormatter()
+
     private(set) var installCallCount = 0
     private(set) var configureReminderActionsCallCount = 0
     private(set) var remindersPausedUpdates: [Bool] = []
+    private(set) var showsTimerStateUpdates: [Bool] = []
+    private(set) var statusDisplayStates: [StatusDisplayState] = []
+    private(set) var renderedTimerTexts: [String] = []
     private(set) var pauseRemindersHandler: (() -> Void)?
     private(set) var resumeRemindersHandler: (() -> Void)?
+
+    private var remindersPaused = false
+    private var showsTimerState = false
+    private var currentStatusDisplayState: StatusDisplayState?
 
     func install() {
         installCallCount += 1
@@ -82,7 +91,42 @@ final class FakeStatusItemController: StatusItemControlling {
     }
 
     func setRemindersPaused(_ paused: Bool) {
+        remindersPaused = paused
         remindersPausedUpdates.append(paused)
+        recordRenderedTimerTextIfNeeded()
+    }
+
+    func setShowsTimerState(_ showsTimerState: Bool) {
+        self.showsTimerState = showsTimerState
+        showsTimerStateUpdates.append(showsTimerState)
+        recordRenderedTimerTextIfNeeded()
+    }
+
+    func setStatusDisplayState(_ statusDisplayState: StatusDisplayState) {
+        currentStatusDisplayState = statusDisplayState
+        statusDisplayStates.append(statusDisplayState)
+        recordRenderedTimerTextIfNeeded()
+    }
+
+    private func recordRenderedTimerTextIfNeeded() {
+        guard showsTimerState else {
+            return
+        }
+
+        let text: String
+        if remindersPaused {
+            text = statusDisplayFormatter.string(for: .paused)
+        } else if let currentStatusDisplayState {
+            text = statusDisplayFormatter.string(for: currentStatusDisplayState)
+        } else {
+            return
+        }
+
+        guard renderedTimerTexts.last != text else {
+            return
+        }
+
+        renderedTimerTexts.append(text)
     }
 }
 
