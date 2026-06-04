@@ -39,6 +39,16 @@
 | 2026-05-22 | Timer precision bounds | Reject config durations above the largest `TimeInterval` range that still preserves one-second countdown progress. | Arbitrarily large finite doubles can stop changing when the timer subtracts one second, so the config contract needs a precision-based ceiling even though the 24-hour product cap was too strict. |
 | 2026-05-22 | Overlay content centering fix plan | Plan the MacBook alignment fix around explicit fullscreen SwiftUI geometry sizing in `BreakOverlayView`, not display-specific offsets or AppKit window changes. | The external monitor already works and the symptom appears when `scaledToFill()` can expand image layout on a 16:10 display, so the smallest robust fix is to decouple foreground centering from image crop size. |
 | 2026-05-22 | Overlay content centering implementation | Size `BreakOverlayView` explicitly to `GeometryReader` bounds and clip the background image inside those bounds, while keeping coverage at the SwiftUI-layout contract level in tests. | This fixes centering without display-specific offsets or AppKit churn; SwiftUI runtime text extraction is brittle in XCTest, so the stable proof point is the geometry-sized body contract plus existing foreground/view-model behavior. |
+| 2026-05-22 | Break timing precision follow-up | Accumulate elapsed uptime across ticks, stop consuming at phase boundaries, quantize only above the subsecond-precision threshold, and reset the baseline after a successful overlay show. | This preserves the large-duration config contract while preventing hidden break-time loss during synchronous overlay presentation work. |
+| 2026-05-22 | Config diagnostics privacy | Log malformed `config.json` fallbacks as warnings and treat filesystem paths as private OSLog data. | Manual config editing is the only MVP settings surface, so users need a clear decoding signal without leaking usernames or home-directory paths in exported logs. |
+| 2026-05-22 | Hosted test startup control | Gate production coordinator startup with a shared test-scheme environment variable while keeping XCTest marker detection as fallback. | A project-owned startup switch is more stable than relying only on runner internals and lets tests cover both launch branches deterministically. |
+| 2026-05-22 | Overlay contract test seams | Expose small internal overlay/window helpers instead of adding a third-party SwiftUI inspection framework. | This makes the centering/background/window invariants testable with existing XCTest/AppKit tools and keeps the dependency surface small. |
+| 2026-05-22 | Overlay display hot-plug plan | Plan active-break display hot-plug handling as incremental window resync owned by `BreakOverlayManager`, while leaving live config reload out of scope. | The overlay invariant depends on current displays, but settings reload will be handled later by GUI configuration; keeping this work in the overlay layer avoids coupling timer/config concerns to monitor changes. |
+| 2026-05-22 | Overlay active window tracking | Replace the plain overlay window array with display-bound active overlay records before adding live hot-plug resync. | Future display reconciliation needs stable display identity without changing current break lifecycle, skip, or focus-retention behavior. |
+| 2026-05-22 | Overlay display resync | Reconcile active overlay windows by stable display id, preserving unchanged windows and replacing only added, removed, or resized displays during an active break. | Hot-plug support needs frame-change detection that survives display identity across resolution changes; incremental resync keeps countdown, skip, observer ownership, and previous-app restore semantics intact without routing display events through `AppCoordinator`. |
+| 2026-05-22 | Overlay hot-plug lifecycle verification | Prove hot-plug focus/restore semantics with focused XCTest coverage instead of changing `BreakOverlayManager` behavior when the current implementation already preserves those invariants. | Task 4 is about preventing regressions in previous-app capture, observer teardown, and focus bounce-back after display changes; tests are the smallest correct change when runtime behavior is already aligned with the contract. |
+| 2026-05-22 | Overlay hot-plug documentation | Document active-break display hot-plug as shipped overlay behavior and keep live config reload explicitly out of scope. | The implementation is already present, so README and AGENTS must preserve the runtime contract for future agents while avoiding accidental scope creep into settings reload. |
+| 2026-05-22 | Overlay hot-plug acceptance verification | Close Task 6 with deterministic XCTest/build proof and documented manual-only hardware follow-up instead of blocking on unavailable monitor or Spaces checks. | The codebase now has focused tests for add/remove/resize/focus/state invariants plus green `xcodebuild` and `make build`; physical display hot-plugging and fullscreen Spaces still require real hardware and should stay explicit manual validation instead of keeping the automation loop open forever. |
 
 ## 2026-05-22 / Overlay Content Centering Implementation
 
@@ -55,6 +65,70 @@
 **Consequences:** Foreground centering is now coupled to visible window bounds instead of the cropped image size. Automated proof remains at the SwiftUI layout-contract level plus existing foreground/view-model coverage; live pixel-perfect centering on real displays is still a manual check.
 
 **Alternatives Considered:** Add hardcoded offsets for the MacBook display; rejected because that would likely regress other aspect ratios. Change `BreakOverlayManager` or `NSHostingView` sizing; rejected because the SwiftUI-only fix is smaller and matches the observed failure mode.
+
+## 2026-05-22 / Overlay Active Window Tracking
+
+**Date:** 2026-05-22
+
+**Area:** Overlay active window tracking
+
+**Context:** Display hot-plug support needs the overlay layer to know which live window belongs to which display, but Task 2 should not yet implement display reconciliation or change external break behavior.
+
+**Decision:** Replace `BreakOverlayManager`'s internal plain window array with display-bound active overlay records that store both `DisplayDescriptor` and `BreakOverlayWindowing`, and keep show/hide/focus flows operating on those records.
+
+**Rationale:** The next hot-plug task needs display identity for add/remove/replace decisions. Introducing that identity now is the smallest refactor that preserves current `showBreak()`, `hideBreak()`, `Skip`, observer teardown, and focus-retention semantics.
+
+**Consequences:** Overlay lifecycle behavior stays externally unchanged, while future screen-change handling can reconcile windows incrementally instead of rebuilding everything blindly. `BreakOverlayManager.swift` remains near the cognitive-load threshold, so later hot-plug logic should stay tightly scoped.
+
+**Alternatives Considered:** Keep the plain array and recompute identity later from window order; rejected because order is not a reliable display key for hot-plug. Move the active-overlay record into `AppCoordinator`; rejected because the plan explicitly keeps display ownership inside `BreakOverlayManager`.
+
+## 2026-05-22 / Overlay Display Resync
+
+**Date:** 2026-05-22
+
+**Area:** Overlay display resync
+
+**Context:** Active-break display hot-plug support needed to add, remove, and resize overlay windows without restarting the break, recapturing the previous app, or tearing down observer state.
+
+**Decision:** Give each `DisplayDescriptor` a stable display identifier, then make `BreakOverlayManager.handleScreenChange()` reconcile active overlays by that identifier: preserve unchanged windows, create new windows for added displays, close removed displays, and replace only the windows whose display frame changed.
+
+**Rationale:** Frame-only comparison cannot distinguish a resized display from one display disappearing while another appears. A stable display id keeps the hot-plug logic incremental, preserves the shared `BreakOverlayViewModel`, and avoids pushing screen-change ownership into `AppCoordinator`.
+
+**Consequences:** Active-break hot-plugging now keeps the same countdown and `Skip` action across all current displays, ignores transient empty screen snapshots instead of silently ending the break, and only reactivates Mahu when the overlay set actually changes. `BreakOverlayManager.swift` is now above the local readability threshold, so the next hot-plug/focus task should prefer extracting focused helpers or a sidecar type instead of growing the file further.
+
+**Alternatives Considered:** Rebuild all overlay windows on every screen notification; rejected because it would cause avoidable churn and extra reactivation even when nothing changed. Keep frame-only display identity; rejected because resize detection would collapse into remove/add semantics and could not preserve unchanged windows reliably.
+
+## 2026-05-22 / Overlay Hot-Plug Documentation
+
+**Date:** 2026-05-22
+
+**Area:** Overlay hot-plug documentation
+
+**Context:** The hot-plug implementation and tests are in place, but README, AGENTS, and the active task plan still needed to state the shipped runtime contract and preserve the out-of-scope boundary around settings reload.
+
+**Decision:** Update project docs to describe active-break display add/remove/frame-change resync as normal overlay behavior, expand manual checks around monitor hot-plugging and display scaling, and explicitly keep live config reload out of scope.
+
+**Rationale:** Future agents and humans should not infer that overlay windows only enumerate displays once per break, and they should not broaden the feature into runtime config watching while touching the same area.
+
+**Consequences:** Documentation now matches the implemented overlay lifecycle and gives deterministic manual verification targets, but hardware-dependent hot-plug and Spaces behavior still remain manual-only proof.
+
+**Alternatives Considered:** Leave docs unchanged until manual hardware verification is complete; rejected because that would preserve stale behavior descriptions after the feature shipped.
+
+## 2026-05-22 / Overlay Hot-Plug Acceptance Verification
+
+**Date:** 2026-05-22
+
+**Area:** Overlay hot-plug acceptance verification
+
+**Context:** The final plan task needed evidence for display add/remove/resize behavior, shared countdown state, and surrounding app invariants, but this environment cannot physically attach monitors or exercise fullscreen Spaces.
+
+**Decision:** Treat the acceptance task as complete when targeted XCTest coverage for display reconciliation and focus/restore semantics is green and the documented repo-level commands `xcodebuild test`, `xcodebuild build`, and `make build` all succeed, while keeping real monitor hot-plugging, scaling, and fullscreen Space checks explicitly manual-only.
+
+**Rationale:** The important invariants are already proven deterministically in-repo, and forcing hardware-only checks inside this execution loop would either block forever or encourage inaccurate checkbox updates.
+
+**Consequences:** The active plan can finish truthfully without pretending physical-display proof happened here. Humans still need to run the manual checks before claiming hardware coverage.
+
+**Alternatives Considered:** Leave Task 6 open until hardware verification happens; rejected because the task runner explicitly forbids indefinite looping on non-automatable checks. Mark the task complete with no note about manual gaps; rejected because that would overstate the evidence.
 
 ## 2026-05-20 / Agent Instructions
 
@@ -727,3 +801,115 @@
 **Consequences:** Foreground centering is decoupled from the cropped image size, the external-display path stays untouched, and the test suite remains deterministic in headless macOS runs. Final visual centering on real displays still requires the manual verification already called out in the plan.
 
 **Alternatives Considered:** Use hardcoded offsets, move immediately into AppKit/`NSHostingView` frame changes, or add fragile host-view text scraping tests; rejected because they are respectively display-specific, outside this task's scope, or unstable against SwiftUI implementation details.
+
+## 2026-05-22 / Break Timing Precision Follow-Up
+
+**Date:** 2026-05-22
+
+**Area:** Break timing precision follow-up
+
+**Context:** Review found two linked gaps in the hot path: supported durations near the `Double` precision ceiling could stall on subsecond ticks, and a successful `showBreak()` still let synchronous AppKit work steal part of the newly started rest interval before the next baseline reset.
+
+**Decision:** Accumulate elapsed uptime across ticks inside `AppCoordinator`, stop timer consumption at phase boundaries, consume exact subsecond deltas only while the current phase remains below the `Double` subsecond-precision threshold, and reset both the pending elapsed time and uptime baseline immediately after a successful overlay show.
+
+**Rationale:** This keeps the current large-duration config contract, preserves exact elapsed behavior for normal schedules, and prevents the coordinator from burning hidden break time during synchronous overlay setup on the tick that first presents the break.
+
+**Consequences:** Supported long durations no longer freeze on `<1s` follow-up ticks, delayed work ticks still stop cleanly at the work-to-break boundary, and break time starts from the post-show baseline rather than the pre-show tick timestamp. Manual visibility on real displays and Spaces is still best-effort because public AppKit APIs do not provide a stronger acknowledgement contract here.
+
+**Alternatives Considered:** Reintroduce a lower max-duration cap, quantize all timer progression to whole seconds, or leave the current contract in place and accept precision loss near the ceiling; rejected because those options either change user-visible scheduling semantics too aggressively or keep a confirmed correctness gap.
+
+## 2026-05-22 / Config Diagnostics Privacy
+
+**Date:** 2026-05-22
+
+**Area:** Config diagnostics privacy
+
+**Context:** Review found that malformed `config.json` files silently fell back to defaults even though manual file editing is the only MVP settings path, and the fallback/error logs exposed absolute user paths with `privacy: .public`.
+
+**Decision:** Log decoding failures as warnings and mark config-path and Application Support path values as private in `OSLog` output.
+
+**Rationale:** Users need a concrete operational signal when Mahu ignores a malformed config, but exported logs should not disclose usernames or home-directory structure unnecessarily.
+
+**Consequences:** Config parse failures are now diagnosable without a UI, and log exports no longer reveal absolute user paths by default.
+
+**Alternatives Considered:** Keep silent decode fallback or continue logging full paths publicly; rejected because both options either hide a real operator mistake or leak avoidable local-environment details.
+
+## 2026-05-22 / Hosted Test Startup Control
+
+**Date:** 2026-05-22
+
+**Area:** Hosted test startup control
+
+**Context:** Hosted XCTest still needs the production `AppDelegate` path to stay inert, but relying only on runner-owned environment markers is brittle across Xcode and harness changes.
+
+**Decision:** Add `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1` to the shared test scheme and let `AppRuntime` check that project-owned switch before falling back to XCTest marker detection.
+
+**Rationale:** A project-owned startup contract is easier to reason about, keeps the hosted app inert under tests, and still preserves the old fallback for nonstandard runners that only expose XCTest markers.
+
+**Consequences:** Launch-path tests can now exercise both branches deterministically, and future harness changes can keep using the explicit environment switch instead of depending on undocumented runner details alone.
+
+**Alternatives Considered:** Depend only on XCTest markers or move all launch control behind a larger dependency-injection layer; rejected because the first is too brittle and the second is unnecessary scope for the current app size.
+
+## 2026-05-22 / Overlay Contract Test Seams
+
+**Date:** 2026-05-22
+
+**Area:** Overlay contract test seams
+
+**Context:** Review correctly called out that the centering-fix tests were too weak: they verified `GeometryReader` existed, but not that the real foreground labels/buttons and live window configuration still matched the product contract.
+
+**Decision:** Keep the production view/window code small, but expose internal `BreakOverlayView` foreground/background helpers and the live overlay window instance to `@testable` XCTest so the suite can assert real label/button/background/window contracts without adding a third-party SwiftUI inspection dependency.
+
+**Rationale:** This strengthens the coverage exactly where the review found blind spots while keeping the dependency graph small and the production structure aligned with the existing SwiftUI/AppKit split.
+
+**Consequences:** Overlay tests now verify the shipped `Время отвлечься`/countdown/`Skip` content, fallback/background branch selection, and the critical live `NSWindow` configuration in addition to the existing focus and manager tests.
+
+**Alternatives Considered:** Add `ViewInspector`, keep the existing fake tests, or move entirely to manual-only verification; rejected because they respectively add a new dependency, leave confirmed blind spots, or give up deterministic regression coverage.
+
+## 2026-05-22 / Break Completion Baseline Protection
+
+**Date:** 2026-05-22
+
+**Area:** Break completion timing
+
+**Context:** The second review pass found that a delayed tick during an active break could finish the rest phase and immediately spend the leftover elapsed time from the next work interval before the overlay hid.
+
+**Decision:** Stop `AppCoordinator` consumption at the `rest -> work` boundary and reset both the pending elapsed time and the uptime baseline when a visible break hides.
+
+**Rationale:** The user-facing contract is the visible break duration, so delayed scheduler or AppKit work must not steal time from the next work interval while the overlay is still on screen.
+
+**Consequences:** Late rest ticks no longer shorten the following work session, and the next work interval now starts from the actual overlay dismissal point instead of a stale delayed-tick timestamp.
+
+**Alternatives Considered:** Keep consuming overdue work time or move the fix into `BreakTimer`; rejected because those options either preserve the bug or mix UI visibility policy into the pure timer state machine.
+
+## 2026-05-22 / Overlay Display Hot-Plug Plan
+
+**Date:** 2026-05-22
+
+**Area:** Overlay display hot-plug plan
+
+**Context:** The review follow-up identified that `BreakOverlayManager` reads `NSScreen.screens` only when `showBreak()` starts. If a monitor is connected, disconnected, or resized during an active break, the current overlay windows are not reconciled until a later break cycle. The user explicitly decided not to pursue live config reload because future GUI settings should own runtime configuration changes.
+
+**Decision:** Create `docs/plans/2026-05-22-overlay-display-hotplug.md` around public AppKit screen-parameter notifications, injected test seams, and incremental active-overlay resync inside `BreakOverlayManager`. The plan keeps `AppCoordinator`, timer flow, and config loading out of scope.
+
+**Rationale:** Display hot-plugging is a runtime overlay-window concern, not a timer or config concern. Incremental resync can preserve the active break, shared view model, previous-frontmost app restore, and focus retention while adding/removing/replacing only the affected windows.
+
+**Consequences:** Implementation should add abstraction-level tests for display add/remove/frame-change behavior and still require manual external-display/fullscreen-Space validation. Because `BreakOverlayManager.swift` is near the 300-line refactor signal, new notification/coalescing support should be kept in focused source files or implemented with minimal manager growth.
+
+**Alternatives Considered:** Rebuild all overlay windows on every screen change; rejected because it causes unnecessary churn and increases focus/restore risk. Drive screen changes from `AppCoordinator`; rejected because it couples timer orchestration to AppKit window management. Implement config live reload in the same work; rejected because GUI configuration is planned later and live file watching has separate semantics.
+
+## 2026-05-22 / Overlay Screen Observation Seam
+
+**Date:** 2026-05-22
+
+**Area:** Overlay display hot-plug implementation
+
+**Context:** The first hot-plug task needs public AppKit screen-change observation, MainActor coalescing, and test seams without pushing more notification code into `BreakOverlayManager.swift`, which is already near the 300-line refactor signal.
+
+**Decision:** Add a dedicated `BreakScreenObservation.swift` source file that owns the screen-observation typealiases, live NotificationCenter-based registrar, and MainActor coalescer, then inject that registrar into `BreakOverlayManager` with fake/live test coverage.
+
+**Rationale:** This keeps `BreakOverlayManager` focused on break lifecycle while isolating notification mechanics in a reusable seam that can be tested deterministically without real display hot-plug events.
+
+**Consequences:** Future tasks can implement window resync in the manager without reworking observer ownership, and repeated screen-parameter bursts are collapsed before they reach overlay reconciliation.
+
+**Alternatives Considered:** Add screen-notification logic directly to `BreakOverlayManager.swift`; rejected because it would further grow an already-large file and mix lifecycle with observer plumbing. Delay the seam until full resync work; rejected because the plan requires testable observer injection first.

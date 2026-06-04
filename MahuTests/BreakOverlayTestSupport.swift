@@ -31,6 +31,70 @@ final class FakeOverlayWindow: BreakOverlayWindowing {
 }
 
 @MainActor
+final class FakeBreakScreenObserverRegistrar {
+    @MainActor
+    private final class Observation {
+        private let handler: () -> Void
+        private(set) var isCancelled = false
+
+        init(handler: @escaping () -> Void) {
+            self.handler = handler
+        }
+
+        func fire() {
+            guard isCancelled == false else {
+                return
+            }
+
+            handler()
+        }
+
+        func cancel() -> Bool {
+            guard isCancelled == false else {
+                return false
+            }
+
+            isCancelled = true
+            return true
+        }
+    }
+
+    private(set) var registrationCount = 0
+    private(set) var handledEventCount = 0
+    private(set) var cancelCount = 0
+    private(set) var handler: (() -> Void)?
+    private var observations: [Observation] = []
+
+    func register(handler: @escaping () -> Void) -> BreakScreenObservationCancellation {
+        registrationCount += 1
+        let observation = Observation { [weak self] in
+            self?.handledEventCount += 1
+            handler()
+        }
+        observations.append(observation)
+        self.handler = { [weak observation] in
+            observation?.fire()
+        }
+
+        return { [weak self, weak observation] in
+            guard let self, let observation, observation.cancel() else {
+                return
+            }
+
+            self.cancelCount += 1
+        }
+    }
+
+    func fire() {
+        handler?()
+    }
+
+    func fireAll() {
+        observations.forEach { $0.fire() }
+    }
+}
+
+@MainActor
 final class FakeBreakFocusObserverRegistrar {
     @MainActor
     private final class Observation {

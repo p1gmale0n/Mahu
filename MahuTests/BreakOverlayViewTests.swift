@@ -48,11 +48,13 @@ final class BreakOverlayViewTests: XCTestCase {
 
     func testBreakOverlayViewContainsRequiredTextAndSkipLabel() {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 65)
-        let body = BreakOverlayView(viewModel: viewModel).body
+        let view = BreakOverlayView(viewModel: viewModel)
+        let foregroundDescription = String(describing: view.foregroundContent)
 
-        XCTAssertTrue(String(describing: type(of: body)).contains("GeometryReader"))
-        XCTAssertEqual(viewModel.titleText, "Время отвлечься")
-        XCTAssertEqual(viewModel.countdownText, "01:05")
+        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
+        XCTAssertTrue(foregroundDescription.contains("Время отвлечься"))
+        XCTAssertTrue(foregroundDescription.contains("01:05"))
+        XCTAssertTrue(foregroundDescription.contains("Skip"))
     }
 
     func testBreakOverlayViewCanBeConstructedWhenBackgroundImageIsUnavailable() throws {
@@ -63,15 +65,19 @@ final class BreakOverlayViewTests: XCTestCase {
 
         let emptyBundle = try XCTUnwrap(Bundle(url: emptyBundleURL))
         let viewModel = BreakOverlayViewModel(remainingSeconds: 9)
-        let body = BreakOverlayView(
+        let view = BreakOverlayView(
             viewModel: viewModel,
             backgroundImageLoader: BreakOverlayBackgroundImageLoader(bundle: emptyBundle)
         )
-        let bodyType = String(describing: type(of: body.body))
+        let foregroundDescription = String(describing: view.foregroundContent)
+        let backgroundDescription = String(describing: view.backgroundView)
 
-        XCTAssertTrue(bodyType.contains("GeometryReader"))
-        XCTAssertEqual(viewModel.titleText, "Время отвлечься")
-        XCTAssertEqual(viewModel.countdownText, "00:09")
+        XCTAssertNil(view.backgroundImage)
+        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
+        XCTAssertTrue(backgroundDescription.contains("falseContent"))
+        XCTAssertTrue(foregroundDescription.contains("Время отвлечься"))
+        XCTAssertTrue(foregroundDescription.contains("00:09"))
+        XCTAssertTrue(foregroundDescription.contains("Skip"))
     }
 
     func testBreakOverlayViewLoadsBackgroundImageOnlyOncePerViewLifetime() {
@@ -94,17 +100,21 @@ final class BreakOverlayViewTests: XCTestCase {
 
     func testBreakOverlayViewKeepsForegroundTextWithWideBackgroundImage() {
         let viewModel = BreakOverlayViewModel(remainingSeconds: 27)
-        let body = BreakOverlayView(
+        let view = BreakOverlayView(
             viewModel: viewModel,
             backgroundImageLoader: BreakOverlayBackgroundImageLoader(loadBackgroundImage: {
                 NSImage(size: NSSize(width: 1920, height: 1080))
             })
         )
-        let bodyType = String(describing: type(of: body.body))
+        let foregroundDescription = String(describing: view.foregroundContent)
+        let backgroundDescription = String(describing: view.backgroundView)
 
-        XCTAssertTrue(bodyType.contains("GeometryReader"))
-        XCTAssertEqual(viewModel.titleText, "Время отвлечься")
-        XCTAssertEqual(viewModel.countdownText, "00:27")
+        XCTAssertNotNil(view.backgroundImage)
+        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
+        XCTAssertTrue(backgroundDescription.contains("trueContent"))
+        XCTAssertTrue(foregroundDescription.contains("Время отвлечься"))
+        XCTAssertTrue(foregroundDescription.contains("00:27"))
+        XCTAssertTrue(foregroundDescription.contains("Skip"))
     }
 
     func testBackgroundImageLoaderLoadsHostedAppBundleImage() throws {
@@ -137,15 +147,19 @@ final class BreakOverlayViewTests: XCTestCase {
         let invalidBundle = try XCTUnwrap(Bundle(url: invalidBundleURL))
         let loader = BreakOverlayBackgroundImageLoader(bundle: invalidBundle)
         let viewModel = BreakOverlayViewModel(remainingSeconds: 4)
-        let body = BreakOverlayView(
+        let view = BreakOverlayView(
             viewModel: viewModel,
             backgroundImageLoader: loader
         )
-        let bodyType = String(describing: type(of: body.body))
+        let foregroundDescription = String(describing: view.foregroundContent)
+        let backgroundDescription = String(describing: view.backgroundView)
 
         XCTAssertNil(loader.loadBackgroundImage())
-        XCTAssertTrue(bodyType.contains("GeometryReader"))
-        XCTAssertEqual(viewModel.countdownText, "00:04")
+        XCTAssertNil(view.backgroundImage)
+        XCTAssertTrue(String(describing: type(of: view.body)).contains("GeometryReader"))
+        XCTAssertTrue(backgroundDescription.contains("falseContent"))
+        XCTAssertTrue(foregroundDescription.contains("00:04"))
+        XCTAssertTrue(foregroundDescription.contains("Skip"))
     }
 
     func testOverlayWindowCanBecomeKeyAndMain() {
@@ -158,6 +172,28 @@ final class BreakOverlayViewTests: XCTestCase {
 
         XCTAssertTrue(window.canBecomeKey)
         XCTAssertTrue(window.canBecomeMain)
+    }
+
+    func testLiveBreakOverlayWindowAppliesExpectedWindowConfiguration() {
+        let display = DisplayDescriptor(frame: CGRect(x: 10, y: 20, width: 640, height: 480))
+        let viewModel = BreakOverlayViewModel(remainingSeconds: 9)
+        let liveWindow = LiveBreakOverlayWindow(display: display, viewModel: viewModel)
+        let window = liveWindow.window
+
+        XCTAssertEqual(window.frame, display.frame)
+        XCTAssertEqual(window.level, .screenSaver)
+        XCTAssertEqual(window.backgroundColor, .clear)
+        XCTAssertFalse(window.isOpaque)
+        XCTAssertFalse(window.hasShadow)
+        XCTAssertEqual(
+            window.collectionBehavior,
+            [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        )
+        XCTAssertFalse(window.isMovable)
+        XCTAssertFalse(window.ignoresMouseEvents)
+        XCTAssertFalse(window.isReleasedWhenClosed)
+        XCTAssertNotNil(window.contentView)
+        XCTAssertTrue(String(describing: type(of: window.contentView!)).contains("NSHostingView"))
     }
 
     private func makeEmptyBundle() throws -> URL {

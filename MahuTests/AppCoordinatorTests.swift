@@ -77,12 +77,15 @@ final class AppCoordinatorTests: XCTestCase {
 
     func testTickTransitionsIntoBreakAndUpdatesOverlay() {
         let fakeOverlayManager = FakeBreakOverlayManager()
-        let fakeTimer = FakeBreakTimer(statesToReturn: [
-            .init(phase: .rest, remainingSeconds: 20),
-            .init(phase: .rest, remainingSeconds: 19)
-        ])
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 20),
+                .init(phase: .rest, remainingSeconds: 19)
+            ]
+        )
         var scheduledTick: (() -> Void)?
-        let currentUptime = makeCurrentUptimeProvider([10, 11, 12])
+        let currentUptime = makeCurrentUptimeProvider([10, 11, 11, 12])
 
         let coordinator = AppCoordinator(
             statusItemController: FakeStatusItemController(),
@@ -108,12 +111,15 @@ final class AppCoordinatorTests: XCTestCase {
 
     func testTickCompletesBreakAndHidesOverlay() {
         let fakeOverlayManager = FakeBreakOverlayManager()
-        let fakeTimer = FakeBreakTimer(statesToReturn: [
-            .init(phase: .rest, remainingSeconds: 1),
-            .init(phase: .work, remainingSeconds: 300)
-        ])
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 1),
+                .init(phase: .work, remainingSeconds: 300)
+            ]
+        )
         var scheduledTick: (() -> Void)?
-        let currentUptime = makeCurrentUptimeProvider([20, 21, 22])
+        let currentUptime = makeCurrentUptimeProvider([20, 21, 21, 22])
 
         let coordinator = AppCoordinator(
             statusItemController: FakeStatusItemController(),
@@ -139,11 +145,15 @@ final class AppCoordinatorTests: XCTestCase {
 
     func testSkipFlowHidesOverlayAndStartsNextWorkInterval() {
         let fakeOverlayManager = FakeBreakOverlayManager()
-        let fakeTimer = FakeBreakTimer(statesToReturn: [
-            .init(phase: .rest, remainingSeconds: 20)
-        ], skipState: .init(phase: .work, remainingSeconds: 300))
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 20)
+            ],
+            skipState: .init(phase: .work, remainingSeconds: 300)
+        )
         var scheduledTick: (() -> Void)?
-        let currentUptime = makeCurrentUptimeProvider([30, 31])
+        let currentUptime = makeCurrentUptimeProvider([30, 31, 31])
 
         let coordinator = AppCoordinator(
             statusItemController: FakeStatusItemController(),
@@ -176,7 +186,7 @@ final class AppCoordinatorTests: XCTestCase {
             skipState: .init(phase: .work, remainingSeconds: 300)
         )
         var scheduledTick: (() -> Void)?
-        let currentUptime = makeCurrentUptimeProvider([30, 31, 34, 35.5])
+        let currentUptime = makeCurrentUptimeProvider([30, 31, 31, 34, 35.5])
 
         let coordinator = AppCoordinator(
             statusItemController: FakeStatusItemController(),
@@ -223,6 +233,32 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(fakeTimer.advanceCalls, [2.5])
     }
 
+    func testLargestSupportedDurationAccumulatesSubsecondTicksUntilAWholeSecondCanBeConsumed() {
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: AppConfig.maximumSupportedDurationSeconds)
+        )
+        var scheduledTick: (() -> Void)?
+        let currentUptime = makeCurrentUptimeProvider([200, 200.5, 201])
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: FakeBreakOverlayManager(),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: currentUptime
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertEqual(fakeTimer.advanceCalls, [1])
+    }
+
     func testDelayedWorkTickShowsFullBreakBeforeConsumingBreakTime() {
         let fakeOverlayManager = FakeBreakOverlayManager()
         let fakeTimer = FakeBreakTimer(
@@ -233,7 +269,42 @@ final class AppCoordinatorTests: XCTestCase {
             ]
         )
         var scheduledTick: (() -> Void)?
-        let currentUptime = makeCurrentUptimeProvider([100, 105, 106])
+        let currentUptime = makeCurrentUptimeProvider([100, 105, 105, 106])
+
+        let coordinator = AppCoordinator(
+            statusItemController: FakeStatusItemController(),
+            overlayManager: fakeOverlayManager,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: currentUptime
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertEqual(fakeTimer.advanceCalls, [1, 1])
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [.show(20), .update(19)]
+        )
+    }
+
+    func testSuccessfulBreakPresentationResetsElapsedBaselineAfterOverlayShowReturns() {
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1),
+            statesToReturn: [
+                .init(phase: .rest, remainingSeconds: 20),
+                .init(phase: .rest, remainingSeconds: 19)
+            ]
+        )
+        var scheduledTick: (() -> Void)?
+        let currentUptime = makeCurrentUptimeProvider([300, 305, 305.4, 306.4])
 
         let coordinator = AppCoordinator(
             statusItemController: FakeStatusItemController(),

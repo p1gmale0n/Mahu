@@ -52,6 +52,7 @@ final class AppCoordinator {
     private var breakTimer: BreakTimerControlling?
     private var isShowingBreak = false
     private var lastTickUptime: TimeInterval?
+    private var pendingElapsedSeconds: TimeInterval = 0
 
     init(
         statusItemController: StatusItemControlling? = nil,
@@ -79,6 +80,7 @@ final class AppCoordinator {
         let config = loadConfig()
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
+        pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
         handle(state: breakTimer.state)
         cancelTick = scheduleRepeatingTick(1) { [weak self] in
@@ -104,27 +106,57 @@ final class AppCoordinator {
             return
         }
 
-        let elapsedToConsume = elapsedToConsume(
-            for: breakTimer.state,
-            elapsedSeconds: elapsedSeconds
-        )
-        let state = breakTimer.advance(by: elapsedToConsume)
-        handle(state: state)
+        pendingElapsedSeconds += elapsedSeconds
+        consumeElapsedTime(using: breakTimer)
     }
 
-    private func elapsedToConsume(
-        for state: BreakTimer.State,
-        elapsedSeconds: TimeInterval
-    ) -> TimeInterval {
-        guard state.phase == .work else {
-            return elapsedSeconds
+    private func consumeElapsedTime(using breakTimer: BreakTimerControlling) {
+        var latestState = breakTimer.state
+        var didAdvance = false
+
+        while true {
+            let elapsedToConsume = elapsedToConsume(for: latestState)
+            guard elapsedToConsume > 0 else {
+                break
+            }
+
+            let previousPhase = latestState.phase
+            pendingElapsedSeconds = max(0, pendingElapsedSeconds - elapsedToConsume)
+            latestState = breakTimer.advance(by: elapsedToConsume)
+            didAdvance = true
+
+            if previousPhase == .rest, latestState.phase == .work {
+                break
+            }
+
+            if latestState.phase == .rest, isShowingBreak == false {
+                break
+            }
         }
 
-        guard state.remainingSeconds > 0 else {
+        guard didAdvance else {
+            return
+        }
+
+        handle(state: latestState)
+    }
+
+    private func elapsedToConsume(for state: BreakTimer.State) -> TimeInterval {
+        guard pendingElapsedSeconds > 0 else {
             return 0
         }
 
-        return min(elapsedSeconds, state.remainingSeconds)
+        let availableElapsedSeconds = min(pendingElapsedSeconds, state.remainingSeconds)
+        guard availableElapsedSeconds > 0 else {
+            return 0
+        }
+
+        if state.remainingSeconds >= AppConfig.subsecondPrecisionThresholdSeconds {
+            let wholeSeconds = floor(availableElapsedSeconds)
+            return wholeSeconds > 0 ? wholeSeconds : 0
+        }
+
+        return availableElapsedSeconds
     }
 
     private func handle(state: BreakTimer.State) {
@@ -133,6 +165,8 @@ final class AppCoordinator {
             if isShowingBreak {
                 overlayManager.hideBreak()
                 isShowingBreak = false
+                pendingElapsedSeconds = 0
+                lastTickUptime = currentUptime()
             }
         case .rest:
             if isShowingBreak {
@@ -140,6 +174,10 @@ final class AppCoordinator {
             } else {
                 isShowingBreak = overlayManager.showBreak(remainingSeconds: state.remainingSeconds) { [weak self] in
                     self?.skipBreak()
+                }
+                if isShowingBreak {
+                    pendingElapsedSeconds = 0
+                    lastTickUptime = currentUptime()
                 }
             }
         }
@@ -151,7 +189,6 @@ final class AppCoordinator {
         }
 
         let state = breakTimer.skipBreak()
-        lastTickUptime = currentUptime()
         handle(state: state)
     }
 

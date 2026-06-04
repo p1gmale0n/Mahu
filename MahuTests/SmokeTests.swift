@@ -31,5 +31,75 @@ final class SmokeTests: XCTestCase {
             "XCTestConfigurationFilePath": "/tmp/session.xctestconfiguration",
         ]))
         XCTAssertFalse(AppRuntime.isRunningTests(environment: [:]))
+        XCTAssertFalse(AppRuntime.shouldStartProductionCoordinator(environment: [
+            AppRuntime.disableCoordinatorStartupEnvironmentKey: "1",
+        ]))
+        XCTAssertFalse(AppRuntime.shouldStartProductionCoordinator(environment: [
+            "XCTestConfigurationFilePath": "/tmp/session.xctestconfiguration",
+        ]))
+        XCTAssertTrue(AppRuntime.shouldStartProductionCoordinator(environment: [:]))
+    }
+
+    @MainActor
+    func testAppDelegateSkipsCoordinatorStartupWhenExplicitlyDisabled() {
+        var startCallCount = 0
+        let appDelegate = AppDelegate()
+        appDelegate.environmentProvider = {
+            [AppRuntime.disableCoordinatorStartupEnvironmentKey: "1"]
+        }
+        appDelegate.coordinatorStarter = {
+            startCallCount += 1
+            return NSObject()
+        }
+
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        XCTAssertEqual(startCallCount, 0)
+    }
+
+    @MainActor
+    func testAppDelegateStartsCoordinatorWhenStartupIsAllowed() {
+        var startCallCount = 0
+        let appDelegate = AppDelegate()
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.coordinatorStarter = {
+            startCallCount += 1
+            return NSObject()
+        }
+
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        XCTAssertEqual(startCallCount, 1)
+    }
+
+    @MainActor
+    func testLiveRepeatingSchedulerFiresAndCancelsOnMainRunLoop() {
+        let didFireTwice = expectation(description: "timer fires twice")
+        didFireTwice.expectedFulfillmentCount = 2
+        var fireCount = 0
+
+        let cancel = LiveRepeatingScheduler.schedule(interval: 0.01) {
+            fireCount += 1
+            if fireCount <= 2 {
+                didFireTwice.fulfill()
+            }
+        }
+
+        wait(for: [didFireTwice], timeout: 1)
+        cancel()
+
+        let fireCountAfterCancellation = fireCount
+        let didDrainRunLoop = expectation(description: "run loop drains after cancellation")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            didDrainRunLoop.fulfill()
+        }
+
+        wait(for: [didDrainRunLoop], timeout: 1)
+        XCTAssertEqual(fireCount, fireCountAfterCancellation)
     }
 }

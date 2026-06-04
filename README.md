@@ -34,8 +34,10 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `Skip` closes the current break overlay and immediately starts the next work interval.
 - Break overlay opens one borderless fullscreen window per active display.
 - Overlay windows are raised above normal apps and the app is activated when the break starts.
+- While a break is active, display additions, removals, and display-frame changes resync overlay windows without restarting the break or replacing the shared countdown/`Skip` state.
 - While a break is active, Mahu best-effort reasserts its own focus and re-shows existing overlay windows if another app becomes active behind the overlay.
 - When a break ends or `Skip` is pressed, Mahu restores the previously frontmost app when possible.
+- Live config reload is out of scope; runtime settings changes still require editing the config file before launch or between runs.
 
 ## Project Structure
 
@@ -49,6 +51,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `docs/plans/completed/2026-05-21-overlay-focus-hardening.md`: overlay focus-hardening implementation log; manual hardware verification remains open there.
 - `docs/plans/completed/2026-05-21-overlay-background.md`: initial overlay-background bundling plan and history; its runtime-loading details were superseded by the follow-up rendering fix.
 - `docs/plans/completed/2026-05-22-overlay-background-rendering-fix.md`: completed runtime rendering fix for explicit bundle loading; manual live-overlay verification remains open there.
+- `docs/plans/completed/2026-05-22-overlay-content-centering-fix.md`: completed centering fix for the built-in display; live display verification still remains manual.
 
 ## Configuration
 
@@ -113,11 +116,15 @@ xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=
 - Confirm the app has no Dock icon.
 - Confirm the status item appears and `Quit` exits the app.
 - Temporarily shorten config durations and confirm the overlay appears.
+- Confirm `Время отвлечься`, the countdown, and `Skip` stay horizontally and vertically centered on the built-in display.
 - Confirm the overlay background comes from the bundled `background.png`, not a repository-root or user-supplied file.
+- If an external display is available, confirm background cropping does not shift the foreground controls there either.
 - Press `Cmd+Tab` during an active break and confirm Mahu quickly returns to the front.
 - Type after attempting `Cmd+Tab` and confirm input does not reach a hidden app behind the overlay.
 - Let a break end naturally and also press `Skip`, then confirm focus returns to the app that was frontmost before Mahu activated the overlay.
-- Test with an external display if available.
+- Start a break on the built-in display, then connect an external monitor and confirm an overlay appears on the new display without restarting the break.
+- Start a break with an external monitor connected, then disconnect it and confirm stale overlay windows close while the remaining display keeps the same countdown and `Skip` state.
+- Change display resolution or scaling during an active break and confirm overlay windows resync.
 - Test with a fullscreen app or Space and document any limitations separately.
 
 ## UI References

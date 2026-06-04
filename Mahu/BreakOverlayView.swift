@@ -35,7 +35,7 @@ final class BreakOverlayViewModel: ObservableObject {
 
 struct BreakOverlayView: View {
     @ObservedObject var viewModel: BreakOverlayViewModel
-    private let backgroundImage: NSImage?
+    let backgroundImage: NSImage?
 
     init(
         viewModel: BreakOverlayViewModel,
@@ -45,41 +45,49 @@ struct BreakOverlayView: View {
         self.backgroundImage = backgroundImageLoader.loadBackgroundImage()
     }
 
+    @ViewBuilder
+    var backgroundView: some View {
+        if let backgroundImage {
+            Image(nsImage: backgroundImage)
+                .resizable()
+                .scaledToFill()
+        } else {
+            Color.black
+        }
+    }
+
+    var foregroundContent: some View {
+        VStack(spacing: 24) {
+            Text(viewModel.titleText)
+                .font(.system(size: 42, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+
+            Text(viewModel.countdownText)
+                .font(.system(size: 72, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+
+            Button("Skip") {
+                viewModel.skip()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(.white.opacity(0.18))
+            .foregroundStyle(.white)
+        }
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                if let backgroundImage {
-                    Image(nsImage: backgroundImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                } else {
-                    Color.black
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                }
+                backgroundView
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
 
                 Color.black.opacity(0.48)
                     .frame(width: geometry.size.width, height: geometry.size.height)
 
-                VStack(spacing: 24) {
-                    Text(viewModel.titleText)
-                        .font(.system(size: 42, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-
-                    Text(viewModel.countdownText)
-                        .font(.system(size: 72, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-
-                    Button("Skip") {
-                        viewModel.skip()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(.white.opacity(0.18))
-                    .foregroundStyle(.white)
-                }
+                foregroundContent
                 .padding(40)
                 .frame(
                     width: geometry.size.width,

@@ -1,5 +1,41 @@
 # Session Handoff
 
+## 2026-05-22 / Overlay Display Hot-Plug Task 3
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Reconcile active overlay windows by stable display id inside `BreakOverlayManager` so hot-plugging preserves the shared countdown/Skip view model, keeps unchanged windows alive, and replaces only added, removed, or resized displays. Ignore transient empty `screenProvider()` snapshots during an active break instead of silently ending the break.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- Friction/CDD: `BreakOverlayManager.swift` is now beyond the local readability threshold, so the next task should extract focused hot-plug/focus helpers instead of adding more inline logic. Real monitor hot-plugging, scaling, and fullscreen-Space validation remain manual by design.
+- Next Steps: Let the external loop continue with Task 4; add focus/restore regression coverage for hot-plug flows before touching README or final acceptance docs.
+
+## 2026-05-22 / External Review Pass - No Actionable Findings
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Keep the centering-fix implementation unchanged because the SwiftUI `GeometryReader` sizing matches the documented design, the overlay call flow still stays isolated to `BreakOverlayView`, and the review pass surfaced no actionable regressions.
+- Validation: `git diff`; `git diff --cached`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- Friction/CDD: The repository still has unrelated untracked workspace artifacts (`icon.png`, `images/`), so review-close commits must stay scoped and avoid sweeping them in. Manual built-in-display, external-display, and fullscreen-Space overlay checks still remain open because headless XCTest cannot prove live pixel alignment.
+- Next Steps: Let the external loop continue from this commit; if a later pass reports a real issue, fix only the affected scope and rerun the macOS test suite.
+
+## 2026-05-22 / Second Review Pass 3 Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Stop timer consumption at the `rest -> work` boundary so a delayed break-completion tick cannot burn the next work interval before the overlay hides; reset the coordinator uptime baseline when a visible break ends so work time resumes from actual dismissal; keep this round scoped to the real timing defect and add a focused regression test instead of broad refactoring.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `swiftlint` and the command was not installed in this environment.
+- Friction/CDD: The review gate still asks for lint evidence, but the repo still has no tracked lint command and `swiftlint` is not available here, so lint cannot be proven reproducibly in this environment. Real display and fullscreen-Space overlay behavior remains manual by design and was not revalidated in this timing-only fix round.
+- Next Steps: Run the next external review iteration against this branch; if lint stays part of the gate, add a tracked lint command or provide `swiftlint` in the execution environment; keep hardware-backed overlay verification separate from this coordinator timing fix.
+
+## 2026-05-22 / Overlay Centering Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Preserve the large-duration config contract by accumulating elapsed uptime across ticks and only quantizing above the subsecond-precision threshold; reset the break baseline after a successful overlay show so synchronous AppKit work does not steal visible rest time; gate hosted-test startup with `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1` while keeping XCTest marker fallback; strengthen overlay tests through internal SwiftUI/AppKit seams instead of adding a third-party inspection dependency.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; attempted `swiftlint` and the command was not installed in this environment.
+- Friction/CDD: The review loop still expects lint evidence, but the repo has no tracked lint command and `swiftlint` is not installed here, so lint cannot be proven reproducibly yet. Live built-in-display, external-display, and fullscreen-Space overlay checks remain manual by design and should stay explicitly open in docs.
+- Next Steps: Run the next external review iteration against this branch; manually verify overlay centering and background cropping on the built-in display plus an external display if available; add a tracked lint command or install `swiftlint` in the execution environment if lint remains part of the gate.
+
 ## 2026-05-22 / Timer Precision Review Fixes
 
 🏁 Session Handoff:

@@ -3,6 +3,7 @@ import Foundation
 struct AppConfig: Codable, Equatable {
     static let minimumSupportedDurationSeconds: TimeInterval = 1
     static let maximumSupportedDurationSeconds: TimeInterval = 9_007_199_254_740_992
+    static let subsecondPrecisionThresholdSeconds: TimeInterval = 4_503_599_627_370_496
     private static let maximumDisplayableWholeSeconds: TimeInterval = TimeInterval(Int64.max)
 
     let workDurationSeconds: TimeInterval

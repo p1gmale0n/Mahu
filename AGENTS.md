@@ -20,6 +20,7 @@
 - MVP default schedule is 20-20-20: 20 minutes of work, then a 20-second break.
 - MVP status item is only an icon with a menu containing `Quit`; remaining-time display is deferred.
 - When a break starts, create a borderless fullscreen `NSWindow` for every active display, not just the main display.
+- While a break is active, display additions, removals, and display-frame changes must resync overlay windows without restarting the break, recapturing the previous app, or replacing the shared countdown/`Skip` state.
 - Put overlay windows above normal apps, for example with `NSWindow.Level.screenSaver`.
 - Bring the overlay app to the front with `makeKeyAndOrderFront(nil)` and `NSApp.activate(ignoringOtherApps: true)`.
 - While a break is active, best-effort focus retention should re-show existing overlay windows and reactivate Mahu if another app becomes frontmost; do not escalate this into input capture without an explicit product change.
@@ -27,6 +28,7 @@
 - Break screen should be dark and minimal, with a short message like `Время отвлечься`, a countdown until rest ends, and a `Skip` button.
 - Break screen should use the bundled background image with a dark readability layer so title, countdown, and `Skip` remain legible across displays.
 - MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
+- Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
 - If the config is missing or invalid, use 20-20-20 defaults and keep the app running.
 - Keep timer, config, status item, and overlay responsibilities separated so deferred features can be added without rewriting the core timer flow.
 - Treat possible App Store release as a constraint: avoid private APIs and invasive input capture.
@@ -47,7 +49,7 @@
 - Verified local app build command: `make build` creates `build/Mahu.app` using repo-local `build/DerivedData`.
 - Verified build command: `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
 - Verified test command: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
-- Manual-only checks remain: no Dock icon, real menu-bar presence, overlay behavior on external displays, and fullscreen Space behavior.
+- Manual-only checks remain: no Dock icon, real menu-bar presence, active-break display hot-plug/resolution behavior on external displays, and fullscreen Space behavior.
 - If `xcodebuild` points at `CommandLineTools` or fails before parsing the project, switch to the full Xcode developer directory and run `xcodebuild -runFirstLaunch` once before retrying.
 
 ## Implementation Gotchas

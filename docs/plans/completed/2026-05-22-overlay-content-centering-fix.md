@@ -1,5 +1,10 @@
 # Overlay Content Centering Fix
 
+## Status
+
+- Implementation changes and automated validation are complete in the repo as of 2026-05-22.
+- Manual built-in-display, external-display, and fullscreen-Space centering checks still remain under Post-Completion.
+
 ## Overview
 
 - Fix the break overlay foreground alignment so `Время отвлечься`, the countdown, and `Skip` are centered in the visible overlay bounds on the built-in MacBook display.
@@ -80,7 +85,7 @@
 
 ### Task 3: Update documentation and decision history
 - [x] update `docs/decisions.md` with the final implementation decision for explicit fullscreen SwiftUI layout sizing
-- [x] update `README.md` only if behavior, setup, verification commands, or manual check guidance changes (no README changes needed; behavior and commands are unchanged)
+- [x] update `README.md` with manual centering verification guidance in `## Manual Checks`
 - [x] update this plan with final validation notes and any manual display checks completed
 
 ### Task 4: Verify acceptance criteria

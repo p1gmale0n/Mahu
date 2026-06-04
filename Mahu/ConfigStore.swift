@@ -34,7 +34,7 @@ struct ConfigStore {
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
         Self.logger.error(
-            "Failed to resolve the user Application Support directory; falling back to \(fallbackDirectory.path, privacy: .public)."
+            "Failed to resolve the user Application Support directory; falling back to \(fallbackDirectory.path, privacy: .private)."
         )
         self.appSupportDirectory = fallbackDirectory
     }
@@ -57,16 +57,19 @@ struct ConfigStore {
             let config = try JSONDecoder().decode(AppConfig.self, from: data)
             guard config.hasSupportedDurations else {
                 Self.logger.warning(
-                    "Ignoring config at \(self.configURL.path, privacy: .public) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
+                    "Ignoring config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
                 )
                 return .default
             }
 
             return config
-        } catch is DecodingError {
+        } catch let error as DecodingError {
+            Self.logger.warning(
+                "Ignoring config at \(self.configURL.path, privacy: .private) because it could not be decoded: \(String(describing: error), privacy: .public)"
+            )
             return .default
         } catch {
-            Self.logger.error("Failed to load config at \(self.configURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            Self.logger.error("Failed to load config at \(self.configURL.path, privacy: .private): \(String(describing: error), privacy: .public)")
             return .default
         }
     }
@@ -83,7 +86,7 @@ struct ConfigStore {
             try data.write(to: configURL, options: .atomic)
             return defaultConfig
         } catch {
-            Self.logger.error("Failed to create default config at \(self.configURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            Self.logger.error("Failed to create default config at \(self.configURL.path, privacy: .private): \(String(describing: error), privacy: .public)")
             return .default
         }
     }

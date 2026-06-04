@@ -30,6 +30,8 @@
 			A00000000000000000000036 /* background.png in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* background.png */; };
 			A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001B /* LiveBreakFocusObservationRegistrarTests.swift */; };
 			A00000000000000000000038 /* AppCoordinatorBreakPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */; };
+			A00000000000000000000039 /* BreakScreenObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* BreakScreenObservation.swift */; };
+			A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +71,8 @@
 			A0000000000000000000001A /* background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = background.png; sourceTree = "<group>"; };
 			A0000000000000000000001B /* LiveBreakFocusObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBreakFocusObservationRegistrarTests.swift; sourceTree = "<group>"; };
 			A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorBreakPresentationTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000001D /* BreakScreenObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakScreenObservation.swift; sourceTree = "<group>"; };
+			A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBreakScreenObservationRegistrarTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +117,7 @@
 				A0000000000000000000000B /* BreakTimer.swift */,
 				A00000000000000000000012 /* BreakOverlayView.swift */,
 				A00000000000000000000013 /* BreakOverlayManager.swift */,
+				A0000000000000000000001D /* BreakScreenObservation.swift */,
 				A0000000000000000000000E /* StatusItemController.swift */,
 				A00000000000000000000045 /* Resources */,
 				A00000000000000000000005 /* Info.plist */,
@@ -141,6 +146,7 @@
 					A00000000000000000000014 /* BreakOverlayManagerTests.swift */,
 					A00000000000000000000018 /* BreakOverlayFocusRetentionTests.swift */,
 					A0000000000000000000001B /* LiveBreakFocusObservationRegistrarTests.swift */,
+					A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */,
 					A00000000000000000000019 /* BreakOverlayViewTests.swift */,
 					A00000000000000000000015 /* StatusItemControllerTests.swift */,
 			);
@@ -271,6 +277,7 @@
 				A00000000000000000000027 /* BreakTimer.swift in Sources */,
 				A0000000000000000000002C /* BreakOverlayView.swift in Sources */,
 				A0000000000000000000002D /* BreakOverlayManager.swift in Sources */,
+				A00000000000000000000039 /* BreakScreenObservation.swift in Sources */,
 				A0000000000000000000002A /* StatusItemController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -286,11 +293,12 @@
 				A00000000000000000000033 /* BreakOverlayTestSupport.swift in Sources */,
 				A00000000000000000000026 /* ConfigStoreTests.swift in Sources */,
 				A00000000000000000000028 /* BreakTimerTests.swift in Sources */,
-					A0000000000000000000002E /* BreakOverlayManagerTests.swift in Sources */,
-					A00000000000000000000034 /* BreakOverlayFocusRetentionTests.swift in Sources */,
-					A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */,
-					A00000000000000000000035 /* BreakOverlayViewTests.swift in Sources */,
-					A0000000000000000000002F /* StatusItemControllerTests.swift in Sources */,
+				A0000000000000000000002E /* BreakOverlayManagerTests.swift in Sources */,
+				A00000000000000000000034 /* BreakOverlayFocusRetentionTests.swift in Sources */,
+				A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */,
+				A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */,
+				A00000000000000000000035 /* BreakOverlayViewTests.swift in Sources */,
+				A0000000000000000000002F /* StatusItemControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
