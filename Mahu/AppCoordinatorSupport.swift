@@ -17,6 +17,8 @@ protocol StatusItemControlling: AnyObject {
     func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void)
     func setRemindersPaused(_ paused: Bool)
     func setShowsTimerState(_ showsTimerState: Bool)
+    func clearTimerDisplayBaselines()
+    func resetTimerDisplayBaselines()
     func setStatusDisplayState(_ statusDisplayState: StatusDisplayState)
 }
 
@@ -55,6 +57,13 @@ enum RuntimeSettingsScheduleUpdateAction {
     case restartActiveWorkImmediately
     case applyAtNextBreak
     case applyAfterCurrentRestEnds
+}
+
+enum TimerDisplayBaselineResetAction {
+    case none
+    case resetImmediately
+    case clearImmediately
+    case clearWhenDeferredSettingsApply
 }
 
 func runtimeSettingsScheduleUpdateAction(
@@ -185,6 +194,45 @@ func elapsedTimeToConsume(
     }
 
     return availableElapsedSeconds
+}
+
+func timerDisplayBaselineResetAction(
+    previousSettings: AppConfig?,
+    newSettings: AppConfig,
+    currentPhase: BreakTimer.Phase?,
+    remindersPaused: Bool
+) -> TimerDisplayBaselineResetAction {
+    guard let previousSettings else {
+        return .none
+    }
+
+    guard newSettings.showStatusItemTimerState else {
+        return .none
+    }
+
+    let durationsChanged = previousSettings.workDurationSeconds != newSettings.workDurationSeconds ||
+        previousSettings.breakDurationSeconds != newSettings.breakDurationSeconds
+    guard durationsChanged else {
+        return .none
+    }
+
+    guard let currentPhase else {
+        return .none
+    }
+
+    switch runtimeSettingsScheduleUpdateAction(
+        previousSettings: previousSettings,
+        newSettings: newSettings,
+        currentPhase: currentPhase,
+        remindersPaused: remindersPaused
+    ) {
+    case .none:
+        return .resetImmediately
+    case .restartActiveWorkImmediately:
+        return .clearImmediately
+    case .applyAtNextBreak, .applyAfterCurrentRestEnds:
+        return .clearWhenDeferredSettingsApply
+    }
 }
 
 func wakeReconciliationAction(

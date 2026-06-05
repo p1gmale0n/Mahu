@@ -89,16 +89,21 @@ final class StatusItemController: NSObject {
         self.showsTimerState = showsTimerState
 
         if showsTimerState == false {
-            resetTimerDisplayBaselines()
+            clearTimerDisplayBaselines()
+            applyStatusItemDisplay()
             return
         }
 
         applyStatusItemDisplay()
     }
 
-    func resetTimerDisplayBaselines() {
+    func clearTimerDisplayBaselines() {
         maximumTimerStatusItemLength = 0
         maximumTimerTitleSlotWidth = 0
+    }
+
+    func resetTimerDisplayBaselines() {
+        clearTimerDisplayBaselines()
         applyStatusItemDisplay()
     }
 
@@ -203,6 +208,7 @@ final class StatusItemController: NSObject {
                 timerStateText,
                 slotWidth: maximumTimerTitleSlotWidth
             )
+            button.setAccessibilityLabel(timerStateText.isEmpty ? nil : timerStateText)
             button.imagePosition = .imageLeading
             let measuredLength = measuredTimerStatusItemLength(for: button)
             maximumTimerStatusItemLength = max(maximumTimerStatusItemLength, measuredLength)
@@ -215,6 +221,7 @@ final class StatusItemController: NSObject {
         statusItem.length = NSStatusItem.squareLength
         button.title = ""
         button.attributedTitle = NSAttributedString(string: "")
+        button.setAccessibilityLabel(nil)
         button.imagePosition = .imageOnly
     }
 

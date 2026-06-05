@@ -23,6 +23,7 @@ final class AppCoordinator {
     private var breakTimer: BreakTimerControlling?
     private var launchAtLoginSettingsStore: LaunchAtLoginSettingsStoring?
     private var runtimeSettingsStore: RuntimeSettingsStoring?
+    private var appliedRuntimeSettings: AppConfig?
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
@@ -86,6 +87,7 @@ final class AppCoordinator {
             self?.handleRuntimeSettingsChange(newSettings)
         }
         let config = runtimeSettingsStore.currentSettings
+        appliedRuntimeSettings = config
         let launchAtLoginSettingsStore = launchAtLoginSettingsStore ?? makeLaunchAtLoginSettingsStore(config)
         self.launchAtLoginSettingsStore = launchAtLoginSettingsStore
         launchAtLoginSettingsStore.update(config.launchAtLoginEnabled)
@@ -249,11 +251,28 @@ final class AppCoordinator {
     }
 
     private func handleRuntimeSettingsChange(_ newSettings: AppConfig) {
+        let previousSettings = appliedRuntimeSettings
+        appliedRuntimeSettings = newSettings
         statusItemController.setShowsTimerState(newSettings.showStatusItemTimerState)
         reconcileLaunchAtLoginRuntimeSettingsIfNeeded(newSettings)
 
         let currentPhase = breakTimer?.state.phase
+        let baselineResetAction = timerDisplayBaselineResetAction(
+            previousSettings: previousSettings,
+            newSettings: newSettings,
+            currentPhase: currentPhase,
+            remindersPaused: remindersPaused
+        )
         let changeDirective = runtimeSettingsPolicy.handleChange(newSettings, currentPhase: currentPhase, remindersPaused: remindersPaused)
+
+        switch baselineResetAction {
+        case .none, .clearWhenDeferredSettingsApply:
+            break
+        case .resetImmediately:
+            statusItemController.resetTimerDisplayBaselines()
+        case .clearImmediately:
+            statusItemController.clearTimerDisplayBaselines()
+        }
 
         guard case .restartActiveWork(let updatedSettings) = changeDirective else {
             return
@@ -281,18 +300,28 @@ final class AppCoordinator {
         case .keep(let currentState):
             return currentState
         case .replaceTimerAndAdvanceToRest(let settings):
+            clearTimerDisplayBaselinesIfNeeded(for: settings)
             let newBreakTimer = makeBreakTimer(settings)
             breakTimer = newBreakTimer
             pendingElapsedSeconds = 0
             lastTickUptime = currentUptime()
             return newBreakTimer.advance(by: settings.workDurationSeconds)
         case .replaceTimerAfterRest(let settings):
+            clearTimerDisplayBaselinesIfNeeded(for: settings)
             let newBreakTimer = makeBreakTimer(settings)
             breakTimer = newBreakTimer
             pendingElapsedSeconds = 0
             lastTickUptime = currentUptime()
             return newBreakTimer.state
         }
+    }
+
+    private func clearTimerDisplayBaselinesIfNeeded(for settings: AppConfig) {
+        guard settings.showStatusItemTimerState else {
+            return
+        }
+
+        statusItemController.clearTimerDisplayBaselines()
     }
 
     private func handleOverlayVisibilityChange(_ isVisible: Bool) {

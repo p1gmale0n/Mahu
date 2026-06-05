@@ -70,6 +70,8 @@
 			A000000000000000000000BE /* ConfigStoreJSONCEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */; };
 			A000000000000000000000C0 /* StatusItemTimerAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C1 /* StatusItemTimerAnchorTests.swift */; };
 			A000000000000000000000C2 /* StatusItemBehaviorRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */; };
+			A000000000000000000000C4 /* AppCoordinatorStatusItemRuntimeResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C5 /* AppCoordinatorStatusItemRuntimeResetTests.swift */; };
+			A000000000000000000000C6 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C7 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -149,6 +151,8 @@
 			A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreJSONCEdgeCaseTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000C1 /* StatusItemTimerAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemTimerAnchorTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemBehaviorRegressionTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000C5 /* AppCoordinatorStatusItemRuntimeResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemRuntimeResetTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000C7 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,6 +235,8 @@
 				A0000000000000000000001C /* AppCoordinatorBreakPresentationTests.swift */,
 				A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */,
 				A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */,
+				A000000000000000000000C5 /* AppCoordinatorStatusItemRuntimeResetTests.swift */,
+				A000000000000000000000C7 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift */,
 				A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */,
 					A0000000000000000000009C /* AppCoordinatorStatusItemPauseResumeTests.swift */,
 					A00000000000000000000016 /* AppCoordinatorTestSupport.swift */,
@@ -419,6 +425,8 @@
 				A00000000000000000000038 /* AppCoordinatorBreakPresentationTests.swift in Sources */,
 				A000000000000000000000A1 /* AppCoordinatorRuntimeSettingsTests.swift in Sources */,
 				A000000000000000000000A2 /* AppCoordinatorRuntimeSettingsRegressionTests.swift in Sources */,
+				A000000000000000000000C4 /* AppCoordinatorStatusItemRuntimeResetTests.swift in Sources */,
+				A000000000000000000000C6 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift in Sources */,
 				A0000000000000000000009B /* AppCoordinatorStatusItemDisplayTests.swift in Sources */,
 					A0000000000000000000009D /* AppCoordinatorStatusItemPauseResumeTests.swift in Sources */,
 					A00000000000000000000032 /* AppCoordinatorTestSupport.swift in Sources */,

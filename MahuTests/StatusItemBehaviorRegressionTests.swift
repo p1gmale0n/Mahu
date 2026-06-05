@@ -115,6 +115,28 @@ final class StatusItemBehaviorRegressionTests: XCTestCase {
         XCTAssertEqual(button.imagePosition, .imageOnly)
     }
 
+    func testTimerModeAccessibilityLabelOmitsInternalTitleSlotTerminator() throws {
+        let statusItem = makeStatusItem()
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(button.accessibilityLabel(), "00:10")
+        XCTAssertFalse(button.accessibilityLabel()?.contains("\t") == true)
+
+        controller.setRemindersPaused(true)
+
+        XCTAssertEqual(button.accessibilityLabel(), "Paused")
+        XCTAssertFalse(button.accessibilityLabel()?.contains("\t") == true)
+    }
+
     private func makeStatusItem() -> NSStatusItem {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         addTeardownBlock {
