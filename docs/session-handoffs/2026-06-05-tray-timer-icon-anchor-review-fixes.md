@@ -1,0 +1,22 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Split tray baseline clearing from immediate recomputation so active-work runtime duration changes clear stale widths before the restarted timer renders, while paused/rest paths still recompute against the currently visible title.
+  - Replaced the weak fake-only runtime reset test with a sequencing spy that proves the `clear -> render new countdown` contract and separately covers paused-work and active-rest reset behavior.
+  - Tightened README and plan close-out docs so the live manual gate explicitly mentions `MM:SS -> Paused -> MM:SS` tray anchoring and the plan shows completed-under-review status.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/AppCoordinatorStatusItemRuntimeResetTests -only-testing:MahuTests/AppCoordinatorRuntimeSettingsTests -only-testing:MahuTests/AppCoordinatorRuntimeSettingsRegressionTests -only-testing:MahuTests/StatusItemTimerAnchorTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+  - `git diff --check`
+  - `command -v swiftlint` (tool unavailable)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md` (no repo-owned lint target found)
+- Friction/CDD:
+  - `Mahu/StatusItemController.swift` remains above the local readability threshold even after this fix, so the next tray-layout change should extract width-cache/title-slot policy into a dedicated helper instead of adding more state here.
+  - The review contract still assumes a lint gate, but this repo still has no tracked lint target and `swiftlint` is unavailable in the environment.
+- Next Steps:
+  - Let the external review loop rerun against the new fix commit.
+  - If tray layout changes again, extract the remaining title-slot/baseline policy out of `StatusItemController.swift` before adding new behavior.
+  - Add a repo-owned lint target or provision `swiftlint` if lint remains a mandatory review gate.

@@ -1,0 +1,22 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Clear tray timer baselines at the moment deferred runtime settings actually become visible, instead of recomputing against the old phase when the deferred update is first queued.
+  - Keep the native tab-stop title-slot stabilization for this pass, but override the status-item accessibility label with the visible timer text so the internal tab terminator does not leak to accessibility consumers.
+  - Cover the deferred boundary reset bug with real `StatusItemController` integration tests instead of relying only on fake status-item spies.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/AppCoordinatorStatusItemRuntimeResetTests -only-testing:MahuTests/AppCoordinatorStatusItemRuntimeVisibilityResetTests -only-testing:MahuTests/StatusItemBehaviorRegressionTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+  - `git diff --check`
+  - `command -v swiftlint` (`swiftlint` unavailable in this environment)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md` (no repo-owned lint target found)
+- Friction/CDD:
+  - `Mahu/AppCoordinator.swift`, `Mahu/AppCoordinatorSupport.swift`, and `Mahu/StatusItemController.swift` are already beyond the local readability threshold, so even focused review fixes now push against the file-size policy.
+  - The review contract still expects a lint gate, but this repo has neither an installed `swiftlint` nor a tracked lint target, so lint cannot be proven reproducibly from repository-owned tooling here.
+- Next Steps:
+  - Let the external review loop rerun against the review-fix commit.
+  - Manually verify `MM:SS -> Paused -> MM:SS` tray anchoring on the live macOS menu bar, because XCTest still cannot prove the final WindowServer rendering path.
+  - If the live tray still drifts on real hardware, replace the current title-slot hack with a more explicit AppKit layout strategy rather than adding more string-level spacing logic.

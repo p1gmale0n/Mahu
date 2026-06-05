@@ -1,0 +1,22 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Replaced the tray timer width heuristic in `StatusItemController` with AppKit-owned natural width measurement via `NSStatusBarButton.intrinsicContentSize.width`, while preserving freeze-to-widest timer-mode behavior.
+  - Tightened regression coverage against the same AppKit width source of truth and extended the no-icon pause path instead of adding another standalone test file.
+  - Routed timer-mode pause/resume acceptance coverage through real status-menu actions instead of direct `setRemindersPaused(...)` calls.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/StatusItemTimerDisplayTests -only-testing:MahuTests/StatusItemMenuAcceptanceTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+  - `git diff --check`
+  - `command -v swiftlint` (tool unavailable)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md` (no repo-owned lint target found)
+- Friction/CDD:
+  - The review contract still implies a lint gate, but this repo still has no tracked lint target and `swiftlint` is unavailable in the environment, so lint cannot be proven reproducibly from repository-owned tooling.
+  - The tray-width bug can now be validated against AppKit-native width metrics in XCTest, but final system menu-bar pixel output still remains manual-only verification on real hardware.
+- Next Steps:
+  - Let the external review loop rerun from the new fix commit.
+  - If lint remains mandatory, add a repo-owned lint target or provision `swiftlint` in the environment.
+  - Manually launch `build/Mahu.app`, enable tray timer text, and verify `00:10 -> Paused -> resume` on the live macOS menu bar.

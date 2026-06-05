@@ -2,6 +2,14 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-05 | Tray timer hidden-to-visible runtime reset | Reset tray timer baselines for duration-changing runtime updates whenever timer display ends enabled, including hidden-to-visible transitions. | Otherwise `AppCoordinator` can render the old hidden timer once while enabling display and seed stale wide baselines before the restarted shorter timer appears, defeating the explicit settings-boundary shrink contract. |
+| 2026-06-05 | Tray timer runtime reset ordering | Split tray baseline clearing from immediate recomputation so active-work runtime duration changes can clear stale width caches before the first render of the restarted timer, while paused/rest updates still recompute against the current visible title. | Review found that the previous reset seam re-rendered the old title immediately, so a `1000:00 -> 00:59` runtime shrink could keep the old frozen tray width forever despite the explicit settings-boundary reset contract. |
+| 2026-06-04 | Tray timer runtime settings reset | Expose the tray timer baseline reset through `StatusItemControlling` and invoke it only when timer display stays enabled across runtime duration changes. | The title-slot reset seam existed only on the concrete controller, so `AppCoordinator` could not trigger width recomputation after a shorter runtime schedule replaced a previously wider timer. Narrowing the reset to duration changes preserves explicit-boundary shrink behavior without coupling unrelated runtime settings to tray layout resets. |
+| 2026-06-04 | Tray timer title slot | Keep the native `NSStatusItem` path and stabilize timer-mode icon anchoring with a fixed-width title slot that widens to the largest observed timer title until an explicit reset boundary. | Freezing only the outer status item width still lets AppKit recenter different-width `icon + title` groups; a fixed-width title slot is the smallest native fix, while full monospace text still cannot equalize different string lengths and a custom status item view would add more scope and maintenance risk. |
+| 2026-06-04 | Tray timer width reset seam | Add an explicit `StatusItemController.resetTimerDisplayBaselines()` seam that clears both frozen width caches and immediately recomputes the current timer presentation, while ordinary timer ticks still only widen-or-preserve the slot. | Future runtime settings or display-reset boundaries need a safe way to shrink stale widened tray widths without reintroducing per-tick jitter or moving width policy out of `StatusItemController`. |
+| 2026-06-04 | Tray timer icon anchor plan | Plan a fixed-width timer title slot inside the native status item so `MM:SS`, long countdowns, and `Paused` do not move the tray icon while timer mode is active. | Freezing only `NSStatusItem.length` still lets AppKit center different-width `icon + title` groups, so the icon drifts when switching between countdown text and `Paused`. |
+| 2026-06-04 | Tray timer width measurement review hardening | Supersede the earlier explicit padding/spacing heuristic and measure timer-mode status-item width from `NSStatusBarButton`'s AppKit-reported natural width (`intrinsicContentSize`) while still freezing to the widest observed timer-mode value. | Review confirmed the manual `padding + spacing + title + image` model was still a guessed mini-layout engine that could drift across macOS menu-bar metrics; AppKit's own natural width is a smaller and more portable source of truth. |
+| 2026-06-04 | Tray timer width measurement implementation | Measure timer-mode status-item width conservatively as the max of constrained `fittingSize`, icon width, attributed title width, explicit icon-title spacing, horizontal padding, and `NSStatusItem.squareLength`, while keeping width frozen to the widest observed timer-mode value until timer mode is disabled. | The implemented fix needs a deterministic width that still expands after a narrow countdown such as `00:10`, because `fittingSize` alone can stay artificially narrow once AppKit has already constrained the status item. |
 | 2026-06-04 | Tray timer width measurement plan | Plan a conservative status-item width calculation for timer mode that accounts for icon, title, and native padding instead of relying only on `NSStatusBarButton.fittingSize`. | Live menu-bar testing showed `Paused` can truncate to `Pau` after timer mode is enabled, suggesting `fittingSize` can under-measure when the button is already constrained by a previous frozen width. |
 | 2026-06-04 | Config JSONC review hardening | Treat removed block comments as JSON whitespace and preserve standard Unicode JSON text encodings before normalizing preprocessed config back to UTF-8. | Review found the original scanner could silently merge tokens across `/* ... */` and the initial load wiring regressed previously supported UTF-16/BOM-edited configs. |
 | 2026-06-04 | Config JSONC preprocessor shape | Implement JSONC tolerance as a small in-repo scanner that strips comments first and then removes trailing commas in a second pass. | This keeps the behavior string-safe and testable without regex corruption risks or prematurely expanding `ConfigStore.swift`. |
@@ -70,6 +78,8 @@
 | 2026-05-29 | Break overlay skip and startup visibility guards | Run break skip state transitions before final overlay teardown side effects, and treat startup resync that ends with zero visible overlays as a failed presentation instead of a successful break start. | This prevents `Skip` from accidentally triggering the natural-completion sound path and avoids activating Mahu when no overlay UI survives a transient zero-display snapshot. |
 | 2026-05-29 | Break overlay observer cancellation | Make focus-loss and screen-change coalescers cancellation-aware so already queued deliveries become no-ops after break teardown. | Notification observers are removed on teardown, but already queued `Task` deliveries can otherwise fire late and mutate the next break lifecycle. |
 | 2026-05-29 | Break completion sound runtime format | Replace the bundled runtime completion sound with `Mahu/Resources/break-completion.caf` and switch playback from `NSSound` to `AVAudioPlayer`. | The new source asset is already CAF, `AVAudioPlayer` is the native local-file playback API for this use case, and a stable runtime filename avoids shipping the human-provided source name with spaces while keeping failure handling localized in the sound player seam. |
+| 2026-06-05 | Tray timer deferred baseline reset | Clear tray timer baselines only when deferred runtime duration settings actually take over the visible phase, not when the deferred update is first queued. | Recomputing against the old phase seeds stale wide baselines and prevents the first post-boundary render from shrinking to the new shorter countdown. |
+| 2026-06-05 | Tray timer accessibility semantics | Keep the fixed-width tab-slot layout hack, but override the status-item accessibility label with the visible timer text. | The raw attributed title string contains a trailing tab, and without an explicit accessibility label AppKit exposes that control character to accessibility consumers. |
 | 2026-05-29 | Break completion sound documentation contract | Document `break-completion.caf` as the only shipped completion-sound filename in README/build verification, while keeping `source-assets/11labs-sound-sample.caf` as a staging/source asset name only. | The repo now has different source and runtime filenames; locking the docs to the bundled name avoids stale `sound.wav` references and prevents humans or future agents from confusing the editable source asset with the app-bundle contract. |
 | 2026-05-29 | Source asset organization and completion sound | Rename the repository staging folder from `images/` to `source-assets/`, use `Warm Focus Nudge 48k 16bit.wav` as the source for the bundled completion audio, and keep the runtime bundle filename as `Mahu/Resources/sound.wav`. | `source-assets/` describes mixed design/audio source material more clearly than `images/`; preserving the stable bundled `sound.wav` name avoids Xcode project churn, spaces in runtime resource names, and unnecessary code/test/Makefile changes. |
 | 2026-05-29 | Native status item layout | Roll back status-item length/render-size experiments and keep the native `NSStatusItem.squareLength` layout with an 18x18 template image. | Manual checks showed the 20pt/18x18 and 18pt/20x20 tuning attempts did not visibly reduce menu-bar spacing; using a custom view would be less native and risk menu-bar behavior for a minor visual deviation, so the safest result is to keep AppKit's standard status-item layout. |
@@ -119,6 +129,18 @@
 | 2026-05-21 | App scene surface | Keep the minimal SwiftUI scene needed for startup, but remove the user-facing Settings command until a real settings UI exists. | The MVP must remain menu-bar-only; an empty Settings window is still a user-visible feature outside scope. |
 | 2026-05-21 | Verification truthfulness | Keep multi-display manual validation explicitly incomplete in the plan until someone runs it on real hardware. | The abstraction-level overlay tests do not prove fullscreen Space or external-display behavior, so marking those checks complete would overstate acceptance evidence. |
 | 2026-05-21 | Runtime hardening | Drive live timer ticks from monotonic awake uptime, require config durations of at least one second, and make overlay windows key-capable while restoring the previous frontmost app after breaks. | The review found runtime drift, config-driven freeze potential, and focus/interactivity bugs that all live in the MVP hot path and should be fixed without expanding into full sleep/wake reconciliation. |
+
+**2026-06-04 / Tray timer title slot**
+
+Context: Tray timer mode already froze `NSStatusItem.length` to the widest observed width, but AppKit still recentered the live `icon + title` group whenever the visible title switched between countdown strings and `Paused`.
+
+Decision: Keep the native `NSStatusItem` / `NSStatusBarButton` path and stabilize the inner timer title area with a fixed-width slot that widens to the largest observed timer title until an explicit reset boundary.
+
+Rationale: This is the smallest change that fixes icon drift without moving layout policy out of `StatusItemController`. It also matches the product invariant that timer-mode text can change while the tray icon stays visually anchored.
+
+Consequences: Timer-mode rendering now depends on two width baselines: the outer frozen status-item length and the inner fixed-width title slot. Ordinary timer ticks do not shrink either baseline; explicit reset boundaries can recompute them.
+
+Alternatives Considered: Full monospace timer text was rejected because `monospacedDigitSystemFont` does not make `Paused`, colons, and different-length strings equal width. A custom status item view was rejected for this scope because it adds more AppKit surface area, maintenance cost, and native-behavior risk than the fixed-slot approach.
 | 2026-05-21 | Break transition integrity | Stop delayed work ticks at the work-to-break boundary so Mahu never spends unseen break time before the overlay is visible. | A large main-run-loop delay could otherwise consume some or all of the rest phase before the user ever sees it, including the worst case where the break is skipped entirely. |
 | 2026-05-21 | Local build artifact | Add `make build` to produce `build/Mahu.app` while keeping Xcode intermediate files under ignored `build/DerivedData`. | Users need a predictable app path, but keeping Xcode cache/artifacts out of source control avoids polluting the repo and preserves standard `xcodebuild` behavior. |
 | 2026-05-21 | Overlay focus hardening plan | Plan focus retention as public-API bounce-back while the break overlay is active, not as global keyboard shortcut blocking. | This addresses accidental hidden-app input after `Cmd+Tab` without introducing Accessibility/Input Monitoring permissions or App Store-hostile input capture. |
@@ -155,6 +177,70 @@
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 
+## 2026-06-04 / Tray Timer Icon Anchor Plan
+
+**Date:** 2026-06-04
+
+**Area:** Tray timer display
+
+**Context:** The tray timer width fix prevents `Paused` truncation by freezing the outer status item length, but live menu-bar behavior still centers the current `icon + title` group. Because `Paused`, `MM:SS`, and long countdown strings have different natural widths, the tray icon can shift horizontally when the visible title changes.
+
+**Decision:** Plan a fixed-width timer title slot inside the native status item so `MM:SS`, long countdowns, and `Paused` occupy a stable title area while timer mode is active. Keep the native `NSStatusItem` / `NSStatusBarButton` path, preserve freeze-to-widest behavior, and add an explicit reset/recompute seam for future settings-duration changes.
+
+**Rationale:** Stabilizing the title slot fixes the actual anchor drift without replacing native menu-bar controls. Full monospace text would not solve different string lengths, and a custom status item view would add unnecessary risk to menu, highlight, and accessibility behavior for a layout bug that can likely be fixed locally in `StatusItemController`.
+
+**Consequences:** Timer mode can remain visually stable across countdown, paused, and long-duration states while still allowing a future Settings UI to shrink/recompute the slot at explicit settings boundaries. Live menu-bar validation remains manual-only because XCTest can prove title-slot state but not pixel-perfect system menu-bar rendering.
+
+**Alternatives Considered:** Use full monospace text; rejected because different string lengths still produce different widths and the visual style is less native. Switch to a custom status item view; rejected for this scope because it risks native menu behavior. Accept the drift; rejected because the README/product contract already says the tray icon should not drift horizontally.
+
+## 2026-06-04 / Tray Timer Runtime Settings Reset
+
+**Date:** 2026-06-04
+
+**Area:** Tray timer display
+
+**Context:** The icon-anchor implementation introduced `StatusItemController.resetTimerDisplayBaselines()`, but the seam lived only on the concrete controller and was covered only by controller-level tests. `AppCoordinator` owns runtime settings updates behind the `StatusItemControlling` abstraction, so a shorter runtime duration could not trigger width recomputation without downcasting away the protocol boundary.
+
+**Decision:** Expose the timer baseline reset through `StatusItemControlling` and have `AppCoordinator` call it only when runtime settings keep timer display enabled while changing work or break durations.
+
+**Rationale:** Runtime settings changes are the explicit boundary where width shrink/recompute is allowed. Surfacing the seam on the existing protocol keeps layout ownership in `StatusItemController`, lets coordinator-driven runtime updates use it without new AppKit coupling, and avoids resetting tray layout for unrelated settings such as launch-at-login or overlay message text.
+
+**Consequences:** Shorter runtime schedules can shrink a previously widened timer title slot at the intended explicit settings boundary, while ordinary countdown ticks and unrelated runtime settings preserve the existing stable-width behavior. The coordinator/test-double contract grows by one narrow method, which is smaller than exposing concrete controller internals or pushing width policy into coordinator code.
+
+**Alternatives Considered:** Leave the seam concrete-only; rejected because future runtime settings changes could not reach it through the production abstraction. Reset on every runtime settings update; rejected because unrelated settings changes should not gratuitously perturb tray layout. Downcast `StatusItemControlling` to `StatusItemController`; rejected because it breaks the existing test seam and couples coordinator logic to the concrete AppKit implementation.
+
+## 2026-06-05 / Tray Timer Runtime Reset Ordering
+
+**Date:** 2026-06-05
+
+**Area:** Tray timer display
+
+**Context:** External review found that `StatusItemController.resetTimerDisplayBaselines()` immediately re-rendered the current title after clearing the frozen width caches. During active-work runtime duration shrink, `AppCoordinator` called that seam before it replaced the timer or updated the status display state, so the reset path could repopulate the caches with the old wide title and prevent the intended shrink on `1000:00 -> 00:59`.
+
+**Decision:** Split timer baseline clearing from immediate recomputation. `AppCoordinator` now calls a clear-only seam before active-work timer restarts, so the first post-update render measures the new restarted countdown, while paused/rest runtime duration changes still use the existing reset-and-rerender path against the current visible title.
+
+**Rationale:** The bug was ordering-sensitive, not a formatting issue. Separating “clear stale caches” from “recompute current title” is the smallest change that preserves the explicit settings-boundary shrink contract without pushing tray layout policy into `AppCoordinator` or weakening the existing paused/rest behavior.
+
+**Consequences:** Active-work runtime duration changes can actually shrink previously widened tray widths on the first restarted render. Paused-work and active-rest updates still recompute immediately against `Paused` or the current break countdown, and the review regression tests can now distinguish the clear-before-render sequence from the reset-and-rerender sequence.
+
+**Alternatives Considered:** Move the old reset call after the restart render; rejected because it would still do a two-step render and keep one overloaded seam with mixed semantics. Keep the original reset behavior and only strengthen tests; rejected because the implementation bug would remain in production.
+
+## 2026-06-05 / Tray Timer Hidden-To-Visible Runtime Reset
+
+**Date:** 2026-06-05
+
+**Area:** Tray timer display
+
+**Context:** The review hardening for runtime duration changes fixed the active-work ordering bug only when timer display was already visible. If a future runtime settings update enables `showStatusItemTimerState` and changes durations in the same payload, `AppCoordinator` first calls `setShowsTimerState(true)`, which renders the old hidden timer text once. The previous reset predicate ignored this hidden-to-visible case, so the old wide title could seed the frozen baseline cache before the restarted shorter timer rendered.
+
+**Decision:** Treat any duration-changing runtime update whose resulting settings keep timer display enabled as a baseline-reset boundary, even when the previous settings had timer display disabled.
+
+**Rationale:** The important condition is not “was timer display already visible,” but “can the next visible render legitimately recompute tray width at this explicit settings boundary.” Broadening the reset predicate is the smallest fix that preserves existing active-work clear-before-restart behavior and lets hidden-to-visible runtime updates start from the new timer state instead of stale hidden width.
+
+**Consequences:** A future Settings UI can safely enable tray timer text and change durations in one runtime update without leaving the menu-bar item pinned to an invisible old width. Existing visible-to-visible behavior remains unchanged, while disabled end states still rely on `setShowsTimerState(false)` to clear caches.
+
+**Alternatives Considered:** Keep the reset limited to visible-to-visible updates; rejected because it leaves a real stale-baseline path for combined settings edits. Reorder all status-item updates in `AppCoordinator`; rejected because it expands the change surface beyond the narrow reset predicate that actually controls the bug.
+
 ## 2026-06-04 / Tray Timer Width Measurement Plan
 
 **Date:** 2026-06-04
@@ -170,6 +256,38 @@
 **Consequences:** Timer mode may become slightly wider, but `Paused` and countdown text should remain fully visible. Automated tests can cover the width expansion policy, while live menu-bar rendering still requires manual verification because AppKit's system menu bar layout cannot be fully proven in XCTest.
 
 **Alternatives Considered:** Disable tray timer text; rejected because the feature is useful and the bug is layout-specific. Remove width freezing and use `NSStatusItem.variableLength`; rejected because prior decisions intentionally stabilized width to avoid horizontal drift. Add a coordinator workaround; rejected because tray layout belongs at the AppKit status item edge.
+
+## 2026-06-04 / Tray Timer Width Measurement Implementation
+
+**Date:** 2026-06-04
+
+**Area:** Tray timer display
+
+**Context:** After the paused-width regression was captured in XCTest, `StatusItemController` still measured timer-mode width primarily from `NSStatusBarButton.fittingSize.width`. Once AppKit had already constrained the status item to a narrow countdown like `00:10`, that measurement could stay too small and let the live menu bar truncate `Paused`.
+
+**Decision:** Implement timer-mode width measurement as the maximum of the constrained button fitting width, attributed title width, icon width, explicit icon-title spacing, horizontal padding budget, and `NSStatusItem.squareLength`. Keep `maximumTimerStatusItemLength = max(previous, measured)` while timer mode is enabled, and reset that cache only when timer mode is disabled.
+
+**Rationale:** This is the smallest robust fix that stays localized in `StatusItemController` and matches the shipped stable-width tray contract. The extra padding and explicit content measurement make the width conservative enough for `Paused` and countdown text without depending on AppKit to re-expand a button it has already constrained.
+
+**Consequences:** Timer mode can be slightly wider than the old under-measured layout, but it no longer shrinks after pause/resume or digit-boundary updates such as `100:00 -> 99:59`. The implementation remains testable with controller-level XCTest coverage, while final live menu-bar rendering still needs manual verification on macOS.
+
+**Alternatives Considered:** Use only `button.attributedTitle.size()` plus a constant; rejected because it ignores the constrained button width and risks missing native layout overhead. Move the policy into coordinator formatting; rejected because layout belongs to the AppKit edge, not timer orchestration. Replace the native status item view; rejected because it would expand scope and risk more menu-bar behavior drift than the bug warrants.
+
+## 2026-06-04 / Tray Timer Width Measurement Review Hardening
+
+**Date:** 2026-06-04
+
+**Area:** Tray timer display
+
+**Context:** Review of the first implementation found that the explicit `title + image + spacing + padding` fallback in `StatusItemController` still embedded guessed AppKit metrics. That left the bug fixed on the current machine but kept a portability risk across macOS versions and accessibility/menu-bar metric changes.
+
+**Decision:** Supersede the explicit padding/spacing heuristic and measure timer-mode width from `NSStatusBarButton.intrinsicContentSize.width`, while still taking the max with constrained `fittingSize.width` and freezing `maximumTimerStatusItemLength` to the widest observed timer-mode width until timer mode is disabled. Align the regression tests to the same AppKit-reported natural width and route acceptance coverage through real menu actions.
+
+**Rationale:** AppKit already knows the button's native layout requirements even when the current `NSStatusItem.length` is constrained. Using `intrinsicContentSize` removes magic numbers, keeps the policy localized at the AppKit boundary, and makes the tests assert against the same source of truth that production now uses.
+
+**Consequences:** Timer-mode width remains stable without hardcoded spacing assumptions, and the no-icon path plus pause/resume menu path are now covered against native width requirements. Final live menu-bar rendering is still manual-only because XCTest cannot prove the system menu bar pixel output end-to-end.
+
+**Alternatives Considered:** Keep the explicit spacing/padding model; rejected because it remained a guessed mini-layout engine that could drift across macOS metrics. Force `NSStatusItem.variableLength` permanently; rejected because prior behavior intentionally freezes the widest observed timer-mode width to avoid horizontal jitter. Replace the native status item view; rejected because it would expand scope and risk more regressions than this localized bug warrants.
 
 ## 2026-06-04 / Config JSONC Tolerance
 
@@ -2552,3 +2670,35 @@
 **Consequences:** Successful config saves now mean both file bytes and directory entries were flushed through the same write path. Tests can verify the extra sync contract deterministically through the injected sync hook without depending on power-failure simulation.
 
 **Alternatives Considered:** Leave durability to the filesystem and accept occasional post-crash config loss; rejected because it makes `save()` overclaim success. Introduce a full file-operations abstraction for every POSIX call; rejected because the targeted sync hook covers this fix with much less churn.
+
+## 2026-06-05 / Tray Timer Deferred Baseline Reset
+
+**Date:** 2026-06-05
+
+**Area:** Status item runtime-settings layout reset
+
+**Context:** Second-pass review found that runtime duration changes scheduled for the next break or for after the current break ended were immediately calling `resetTimerDisplayBaselines()` against the old visible phase. That let a wide current title such as `1000:00` reseed the frozen tray baselines before the new shorter phase ever rendered, so the first post-boundary title could not shrink.
+
+**Decision:** Clear tray timer baselines only when deferred runtime settings actually take over the visible phase. Immediate active-work restarts still clear before rendering the new timer, while paused-work duration changes keep the current immediate recompute behavior.
+
+**Rationale:** The visible shrink contract belongs to the first render of the new effective schedule, not to the moment a deferred update is queued. Clearing at the application boundary is the smallest fix that preserves ordinary no-shrink ticks while letting explicit settings boundaries narrow stale widths.
+
+**Consequences:** Deferred `applyAtNextBreak` and `applyAfterCurrentRestEnds` paths can now drop previously widened tray baselines before the new countdown appears. Real `StatusItemController` integration tests now cover both boundary directions so this ordering bug cannot hide behind fake status-item spies.
+
+**Alternatives Considered:** Keep immediate reset on every duration change; rejected because it re-renders the old phase and permanently preserves stale width. Add another pending-reset state property on `AppCoordinator`; rejected because the existing pending-settings boundary already provides the right moment to clear baselines without more coordinator state.
+
+## 2026-06-05 / Tray Timer Accessibility Semantics
+
+**Date:** 2026-06-05
+
+**Area:** Status item accessibility
+
+**Context:** The fixed-width tray title slot currently relies on a trailing tab character inside `NSAttributedString`. Review verification confirmed that AppKit exposes that raw string through `NSStatusBarButton.accessibilityLabel()`, so accessibility consumers and UI automation read `Paused\t` instead of the visible title.
+
+**Decision:** Keep the current tab-stop layout mechanism for now, but explicitly set the status-item button accessibility label to the visible timer text (`MM:SS` or `Paused`) whenever timer mode is active.
+
+**Rationale:** This removes the verified semantic regression without broadening scope into a custom status-item view or replacing the current native layout experiment mid-review.
+
+**Consequences:** VoiceOver/accessibility consumers now read the visible timer text instead of the internal tab terminator. The raw attributed title string still contains the tab for layout, so any future work that needs fully clean semantic text everywhere should revisit the layout mechanism itself.
+
+**Alternatives Considered:** Remove the tab-stop approach immediately; rejected for this pass because it would reopen the just-landed anchor-stability fix without a proven smaller native alternative. Ignore the accessibility leak; rejected because the control character is already externally observable through AppKit accessibility APIs.

@@ -1,0 +1,22 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Exposed the tray timer baseline reset seam through `StatusItemControlling` instead of leaving it concrete-only inside `StatusItemController`.
+  - Triggered tray width recomputation only for runtime duration changes that keep timer display enabled, so explicit settings boundaries can shrink stale tray widths without perturbing unrelated runtime settings.
+  - Added focused coordinator regression coverage in a new test file instead of further growing the larger runtime/settings suites.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/AppCoordinatorStatusItemRuntimeResetTests -only-testing:MahuTests/AppCoordinatorRuntimeSettingsRegressionTests -only-testing:MahuTests/StatusItemTimerAnchorTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+  - `git diff --check`
+  - `command -v swiftlint` (tool unavailable)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md` (no repo-owned lint target found)
+- Friction/CDD:
+  - `AppCoordinator.swift`, `StatusItemController.swift`, and shared test-support files are already beyond the local readability threshold, so even small review fixes now need extra care to avoid policy sprawl.
+  - The review contract still assumes a lint gate, but this repo has neither a tracked lint target nor an installed `swiftlint`, so lint cannot be proven from repository-owned tooling in this environment.
+- Next Steps:
+  - Let the external review loop rerun against the new fix commit.
+  - If runtime settings gets a real Settings UI, keep using the protocol seam instead of downcasting into `StatusItemController`.
+  - Add a repo-owned lint target or provision `swiftlint` if lint remains a mandatory review gate.

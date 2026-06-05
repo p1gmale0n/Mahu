@@ -23,7 +23,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 ## Current Behavior
 
 - Menu-bar-only app with `LSUIElement = true`.
-- Status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text, with `Paused` shown only while reminders are paused during work and timer-mode width pinned to the widest observed title so the icon does not drift horizontally.
+- Status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text, with `Paused` shown only while reminders are paused during work and timer-mode width pinned to the widest observed title so the icon does not drift horizontally across countdown updates or `MM:SS -> Paused -> MM:SS` transitions.
 - The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset: a transparent, glyph-only template silhouette derived from the app icon motif, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
 - Work timer starts automatically on launch.
 - Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
@@ -98,7 +98,7 @@ Manual-edit example with tolerated JSONC-style syntax on load:
 Notes:
 
 - `1200` seconds = 20 minutes.
-- `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`. If reminders are paused during work, the title changes to `Paused`; if pause happens during an active break, Mahu keeps the live break countdown visible while dimming the icon and changing the menu item to `Resume Reminders`. Timer mode keeps the widest observed title width so the icon does not drift horizontally across countdown changes.
+- `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`. If reminders are paused during work, the title changes to `Paused`; if pause happens during an active break, Mahu keeps the live break countdown visible while dimming the icon and changing the menu item to `Resume Reminders`. Timer mode keeps the widest observed title width so the icon does not drift horizontally across countdown changes or `MM:SS -> Paused -> MM:SS` transitions.
 - `breakOverlayMessageText` defaults to `Время отвлечься`; omit it to keep backward-compatible behavior, or set it to any non-empty Unicode string to change the break title.
 - `launchAtLoginEnabled` defaults to `false`; set it to `true` to request Launch at Login for the main app on the next launch, or leave/set it to `false` to request unregister/removal on the next launch when a Login Item is currently present.
 - Empty or whitespace-only `breakOverlayMessageText` values normalize back to the default title, while `null` or non-string values make Mahu fall back to the full default config like other malformed config edits.
@@ -151,7 +151,7 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Confirm the app has no Dock icon.
 - With default or missing `showStatusItemTimerState`, confirm the status item stays icon-only and initially shows `Pause Reminders` plus `Quit`.
 - With `"showStatusItemTimerState": true`, confirm the menu bar shows the same tray icon plus `MM:SS` during work and break countdowns.
-- With `"showStatusItemTimerState": true`, confirm native `NSStatusItem` width, truncation, and spacing remain acceptable in live menu-bar rendering, including countdown digit-boundary changes such as `100:00 -> 99:59`; XCTest verifies controller state but not the real system layout.
+- With `"showStatusItemTimerState": true`, confirm native `NSStatusItem` width, truncation, and spacing remain acceptable in live menu-bar rendering, including countdown digit-boundary changes such as `100:00 -> 99:59` and work-phase `MM:SS -> Paused -> MM:SS` transitions; XCTest verifies controller state but not the real system layout.
 - Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders`, the tray icon visibly dims without looking disabled, and no break overlay appears once the previously running work interval would have elapsed.
 - With `"showStatusItemTimerState": true`, choose `Pause Reminders` during work and confirm the status item shows `Paused` while keeping the same dimmed tray icon.
 - Choose `Resume Reminders`, then confirm the tray icon returns to normal brightness and the next break appears only after a full fresh work interval from Mahu's current runtime settings.

@@ -1,0 +1,21 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Broadened the tray timer baseline-reset predicate so duration-changing runtime updates still reset width caches when they end with timer display enabled, even if the update also turns timer mode on.
+  - Added a focused AppCoordinator + real StatusItemController regression test in its own file instead of extending the already near-limit runtime-reset suite.
+  - Kept the production fix in `AppCoordinatorSupport.swift` rather than reordering coordinator status-item calls, because the stale-width bug is controlled by the reset boundary predicate.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/AppCoordinatorStatusItemRuntimeVisibilityResetTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `git diff --check`
+  - `command -v swiftlint` (tool unavailable)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md` (no repo-owned lint target found)
+- Friction/CDD:
+  - The runtime-reset behavior depends on subtle ordering between `AppCoordinator` and `StatusItemController`, so fake-only status-item tests can miss stale-baseline bugs that show up only with the real AppKit controller.
+  - The review contract still assumes a lint gate, but this repo still has no tracked lint target and `swiftlint` is unavailable in the environment.
+- Next Steps:
+  - Let the external review loop rerun against the new fix commit.
+  - If future runtime settings work adds more combined visibility/layout cases, keep using real `StatusItemController` integration tests for those boundaries instead of only fake status-item spies.
+  - Add a repo-owned lint target or provision `swiftlint` if lint remains a mandatory review gate.
