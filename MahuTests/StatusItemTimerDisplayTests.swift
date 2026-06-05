@@ -54,6 +54,32 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
     }
 
+    func testDisablingTimerModeResetsFrozenWidthBackToSquareLength() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let providedIcon = NSImage(size: NSSize(width: 18, height: 18))
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { providedIcon }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
+        controller.install()
+
+        XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
+
+        controller.setShowsTimerState(false)
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(statusItem.length, NSStatusItem.squareLength)
+        XCTAssertEqual(button.attributedTitle.string, "")
+        XCTAssertEqual(button.imagePosition, .imageOnly)
+        XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
+    }
+
     func testTimerModeShowsExistingTrayIconPlusFormattedCountdown() throws {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }
@@ -79,7 +105,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
     }
 
-    func testTimerModeDegradesPredictablyWhenNoStatusIconIsAvailable() throws {
+    func testTimerModeDegradesPredictablyWhenNoStatusIconIsAvailableAcrossPauseTransitions() throws {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }
 
@@ -90,16 +116,27 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         )
         controller.configureReminderActions(onPause: {}, onResume: {})
         controller.setShowsTimerState(true)
-        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 125))
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
 
         controller.install()
 
         let button = try XCTUnwrap(statusItem.button)
+        let countdownWidth = statusItem.length
         XCTAssertNil(button.image)
         XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
-        XCTAssertEqual(button.attributedTitle.string, "  02:05")
+        XCTAssertEqual(button.attributedTitle.string, "  00:10")
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+
+        controller.setRemindersPaused(true)
+
+        let pausedButton = try XCTUnwrap(statusItem.button)
+        let naturalPausedWidth = ceil(pausedButton.intrinsicContentSize.width)
+        XCTAssertNil(pausedButton.image)
+        XCTAssertEqual(pausedButton.attributedTitle.string, "  Paused")
+        XCTAssertGreaterThan(statusItem.length, countdownWidth)
+        XCTAssertGreaterThanOrEqual(statusItem.length, naturalPausedWidth)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
     }
 
     func testTimerModeUsesStableWidthDigitPresentationAcrossCountdownChanges() throws {
@@ -180,6 +217,43 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertNotEqual(try XCTUnwrap(button.image?.tiffRepresentation), normalImageData)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+    }
+
+    func testPausedWorkStateExpandsPastNarrowCountdownWidthAndPreservesReadableMenuBarContent() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let providedIcon = makeOpaqueStatusIcon()
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { providedIcon }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.install()
+
+        controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
+
+        let countdownButton = try XCTUnwrap(statusItem.button)
+        let countdownWidth = statusItem.length
+        let countdownImageData = try XCTUnwrap(countdownButton.image?.tiffRepresentation)
+
+        XCTAssertEqual(countdownButton.attributedTitle.string, "  00:10")
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+
+        controller.setRemindersPaused(true)
+
+        let pausedButton = try XCTUnwrap(statusItem.button)
+        let pausedWidth = statusItem.length
+        let naturalPausedWidth = ceil(pausedButton.intrinsicContentSize.width)
+
+        XCTAssertEqual(pausedButton.attributedTitle.string, "  Paused")
+        XCTAssertGreaterThan(pausedWidth, countdownWidth, "Paused should expand past the narrower countdown width")
+        XCTAssertGreaterThanOrEqual(pausedWidth, naturalPausedWidth)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(pausedButton.alphaValue, 1.0, accuracy: 0.001)
+        XCTAssertNotEqual(try XCTUnwrap(pausedButton.image?.tiffRepresentation), countdownImageData)
     }
 
     func testTimerModeKeepsLongestObservedWidthAcrossDigitBoundaryChanges() throws {

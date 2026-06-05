@@ -142,29 +142,37 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }
 
-        let controller = StatusItemController(
+        var controller: StatusItemController!
+        controller = StatusItemController(
             statusItem: statusItem,
             applicationTerminator: {},
             statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
         )
-        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.configureReminderActions(
+            onPause: { controller.setRemindersPaused(true) },
+            onResume: { controller.setRemindersPaused(false) }
+        )
         controller.setShowsTimerState(true)
         controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 300))
         controller.install()
 
         let button = try XCTUnwrap(statusItem.button)
+        let initialWidth = statusItem.length
         XCTAssertEqual(button.attributedTitle.string, "  05:00")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
 
-        controller.setRemindersPaused(true)
+        try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
 
+        let pausedWidth = statusItem.length
         XCTAssertEqual(button.attributedTitle.string, "  Paused")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertGreaterThanOrEqual(pausedWidth, initialWidth)
 
-        controller.setRemindersPaused(false)
+        try invokeMenuItem(named: "Resume Reminders", in: statusItem.menu)
 
         XCTAssertEqual(button.attributedTitle.string, "  05:00")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.length, pausedWidth, accuracy: 0.001)
     }
 
     private func invokeMenuItem(named title: String, in menu: NSMenu?) throws {

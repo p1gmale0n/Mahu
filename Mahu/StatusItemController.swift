@@ -228,7 +228,11 @@ final class StatusItemController: NSObject {
     }
 
     private func measuredTimerStatusItemLength(for button: NSStatusBarButton) -> CGFloat {
-        max(Self.minimumTimerStatusItemLength, ceil(button.fittingSize.width))
+        let fittingWidth = ceil(button.fittingSize.width)
+        let intrinsicWidth = button.intrinsicContentSize.width
+        let naturalWidth = intrinsicWidth == NSView.noIntrinsicMetric ? 0 : ceil(intrinsicWidth)
+
+        return max(Self.minimumTimerStatusItemLength, max(fittingWidth, naturalWidth))
     }
 
     private func currentStatusIcon() -> NSImage? {
