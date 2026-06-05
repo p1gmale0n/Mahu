@@ -158,19 +158,19 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         let initialWidth = statusItem.length
-        XCTAssertEqual(button.attributedTitle.string, "  05:00")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  05:00")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
 
         try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
 
         let pausedWidth = statusItem.length
-        XCTAssertEqual(button.attributedTitle.string, "  Paused")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  Paused")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
         XCTAssertGreaterThanOrEqual(pausedWidth, initialWidth)
 
         try invokeMenuItem(named: "Resume Reminders", in: statusItem.menu)
 
-        XCTAssertEqual(button.attributedTitle.string, "  05:00")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  05:00")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
         XCTAssertEqual(statusItem.length, pausedWidth, accuracy: 0.001)
     }
@@ -194,5 +194,15 @@ final class StatusItemMenuAcceptanceTests: XCTestCase {
         NSBezierPath(rect: NSRect(x: 2, y: 2, width: 14, height: 14)).fill()
         image.unlockFocus()
         return image
+    }
+
+    private func visibleTimerTitle(from attributedTitle: NSAttributedString) -> String {
+        let rawTitle = attributedTitle.string
+
+        if rawTitle.hasSuffix("\t") {
+            return String(rawTitle.dropLast())
+        }
+
+        return rawTitle
     }
 }

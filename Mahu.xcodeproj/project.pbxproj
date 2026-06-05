@@ -68,6 +68,8 @@
 			A000000000000000000000BA /* ConfigStoreJSONCTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BB /* ConfigStoreJSONCTests.swift */; };
 			A000000000000000000000BC /* ConfigJSONPreprocessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BD /* ConfigJSONPreprocessor.swift */; };
 			A000000000000000000000BE /* ConfigStoreJSONCEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */; };
+			A000000000000000000000C0 /* StatusItemTimerAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C1 /* StatusItemTimerAnchorTests.swift */; };
+			A000000000000000000000C2 /* StatusItemBehaviorRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -145,6 +147,8 @@
 			A000000000000000000000BB /* ConfigStoreJSONCTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreJSONCTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000BD /* ConfigJSONPreprocessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigJSONPreprocessor.swift; sourceTree = "<group>"; };
 			A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreJSONCEdgeCaseTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000C1 /* StatusItemTimerAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemTimerAnchorTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemBehaviorRegressionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -257,6 +261,8 @@
 				A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */,
 				A00000000000000000000015 /* StatusItemControllerTests.swift */,
 				A00000000000000000000098 /* StatusItemTimerDisplayTests.swift */,
+				A000000000000000000000C1 /* StatusItemTimerAnchorTests.swift */,
+				A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */,
 			);
 		};
 		A00000000000000000000043 /* Frameworks */ = {
@@ -443,6 +449,8 @@
 				A0000000000000000000004F /* StatusItemMenuAcceptanceTests.swift in Sources */,
 				A0000000000000000000002F /* StatusItemControllerTests.swift in Sources */,
 				A00000000000000000000099 /* StatusItemTimerDisplayTests.swift in Sources */,
+				A000000000000000000000C0 /* StatusItemTimerAnchorTests.swift in Sources */,
+				A000000000000000000000C2 /* StatusItemBehaviorRegressionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -75,7 +75,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertEqual(statusItem.length, NSStatusItem.squareLength)
-        XCTAssertEqual(button.attributedTitle.string, "")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "")
         XCTAssertEqual(button.imagePosition, .imageOnly)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
     }
@@ -98,7 +98,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
-        XCTAssertEqual(button.attributedTitle.string, "  02:05")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  02:05")
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
@@ -124,7 +124,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let countdownWidth = statusItem.length
         XCTAssertNil(button.image)
         XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
-        XCTAssertEqual(button.attributedTitle.string, "  00:10")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  00:10")
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
 
@@ -133,8 +133,8 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let pausedButton = try XCTUnwrap(statusItem.button)
         let naturalPausedWidth = ceil(pausedButton.intrinsicContentSize.width)
         XCTAssertNil(pausedButton.image)
-        XCTAssertEqual(pausedButton.attributedTitle.string, "  Paused")
-        XCTAssertGreaterThan(statusItem.length, countdownWidth)
+        XCTAssertEqual(visibleTimerTitle(from: pausedButton.attributedTitle), "  Paused")
+        XCTAssertEqual(statusItem.length, countdownWidth, accuracy: 0.001)
         XCTAssertGreaterThanOrEqual(statusItem.length, naturalPausedWidth)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
     }
@@ -160,8 +160,8 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let nineSecondTitle = try XCTUnwrap(statusItem.button).attributedTitle
         let widthAtNineSeconds = statusItem.length
 
-        XCTAssertEqual(tenSecondTitle.string, "  00:10")
-        XCTAssertEqual(nineSecondTitle.string, "  00:09")
+        XCTAssertEqual(visibleTimerTitle(from: tenSecondTitle), "  00:10")
+        XCTAssertEqual(visibleTimerTitle(from: nineSecondTitle), "  00:09")
         XCTAssertEqual(tenSecondTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(nineSecondTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(widthAtNineSeconds, widthAtTenSeconds, accuracy: 0.001)
@@ -185,7 +185,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
-        XCTAssertEqual(button.attributedTitle.string, "  00:20")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  00:20")
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
@@ -211,7 +211,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
 
         let button = try XCTUnwrap(statusItem.button)
         XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
-        XCTAssertEqual(button.attributedTitle.string, "  00:20")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  00:20")
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
@@ -239,7 +239,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let countdownWidth = statusItem.length
         let countdownImageData = try XCTUnwrap(countdownButton.image?.tiffRepresentation)
 
-        XCTAssertEqual(countdownButton.attributedTitle.string, "  00:10")
+        XCTAssertEqual(visibleTimerTitle(from: countdownButton.attributedTitle), "  00:10")
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
 
         controller.setRemindersPaused(true)
@@ -248,8 +248,8 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let pausedWidth = statusItem.length
         let naturalPausedWidth = ceil(pausedButton.intrinsicContentSize.width)
 
-        XCTAssertEqual(pausedButton.attributedTitle.string, "  Paused")
-        XCTAssertGreaterThan(pausedWidth, countdownWidth, "Paused should expand past the narrower countdown width")
+        XCTAssertEqual(visibleTimerTitle(from: pausedButton.attributedTitle), "  Paused")
+        XCTAssertEqual(pausedWidth, countdownWidth, accuracy: 0.001, "Paused should reuse the pre-reserved title slot width")
         XCTAssertGreaterThanOrEqual(pausedWidth, naturalPausedWidth)
         XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
         XCTAssertEqual(pausedButton.alphaValue, 1.0, accuracy: 0.001)
@@ -273,11 +273,11 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let button = try XCTUnwrap(statusItem.button)
         let widthAtHundredMinutes = statusItem.length
 
-        XCTAssertEqual(button.attributedTitle.string, "  100:00")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  100:00")
 
         controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 5_999))
 
-        XCTAssertEqual(button.attributedTitle.string, "  99:59")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  99:59")
         XCTAssertEqual(statusItem.length, widthAtHundredMinutes, accuracy: 0.001)
     }
 
@@ -292,5 +292,15 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         NSBezierPath(rect: NSRect(x: 2, y: 2, width: 14, height: 14)).fill()
         image.unlockFocus()
         return image
+    }
+
+    private func visibleTimerTitle(from attributedTitle: NSAttributedString) -> String {
+        let rawTitle = attributedTitle.string
+
+        if rawTitle.hasSuffix("\t") {
+            return String(rawTitle.dropLast())
+        }
+
+        return rawTitle
     }
 }

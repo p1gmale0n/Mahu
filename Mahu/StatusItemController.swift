@@ -9,6 +9,7 @@ final class StatusItemController: NSObject {
     private static let normalStatusItemAlpha: CGFloat = 1.0
     private static let pausedStatusItemAlpha: CGFloat = 0.5
     private static let minimumTimerStatusItemLength = NSStatusItem.squareLength
+    private static let timerTitleSlotTerminator = "\t"
 
     private let statusItem: NSStatusItem
     private var pauseRemindersHandler: (() -> Void)?
@@ -23,6 +24,11 @@ final class StatusItemController: NSObject {
     private var installedStatusIcon: NSImage?
     private var pausedStatusIcon: NSImage?
     private var maximumTimerStatusItemLength: CGFloat = 0
+    private var maximumTimerTitleSlotWidth: CGFloat = 0
+
+    var timerDisplayBaselines: (itemLength: CGFloat, titleSlotWidth: CGFloat) {
+        (maximumTimerStatusItemLength, maximumTimerTitleSlotWidth)
+    }
 
     private var reminderActionsAreConfigured: Bool {
         pauseRemindersHandler != nil && resumeRemindersHandler != nil
@@ -83,9 +89,16 @@ final class StatusItemController: NSObject {
         self.showsTimerState = showsTimerState
 
         if showsTimerState == false {
-            maximumTimerStatusItemLength = 0
+            resetTimerDisplayBaselines()
+            return
         }
 
+        applyStatusItemDisplay()
+    }
+
+    func resetTimerDisplayBaselines() {
+        maximumTimerStatusItemLength = 0
+        maximumTimerTitleSlotWidth = 0
         applyStatusItemDisplay()
     }
 
@@ -181,7 +194,15 @@ final class StatusItemController: NSObject {
         button.image = currentStatusIcon()
 
         if showsTimerState {
-            button.attributedTitle = makeTimerStateTitle(currentTimerStateText())
+            let timerStateText = currentTimerStateText()
+            maximumTimerTitleSlotWidth = max(
+                maximumTimerTitleSlotWidth,
+                requiredTimerTitleSlotWidth(for: timerStateText)
+            )
+            button.attributedTitle = makeTimerStateTitle(
+                timerStateText,
+                slotWidth: maximumTimerTitleSlotWidth
+            )
             button.imagePosition = .imageLeading
             let measuredLength = measuredTimerStatusItemLength(for: button)
             maximumTimerStatusItemLength = max(maximumTimerStatusItemLength, measuredLength)
@@ -190,20 +211,24 @@ final class StatusItemController: NSObject {
         }
 
         maximumTimerStatusItemLength = 0
+        maximumTimerTitleSlotWidth = 0
         statusItem.length = NSStatusItem.squareLength
         button.title = ""
         button.attributedTitle = NSAttributedString(string: "")
         button.imagePosition = .imageOnly
     }
 
-    private func makeTimerStateTitle(_ text: String) -> NSAttributedString {
-        NSAttributedString(
-            string: Self.timerStateTitlePrefix + text,
+    private func makeTimerStateTitle(_ text: String, slotWidth: CGFloat) -> NSAttributedString {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.tabStops = [
+            NSTextTab(textAlignment: .left, location: ceil(slotWidth), options: [:])
+        ]
+
+        return NSAttributedString(
+            string: Self.timerStateTitlePrefix + text + Self.timerTitleSlotTerminator,
             attributes: [
-                .font: NSFont.monospacedDigitSystemFont(
-                    ofSize: NSFont.systemFontSize,
-                    weight: .regular
-                )
+                .font: Self.timerDisplayFont,
+                .paragraphStyle: paragraphStyle
             ]
         )
     }
@@ -235,12 +260,32 @@ final class StatusItemController: NSObject {
         return max(Self.minimumTimerStatusItemLength, max(fittingWidth, naturalWidth))
     }
 
+    private func measuredTimerTitleSlotWidth(for text: String) -> CGFloat {
+        ceil(
+            NSAttributedString(
+                string: Self.timerStateTitlePrefix + text,
+                attributes: [.font: Self.timerDisplayFont]
+            ).size().width
+        )
+    }
+
+    private func requiredTimerTitleSlotWidth(for text: String) -> CGFloat {
+        max(
+            measuredTimerTitleSlotWidth(for: text),
+            measuredTimerTitleSlotWidth(for: statusDisplayFormatter.string(for: .paused))
+        )
+    }
+
     private func currentStatusIcon() -> NSImage? {
         if remindersPaused, let pausedStatusIcon {
             return pausedStatusIcon
         }
 
         return installedStatusIcon
+    }
+
+    private static var timerDisplayFont: NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     }
 
     private static func makeMenuBarStatusIconCopy(from image: NSImage, alpha: CGFloat = 1.0) -> NSImage? {
