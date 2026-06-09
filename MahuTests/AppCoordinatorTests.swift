@@ -51,6 +51,7 @@ final class AppCoordinatorTests: XCTestCase {
         let fakeStatusItemController = FakeStatusItemController()
         let fakeOverlayManager = FakeBreakOverlayManager()
         let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
         var timerCreationCount = 0
         var schedulingCount = 0
 
@@ -66,7 +67,8 @@ final class AppCoordinatorTests: XCTestCase {
                 schedulingCount += 1
                 return {}
             },
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            sessionActivityRegistrar: fakeSessionActivityRegistrar.register
         )
 
         coordinator.start()
@@ -76,6 +78,7 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(timerCreationCount, 1)
         XCTAssertEqual(schedulingCount, 1)
         XCTAssertEqual(fakeSleepWakeRegistrar.registrationCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.registrationCount, 1)
     }
 
     func testStartSeedsLaunchAtLoginDesiredStateFromStartupConfigBeforeSync() {
@@ -771,6 +774,7 @@ final class AppCoordinatorTests: XCTestCase {
     func testDeinitCancelsScheduledTickerAndSleepWakeObservation() {
         let cancellationSpy = CancellationSpy()
         let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
         weak var weakCoordinator: AppCoordinator?
 
         do {
@@ -782,7 +786,8 @@ final class AppCoordinatorTests: XCTestCase {
                 scheduleRepeatingTick: { _, _ in
                     cancellationSpy.cancel
                 },
-                sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+                sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+                sessionActivityRegistrar: fakeSessionActivityRegistrar.register
             )
             weakCoordinator = coordinator
 
@@ -792,10 +797,12 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertNil(weakCoordinator)
         XCTAssertEqual(cancellationSpy.cancelCallCount, 1)
         XCTAssertEqual(fakeSleepWakeRegistrar.cancelCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.cancelCount, 1)
     }
 
     func testSleepWakeCallbacksDoNotFireAfterCoordinatorTeardown() {
         let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
 
         do {
             let coordinator = AppCoordinator(
@@ -804,7 +811,8 @@ final class AppCoordinatorTests: XCTestCase {
                 loadConfig: { .default },
                 makeBreakTimer: { _ in FakeBreakTimer() },
                 scheduleRepeatingTick: { _, _ in {} },
-                sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+                sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+                sessionActivityRegistrar: fakeSessionActivityRegistrar.register
             )
 
             coordinator.start()
@@ -812,9 +820,14 @@ final class AppCoordinatorTests: XCTestCase {
 
         fakeSleepWakeRegistrar.fireAllWillSleep()
         fakeSleepWakeRegistrar.fireAllDidWake()
+        fakeSessionActivityRegistrar.fireAllDidResignActive()
+        fakeSessionActivityRegistrar.fireAllDidBecomeActive()
 
         XCTAssertEqual(fakeSleepWakeRegistrar.cancelCount, 1)
         XCTAssertEqual(fakeSleepWakeRegistrar.willSleepCallCount, 0)
         XCTAssertEqual(fakeSleepWakeRegistrar.didWakeCallCount, 0)
+        XCTAssertEqual(fakeSessionActivityRegistrar.cancelCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 0)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didBecomeActiveCallCount, 0)
     }
 }

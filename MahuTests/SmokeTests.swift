@@ -106,7 +106,7 @@ final class SmokeTests: XCTestCase {
         appDelegate.environmentProvider = {
             [AppRuntime.disableCoordinatorStartupEnvironmentKey: "1"]
         }
-        appDelegate.coordinatorStarter = {
+        appDelegate.coordinatorStarter = { _ in
             startCallCount += 1
             return NSObject()
         }
@@ -121,11 +121,13 @@ final class SmokeTests: XCTestCase {
     @MainActor
     func testAppDelegateStartsCoordinatorWhenStartupIsAllowed() {
         var startCallCount = 0
+        var startedInactiveValues: [Bool] = []
         weak var coordinatorReference: NSObject?
         let appDelegate = AppDelegate()
         appDelegate.environmentProvider = { [:] }
-        appDelegate.coordinatorStarter = {
+        appDelegate.coordinatorStarter = { startsSessionInactive in
             startCallCount += 1
+            startedInactiveValues.append(startsSessionInactive)
             let coordinator = NSObject()
             coordinatorReference = coordinator
             return coordinator
@@ -136,7 +138,34 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(startCallCount, 1)
+        XCTAssertEqual(startedInactiveValues, [false])
         XCTAssertNotNil(coordinatorReference)
+    }
+
+    @MainActor
+    func testAppDelegateStartsCoordinatorInactiveWhenSessionResignsBeforeDidFinishLaunching() {
+        var startedInactiveValues: [Bool] = []
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let appDelegate = AppDelegate()
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.sessionActivityRegistrar = fakeSessionActivityRegistrar.register
+        appDelegate.coordinatorStarter = { startsSessionInactive in
+            startedInactiveValues.append(startsSessionInactive)
+            return NSObject()
+        }
+
+        appDelegate.applicationWillFinishLaunching(
+            Notification(name: NSApplication.willFinishLaunchingNotification)
+        )
+        fakeSessionActivityRegistrar.fireDidResignActive()
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        XCTAssertEqual(startedInactiveValues, [true])
+        XCTAssertEqual(fakeSessionActivityRegistrar.registrationCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.cancelCount, 1)
     }
 
     @MainActor

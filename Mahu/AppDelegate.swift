@@ -33,18 +33,42 @@ enum AppRuntime {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var environmentProvider: () -> [String: String] = { ProcessInfo.processInfo.environment }
-    var coordinatorStarter: @MainActor () -> AnyObject = {
+    var sessionActivityRegistrar: SessionActivityObservationRegistrar = LiveSessionActivityObservationRegistrar.make
+    var coordinatorStarter: @MainActor (_ startsSessionInactive: Bool) -> AnyObject = { startsSessionInactive in
         let appCoordinator = AppCoordinator()
-        appCoordinator.start()
+        appCoordinator.start(initialSessionIsActive: startsSessionInactive == false)
         return appCoordinator
     }
     private var coordinatorLifetime: AnyObject?
+    private var cancelInitialSessionActivityObservation: SessionActivityObservationCancellation?
+    private var startsSessionInactive = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        guard AppRuntime.shouldStartProductionCoordinator(environment: environmentProvider()) else {
+            return
+        }
+
+        guard cancelInitialSessionActivityObservation == nil else {
+            return
+        }
+
+        cancelInitialSessionActivityObservation = sessionActivityRegistrar(
+            { [weak self] in
+                self?.startsSessionInactive = true
+            },
+            { [weak self] in
+                self?.startsSessionInactive = false
+            }
+        )
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard AppRuntime.shouldStartProductionCoordinator(environment: environmentProvider()) else {
             return
         }
 
-        coordinatorLifetime = coordinatorStarter()
+        coordinatorLifetime = coordinatorStarter(startsSessionInactive)
+        cancelInitialSessionActivityObservation?()
+        cancelInitialSessionActivityObservation = nil
     }
 }

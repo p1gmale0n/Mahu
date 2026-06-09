@@ -130,4 +130,147 @@ final class AppCoordinatorStatusItemPauseResumeTests: XCTestCase {
         XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:20", "00:14"])
         XCTAssertEqual(fakeTimer.advanceCalls, [6])
     }
+
+    func testSessionInactiveWhilePausedKeepsPausedTextInsteadOfAway() throws {
+        let config = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: config),
+            loadConfig: { config },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([10, 10]),
+            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userIdleTimeProvider: FailingUserIdleTimeProvider()
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+
+        pauseReminders()
+        fakeSessionActivityRegistrar.fireDidResignActive()
+
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true])
+        XCTAssertFalse(fakeStatusItemController.statusDisplayStates.contains(.away))
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "Paused"])
+        XCTAssertTrue(fakeTimer.advanceCalls.isEmpty)
+    }
+
+    func testSessionInactiveDuringPausedRestUnlocksBackToPausedFreshWorkWithoutSoundOrElapsed() throws {
+        let config = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 10)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: config.workDurationSeconds)
+        )
+        var scheduledTick: (() -> Void)?
+        var createdTimers = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: fakeOverlayManager,
+            breakCompletionSoundPlayer: fakeSoundPlayer,
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: config),
+            loadConfig: { config },
+            makeBreakTimer: { _ in
+                defer { createdTimers += 1 }
+                return createdTimers == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 100, 100, 110]),
+            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userIdleTimeProvider: FailingUserIdleTimeProvider()
+        )
+
+        coordinator.start()
+        let pauseReminders = try XCTUnwrap(fakeStatusItemController.pauseRemindersHandler)
+
+        pauseReminders()
+        fakeSessionActivityRegistrar.fireDidResignActive()
+        fakeSessionActivityRegistrar.fireDidBecomeActive()
+        scheduledTick?()
+
+        XCTAssertEqual(createdTimers, 2)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didBecomeActiveCallCount, 1)
+        XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true])
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [.show(10, AppConfig.defaultBreakOverlayMessageText), .hide]
+        )
+        XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
+        XCTAssertEqual(initialTimer.advanceCalls, [])
+        XCTAssertEqual(resetTimer.advanceCalls, [])
+        XCTAssertFalse(fakeStatusItemController.statusDisplayStates.contains(.away))
+        XCTAssertEqual(
+            fakeStatusItemController.statusDisplayStates,
+            [
+                .active(phase: .rest, remainingSeconds: 10),
+                .active(phase: .rest, remainingSeconds: 10),
+                .active(phase: .work, remainingSeconds: config.workDurationSeconds),
+                .active(phase: .work, remainingSeconds: config.workDurationSeconds)
+            ]
+        )
+        XCTAssertEqual(
+            fakeStatusItemController.renderedTimerTexts,
+            ["00:10", "Paused"]
+        )
+    }
+
+    func testSessionInactiveWithIconOnlyStatusItemDoesNotRenderAwayText() {
+        let config = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: false
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let fakeTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: config),
+            loadConfig: { config },
+            makeBreakTimer: { _ in fakeTimer },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([10, 10]),
+            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userIdleTimeProvider: FailingUserIdleTimeProvider()
+        )
+
+        coordinator.start()
+        fakeSessionActivityRegistrar.fireDidResignActive()
+
+        XCTAssertEqual(fakeStatusItemController.showsTimerStateUpdates, [false])
+        XCTAssertEqual(fakeStatusItemController.statusDisplayStates, [.active(phase: .work, remainingSeconds: 300), .away])
+        XCTAssertTrue(fakeStatusItemController.renderedTimerTexts.isEmpty)
+        XCTAssertTrue(fakeTimer.advanceCalls.isEmpty)
+    }
 }

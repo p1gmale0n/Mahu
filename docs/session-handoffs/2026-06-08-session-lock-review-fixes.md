@@ -1,0 +1,22 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Latched pre-launch `sessionDidResignActive` state in `AppDelegate.applicationWillFinishLaunching` and passed it into `AppCoordinator.start(initialSessionIsActive:)`, so Mahu no longer misses the documented inactive-before-`didFinishLaunching` path.
+  - Made `handleSessionDidResignActive()` idempotent once session-away suppression is already active, so one lock episode cannot repeatedly recreate fresh work on duplicate inactive notifications.
+  - Strengthened only the verified weak tests: added real coverage for the production `NSWorkspace.shared.notificationCenter` registrar path and replaced several session-lock scenarios with fail-on-query idle providers so hidden HID polling now fails deterministically.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/SmokeTests -only-testing:MahuTests/LiveSessionActivityObservationRegistrarTests -only-testing:MahuTests/AppCoordinatorSessionInactiveTickSuppressionTests -only-testing:MahuTests/AppCoordinatorStatusItemRecoveryBaselineTests -only-testing:MahuTests/AppCoordinatorStatusItemPauseResumeTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+  - `git diff --check`
+  - `command -v swiftlint` (`swiftlint` unavailable in this environment)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md docs -S` (no repo-owned lint target found)
+- Friction/CDD:
+  - `Mahu/AppCoordinator.swift` remains well above the local readability threshold, so even a narrow lifecycle fix still had to touch an oversized coordinator surface.
+  - The review gate still implies lint proof, but the repo has no tracked lint target and `swiftlint` is unavailable here, so lint cannot be validated reproducibly from repository-owned tooling.
+- Next Steps:
+  - Let the external review loop rerun from the new fix commit.
+  - If lint remains mandatory, add a repo-owned lint command or provision `swiftlint` in the execution environment.
+  - Before the next session/sleep lifecycle change, split startup/session reconciliation helpers out of `AppCoordinator.swift` so review fixes stop accumulating there.

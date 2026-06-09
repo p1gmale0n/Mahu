@@ -1,4 +1,5 @@
 import Foundation
+import XCTest
 @testable import Mahu
 
 func makeCurrentUptimeProvider(_ values: [TimeInterval]) -> () -> TimeInterval {
@@ -55,6 +56,19 @@ final class RecordingUserIdleTimeProvider: UserIdleTimeProviding {
         }
 
         return idleDurationSeconds.removeFirst()
+    }
+}
+
+final class FailingUserIdleTimeProvider: UserIdleTimeProviding {
+    private let message: String
+
+    init(_ message: String = "Unexpected idle query during test.") {
+        self.message = message
+    }
+
+    func currentIdleDurationSeconds() -> TimeInterval {
+        XCTFail(message)
+        return 0
     }
 }
 
@@ -154,6 +168,97 @@ final class FakeSleepWakeObserverRegistrar {
 
     func fireAllDidWake() {
         observations.forEach { $0.fireDidWake() }
+    }
+}
+
+@MainActor
+final class FakeSessionActivityObserverRegistrar {
+    @MainActor
+    private final class Observation {
+        private let didResignActive: @MainActor () -> Void
+        private let didBecomeActive: @MainActor () -> Void
+        private(set) var isCancelled = false
+
+        init(
+            didResignActive: @escaping @MainActor () -> Void,
+            didBecomeActive: @escaping @MainActor () -> Void
+        ) {
+            self.didResignActive = didResignActive
+            self.didBecomeActive = didBecomeActive
+        }
+
+        func fireDidResignActive() {
+            guard isCancelled == false else {
+                return
+            }
+
+            didResignActive()
+        }
+
+        func fireDidBecomeActive() {
+            guard isCancelled == false else {
+                return
+            }
+
+            didBecomeActive()
+        }
+
+        func cancel() -> Bool {
+            guard isCancelled == false else {
+                return false
+            }
+
+            isCancelled = true
+            return true
+        }
+    }
+
+    private(set) var registrationCount = 0
+    private(set) var didResignActiveCallCount = 0
+    private(set) var didBecomeActiveCallCount = 0
+    private(set) var cancelCount = 0
+    private var observations: [Observation] = []
+
+    func register(
+        didResignActive: @escaping @MainActor () -> Void,
+        didBecomeActive: @escaping @MainActor () -> Void
+    ) -> SessionActivityObservationCancellation {
+        registrationCount += 1
+        let observation = Observation(
+            didResignActive: { [weak self] in
+                self?.didResignActiveCallCount += 1
+                didResignActive()
+            },
+            didBecomeActive: { [weak self] in
+                self?.didBecomeActiveCallCount += 1
+                didBecomeActive()
+            }
+        )
+        observations.append(observation)
+
+        return { [weak self, weak observation] in
+            guard let self, let observation, observation.cancel() else {
+                return
+            }
+
+            self.cancelCount += 1
+        }
+    }
+
+    func fireDidResignActive() {
+        observations.last?.fireDidResignActive()
+    }
+
+    func fireDidBecomeActive() {
+        observations.last?.fireDidBecomeActive()
+    }
+
+    func fireAllDidResignActive() {
+        observations.forEach { $0.fireDidResignActive() }
+    }
+
+    func fireAllDidBecomeActive() {
+        observations.forEach { $0.fireDidBecomeActive() }
     }
 }
 

@@ -2,6 +2,15 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-08 | Session launch-state handoff | Latch session inactive state in `AppDelegate` before `applicationDidFinishLaunching`, pass it into `AppCoordinator.start(...)`, and ignore duplicate inactive notifications while suppression is already active. | Apple can deliver session-inactive before the coordinator exists; latching closes that startup gap, and idempotence prevents one lock episode from repeatedly resetting fresh work. |
+| 2026-06-08 | Session lock documentation contract | Document session lock suppression as always-on public-API behavior distinct from config-gated idle-away reset, and keep external distributed lock-notification research non-normative. | Future agents and humans need repo docs to reflect the shipped lock semantics without implying a config knob or dependence on undocumented notification names. |
+| 2026-06-08 | Session unlock recovery | Clear session-away only after a real inactive period, refresh the uptime baseline on unlock, and re-arm idle-away sampling from a fresh post-unlock baseline. | Unlock must not consume locked time or instantly reuse stale HID idle state, while stray `sessionDidBecomeActive` notifications during normal active operation should stay non-destructive. |
+| 2026-06-08 | Session inactive tick suppression | Short-circuit coordinator ticks on session-away state before any idle polling or ordinary elapsed consumption. | Session lock suppression must stay always-on and config-independent; otherwise locked ticks can still query HID idle or cross work/rest boundaries into hidden overlays or sounds. |
+| 2026-06-08 | Session lock away plan | Plan session lock/inactive reconciliation using public `NSWorkspace` session active/inactive notifications, with always-on overlay/sound/elapsed suppression and bounded `Away` tray state. | Lock screen is a lifecycle state, not HID idle: keyboard or mouse input on the lock screen can reset idle duration, and hidden break overlays or completion sounds while locked are bad UX regardless of idle-away config. |
+| 2026-06-08 | Session inactive reconciliation implementation | Reuse the existing shared long-away reconciliation outcomes for session inactive handling, but keep paused work visually `Paused` instead of surfacing `Away`. | Session lock and long-away should converge on the same fresh-work / silent-rest reset policy, while paused reminders must preserve the tray's existing paused-state contract until explicit resume. |
+| 2026-06-08 | Idle-away wake boundary | Re-arm idle-away from awake time after sleep/wake by resetting the away episode state, clearing visible `Away`, and subtracting the first post-wake idle sample from later enabled idle checks. | Sleep time must not leak into awake-only idle suppression, and stale `Away` after wake violates the documented separation between sleep/wake recovery and idle-away behavior. |
+| 2026-06-08 | Idle-away threshold documentation | Keep `idleAwayResetThresholdSeconds` documented as any positive finite number of seconds and explain the existing 1-second tick evaluation instead of claiming fractional values are rejected. | The shipped config/runtime contract only rejects non-positive and non-finite values; the real defect was README drift, not a proven production failure that justified tightening validation mid-review. |
+| 2026-06-08 | Idle-away disable transition | Only clear idle-away episode state and force a status-item refresh when runtime settings actually transition from enabled idle-away to disabled idle-away, or when suppression is still active. | Unconditionally refreshing status display on every disabled-state runtime update created duplicate timer/status renders and broke existing runtime-settings and tray-baseline behavior without improving correctness. |
 | 2026-06-08 | Idle-away reset shipped contract | Ship idle-away reset as opt-in through `idleAwayResetEnabled`/`idleAwayResetThresholdSeconds`, and reserve `Away` as the bounded tray label during enabled suppression. | The original always-on behavior could look like a frozen timer near break start; default-off preserves legacy behavior for missing configs, and `Away` explains suppression without widening the tray title slot beyond the existing `Paused` constraint. |
 | 2026-06-08 | Idle-away reset configuration plan | Plan a follow-up that makes idle-away reset opt-in with `idleAwayResetEnabled`, configurable with `idleAwayResetThresholdSeconds`, and visible as bounded `Away` tray text when suppression is active. | Manual verification showed the always-on idle-away suppression can look like a broken timer stuck near break start; default-off config restores safe legacy behavior while preserving the feature for users who opt in, and `Away` explains intentional suppression without exceeding the existing `Paused` tray text footprint. |
 | 2026-06-05 | Idle away reset acceptance coverage | Wire the focused idle reset test file into the `MahuTests` target and align the active implementation plan with the shipped any-input idle query contract. | Review found the branch was claiming reset coverage that never ran because the test file was detached from `project.pbxproj`, and the plan still described the earlier `.null` event type after the production provider moved to `kCGAnyInputEventType`. |
@@ -232,6 +241,38 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Consequences:** Shorter runtime schedules can shrink a previously widened timer title slot at the intended explicit settings boundary, while ordinary countdown ticks and unrelated runtime settings preserve the existing stable-width behavior. The coordinator/test-double contract grows by one narrow method, which is smaller than exposing concrete controller internals or pushing width policy into coordinator code.
 
 **Alternatives Considered:** Leave the seam concrete-only; rejected because future runtime settings changes could not reach it through the production abstraction. Reset on every runtime settings update; rejected because unrelated settings changes should not gratuitously perturb tray layout. Downcast `StatusItemControlling` to `StatusItemController`; rejected because it breaks the existing test seam and couples coordinator logic to the concrete AppKit implementation.
+
+## 2026-06-08 / Session Unlock Recovery
+
+**Date:** 2026-06-08
+
+**Area:** Session activity reconciliation
+
+**Context:** Session inactive handling already resets active work/rest into the correct fresh-work or paused state, but unlock still needed to avoid consuming locked time and to prevent the next enabled idle-away check from reusing stale HID idle duration accumulated before or during the lock screen.
+
+**Decision:** Treat `sessionDidBecomeActive` as a recovery step only when Mahu is actually in session-away suppression: clear that suppression, refresh `lastTickUptime`, reset idle-away episode state, and start a fresh post-unlock idle baseline capture before ordinary idle-away polling resumes.
+
+**Rationale:** This keeps unlock non-destructive during ordinary active use, preserves the fresh work or paused state already established on lock, and prevents immediate false `Away` re-entry from stale idle samples once the user session becomes active again.
+
+**Consequences:** Locked time is not consumed on the first post-unlock tick, optional tray timer mode returns from `Away` to the underlying countdown or `Paused`, and later idle-away suppression still works but only after a fresh active-session baseline is established.
+
+**Alternatives Considered:** Clear session-away on every `sessionDidBecomeActive`; rejected because launch-time or stray active notifications would perturb normal timing state and hide real elapsed time. Reuse the existing wake helper as-is; rejected because the wake re-arm helper is conditional and does not guarantee a new baseline for a user-session transition.
+
+## 2026-06-08 / Session Launch-State Handoff
+
+**Date:** 2026-06-08
+
+**Area:** Session activity startup
+
+**Context:** Session-lock suppression was wired only after `applicationDidFinishLaunching`, because `AppCoordinator` and its live session observer were created there. The implementation plan already called out Apple's launch edge case where `sessionDidResignActive` can arrive before that point, which left login-item or Fast User Switching startup able to miss the only inactive signal. The original coordinator-side startup test was also synthetic: it invoked the registrar callback from inside `start()`, so it never covered the real launch-order gap.
+
+**Decision:** Register a temporary session-activity observer in `AppDelegate.applicationWillFinishLaunching`, latch whether the session has resigned active before coordinator startup, pass that latched state into `AppCoordinator.start(initialSessionIsActive:)`, and make `handleSessionDidResignActive()` idempotent once session-away suppression is already active.
+
+**Rationale:** This is the smallest production fix that closes the pre-`didFinishLaunching` notification gap without moving full coordinator startup earlier in app launch. Idempotence is required because the app-level latch observer and the coordinator-level live observer can both observe the same lock episode around startup, and duplicate inactive notifications must not recreate fresh work repeatedly.
+
+**Consequences:** Mahu now starts directly in session-away suppression when the user session is already inactive, without first rendering an active countdown. Repeated inactive notifications in the same lock episode no longer reset timer state again, and the real launch-order behavior is covered by `AppDelegate` tests instead of a synthetic in-coordinator callback.
+
+**Alternatives Considered:** Start the full coordinator in `applicationWillFinishLaunching`; rejected because it broadens launch-time side effects and was unnecessary to fix a narrow observer-ordering bug. Add a polling check for current session state at startup; rejected because the existing public notification seam already models the lifecycle transition and the missing piece was launch ordering, not a new state source.
 
 ## 2026-06-05 / Idle Away Reset Test Isolation
 
@@ -2806,8 +2847,6 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Consequences:** Full and targeted XCTest runs now execute the reset-specific idle-away cases, and the plan matches the production provider and later idle-input decision entry. Review and handoff evidence for this feature become materially trustworthy again.
 
 **Alternatives Considered:** Leave the file detached and rely on future manual Xcode cleanup; rejected because the branch already claimed those tests as proof. Leave the plan on `.null` and rely on the later decision entry alone; rejected because the plan is an active implementation artifact, not archival history.
-<<<<<<< HEAD
-=======
 
 ## 2026-06-08 / Idle-Away Reset Configuration Plan
 
@@ -2836,4 +2875,108 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Consequences:** README and AGENTS must describe long idle reset as config-gated rather than always-on, manual verification must cover both disabled and enabled modes, and future UI work must preserve the `Away <= Paused` tray-width invariant. Sleep/wake reconciliation stays independent and unchanged.
 
 **Alternatives Considered:** Keep documenting always-on idle reset and mention the toggle only in config examples; rejected because future agents would still treat the old behavior as the default product invariant. Use a longer label such as `Away Reset`; rejected because it adds tray-width risk without improving clarity enough for a menu-bar-only app.
->>>>>>> cbf4ae3 (feat: update idle-away docs and decisions)
+
+## 2026-06-08 / Idle-Away Disable Transition
+
+**Date:** 2026-06-08
+
+**Area:** Idle-away runtime settings
+
+**Context:** Task 6 full-suite validation exposed that `AppCoordinator.handleRuntimeSettingsChange` was clearing idle-away policy state and pushing a fresh status display on every runtime settings update where `idleAwayResetEnabled` was `false`, even when idle-away had already been disabled for the whole session.
+
+**Decision:** Only reset idle-away episode state and force a status display refresh when runtime settings actually transition from enabled idle-away to disabled idle-away, or when away suppression is still active and must be cleared.
+
+**Rationale:** The extra refreshes were not part of the shipped feature contract and introduced duplicate status/timer renders that broke existing runtime-settings and tray-baseline tests. Restricting the reset to the real disable transition preserves the required stale-suppression cleanup without perturbing unrelated runtime updates.
+
+**Consequences:** Runtime settings changes that leave idle-away disabled no longer emit redundant status updates. The existing disable-and-re-enable test coverage remains valid, and the tray/runtime-settings suites keep their pre-idle-away-refresh sequencing guarantees.
+
+**Alternatives Considered:** Keeping the unconditional refresh was rejected because it changed observable sequencing without adding safety. Moving the fix into tests only was rejected because it would lock in redundant production behavior rather than preserving the original runtime-settings contract.
+
+## 2026-06-08 / Idle-Away Wake Boundary
+
+**Date:** 2026-06-08
+
+**Area:** Idle-away sleep/wake integration
+
+**Context:** Review found that `handleDidWake()` cleared only the visible away flag. The coordinator kept the previous idle-away episode state, and the first enabled post-wake idle sample could still include stale pre-sleep HID idle time. On real macOS sessions where the CoreGraphics idle counter does not reset cleanly at wake, a short sleep could immediately return Mahu to `Away` or keep stale away UI even though the feature is documented as "while macOS stays awake."
+
+**Decision:** Reset the idle-away episode policy on wake, clear visible away state immediately when no timer replacement happens, and treat the first enabled post-wake idle sample as the wake-cycle baseline so later idle checks measure only awake time after wake.
+
+**Rationale:** This is the smallest robust fix that preserves the existing sleep/wake contract without removing idle-away recovery. It prevents sleep time from leaking into awake-only idle suppression while still allowing idle-away to activate again if the Mac remains awake and idle after wake.
+
+**Consequences:** Short sleeps no longer leave stale `Away` visible or re-trigger away suppression from pre-sleep idle time on the first tick after wake. Long-sleep recovery stays unchanged, and focused sleep/wake tests now cover the wake-boundary behavior explicitly.
+
+**Alternatives Considered:** Only clear `isIdleAwaySuppressionActive`; rejected because the stale episode state and stale post-wake idle sample can still re-trigger suppression immediately. Require explicit user activity before any future idle-away detection; rejected because it would prevent away detection on legitimately awake-but-unattended machines after wake.
+
+## 2026-06-08 / Idle-Away Threshold Documentation
+
+**Date:** 2026-06-08
+
+**Area:** Idle-away configuration contract
+
+**Context:** Review found README drift around `idleAwayResetThresholdSeconds`. The documentation claimed fractional values were invalid and implied whole-second-only configuration, but the shipped config/runtime validation accepts any positive finite number and compares it on the coordinator's normal 1-second tick.
+
+**Decision:** Keep the shipped threshold contract as any positive finite number of seconds, and update README to explain that Mahu evaluates the threshold on its 1-second timer tick instead of claiming fractional values are rejected.
+
+**Rationale:** The implementation and plan already agree on positive finite validation, and the review did not establish a concrete product bug that justified tightening the parser/runtime contract mid-pass. Fixing the docs resolves the real inconsistency without expanding scope into a config semantics change.
+
+**Consequences:** README now matches the actual load/save/runtime behavior, and future agents should treat fractional thresholds as supported but effectively constrained by 1-second evaluation cadence. Existing invalid-value tests continue to focus on the documented rejected cases: non-positive, non-numeric, and non-finite values.
+
+**Alternatives Considered:** Tighten validation to whole-second bounded integers immediately; rejected because it changes the already-shipped config contract during a review-fix pass and was not required by the implementation plan. Leave README as-is; rejected because it misdescribes real behavior and would mislead manual config editing.
+
+## 2026-06-08 / Idle-Away Wake Baseline Re-Arm on Disable
+
+**Date:** 2026-06-08
+
+**Area:** Idle-away runtime toggles
+
+**Context:** The second review pass found a wake-boundary edge case: after a short sleep, the coordinator can arm or capture a post-wake idle baseline to subtract stale HID idle time from later enabled checks. If idle-away is then disabled and later re-enabled before user activity clears that baseline, the old baseline can leak disabled-period idle time into the next enabled away episode and trigger `Away` too early.
+
+**Decision:** When the runtime settings transition out of enabled idle-away while post-wake baseline state exists, re-arm the baseline capture for the next enabled idle sample instead of preserving the stale captured value.
+
+**Rationale:** This is the smallest fix that keeps the documented awake-only semantics after wake without changing the broader idle-away toggle contract. Re-arming only when wake-baseline state exists avoids touching the already-covered no-wake disable/re-enable path.
+
+**Consequences:** Disabled periods after wake no longer count toward the next enabled idle-away threshold, and a later re-enable captures a fresh post-wake baseline before suppression resumes. Existing disable/re-enable behavior outside wake-boundary state remains unchanged.
+
+**Alternatives Considered:** Clear all wake-baseline state when idle-away is disabled; rejected because re-enabling after wake would again allow stale HID idle time to count immediately. Re-arm on every disable transition regardless of wake state; rejected because it would add unnecessary state churn outside the verified wake-boundary defect.
+
+## 2026-06-08 / Session Lock Away Plan
+
+**Date:** 2026-06-08
+
+**Area:** Session lock and timer lifecycle
+
+**Context:** Manual validation showed configurable idle-away now works, but screen lock is a distinct problem: locking the screen does not immediately make Mahu away, so a near-expired timer can reach a break behind the lock screen and play completion sound. HID idle duration is also unreliable here because keyboard or mouse input on the lock screen can reset the idle clock.
+
+**Decision:** Create a follow-up plan that observes public `NSWorkspace.sessionDidResignActiveNotification` and `NSWorkspace.sessionDidBecomeActiveNotification` through the workspace notification center. Session inactive should be treated as an always-on away lifecycle signal: suppress elapsed consumption, skip HID idle polling, avoid break overlay presentation, silence completion sound, close active breaks silently, and show bounded `Away` in optional tray timer mode.
+
+**Rationale:** This is a safety/UX invariant rather than a user preference. It prevents hidden UI and audio side effects while the user cannot see Mahu, avoids depending on lock-screen input behavior, and stays within public AppKit APIs instead of undocumented distributed lock notification names.
+
+**Consequences:** The implementation must add a session activity observer seam, keep coordinator edits minimal, update tests for active work / active rest / paused work / unlock baseline, and document manual lock/unlock checks. Session lock suppression should remain independent of `idleAwayResetEnabled`, while future configurable unlock semantics can be considered separately.
+
+**Alternatives Considered:** Use `com.apple.screenIsLocked` / `screenIsUnlocked`; rejected as a primary path because those distributed notification names are not documented as stable public APIs. Gate lock suppression behind `idleAwayResetEnabled`; rejected because default-disabled idle-away would still allow overlay/sound while locked. Add a separate disable flag for lock suppression; rejected for now because it lets users re-enable the bad hidden-overlay/sound behavior.
+
+**Alternatives Considered:** Clear the wake-baseline state completely on disable; rejected because the next enabled sample would then count all idle time accumulated while the feature was disabled. Re-arm baseline capture on every enable/disable toggle; rejected because it would silently change the existing no-wake re-enable semantics already covered by tests.
+**2026-06-08 / Session inactive tick suppression**
+
+Context: Task 2 already resets active work/rest state when the macOS session becomes inactive, but the ordinary scheduled tick path still ran idle-away polling before any session-lock guard. That left a path where locked ticks could continue reading HID idle duration or consume enough elapsed time to cross timer boundaries if future state had already been reset to fresh work.
+
+Decision: Make `AppCoordinator.advanceTimer()` return immediately when session-away suppression is active, after refreshing the uptime baseline but before idle-away polling, pause checks, overlay rest checks, or elapsed-time consumption.
+
+Rationale: Session lock is a stronger lifecycle boundary than idle-away. The smallest robust implementation is a single early return in the tick path, which keeps lock suppression always-on and independent from `idleAwayResetEnabled` or threshold tuning while preserving the existing inactive reconciliation from Task 2.
+
+Consequences: Repeated ticks during session inactivity no longer query the HID idle seam or advance work/rest timers. Unlock recovery remains a separate concern for Task 4, but the locked-session behavior is now isolated from idle-away configuration drift.
+
+Alternatives Considered: Thread session-away checks through `reconcileLongIdleIfNeeded`; rejected because that still couples lock suppression to idle-away settings flow and leaves more room for future ordering mistakes. Disabling the scheduler entirely while inactive was rejected for this task because it expands lifecycle management surface more than a local tick guard.
+
+**2026-06-08 / Session lock documentation contract**
+
+Context: The session-lock implementation is now shipped across observer, coordinator, unlock, and tray tasks, but repo-level docs still described `Away` only through config-gated idle-away behavior. Without a documentation pass, future agents could incorrectly treat session lock suppression as optional, configurable, or dependent on undocumented distributed notification names.
+
+Decision: Update `README.md` and `AGENTS.md` so they describe session inactive/lock suppression as an always-on behavior driven by public `NSWorkspace.sessionDidResignActiveNotification` and `NSWorkspace.sessionDidBecomeActiveNotification`, distinct from the opt-in `idleAwayResetEnabled` feature. Keep `.tmp/external-context/apple-macos-session-state/session-lock-and-screen-sleep-notifications.md` as research-only context and do not make product behavior depend on undocumented `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` names.
+
+Rationale: Lock handling is a safety/lifecycle invariant, not a user-tunable idle policy. The docs need to preserve that distinction so future maintenance does not reintroduce hidden overlays, completion sounds while locked, or a false expectation that disabling idle-away also disables session protection.
+
+Consequences: README manual checks now explicitly cover lock-before-break, unlock recovery, silent active-rest teardown, and bounded `Away` tray behavior for session inactivity. AGENTS now carries the same invariant for future planning and review work.
+
+Alternatives Considered: Document session lock as just another `Away` source without naming the public API; rejected because it weakens the guardrail against future private/distributed-notification drift. Add a config toggle for lock suppression; rejected because it would let users opt back into the hidden-overlay/sound failure mode this task was meant to remove.

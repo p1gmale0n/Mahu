@@ -16,11 +16,13 @@ final class AppCoordinator {
     private let currentUptime: CurrentUptimeProvider
     private let currentSleepAwareTime: CurrentSleepAwareTimeProvider
     private let sleepWakeRegistrar: SleepWakeObservationRegistrar
+    private let sessionActivityRegistrar: SessionActivityObservationRegistrar
     private let userIdleTimeProvider: UserIdleTimeProviding
 
     private var cancelTick: (() -> Void)?
     private var cancelRuntimeSettingsObservation: (() -> Void)?
     private var cancelSleepWakeObservation: SleepWakeObservationCancellation?
+    private var cancelSessionActivityObservation: SessionActivityObservationCancellation?
     private var breakTimer: BreakTimerControlling?
     private var launchAtLoginSettingsStore: LaunchAtLoginSettingsStoring?
     private var runtimeSettingsStore: RuntimeSettingsStoring?
@@ -28,6 +30,9 @@ final class AppCoordinator {
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
     private var idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
     private var isIdleAwaySuppressionActive = false
+    private var isSessionAwaySuppressionActive = false
+    private var capturesPostWakeIdleBaseline = false
+    private var postWakeIdleBaselineSeconds: TimeInterval?
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
     private var lastSleepStartedAt: TimeInterval?
@@ -50,6 +55,7 @@ final class AppCoordinator {
         currentUptime: @escaping CurrentUptimeProvider = { ProcessInfo.processInfo.systemUptime },
         currentSleepAwareTime: @escaping CurrentSleepAwareTimeProvider = LiveSleepAwareTimeSource.now,
         sleepWakeRegistrar: @escaping SleepWakeObservationRegistrar = LiveSleepWakeObservationRegistrar.make,
+        sessionActivityRegistrar: @escaping SessionActivityObservationRegistrar = LiveSessionActivityObservationRegistrar.make,
         userIdleTimeProvider: UserIdleTimeProviding? = nil
     ) {
         self.statusItemController = statusItemController ?? StatusItemController()
@@ -65,13 +71,14 @@ final class AppCoordinator {
         self.currentUptime = currentUptime
         self.currentSleepAwareTime = currentSleepAwareTime
         self.sleepWakeRegistrar = sleepWakeRegistrar
+        self.sessionActivityRegistrar = sessionActivityRegistrar
         self.userIdleTimeProvider = userIdleTimeProvider ?? makeDefaultUserIdleTimeProvider()
         self.overlayManager.onVisibleOverlayWindowsChange = { [weak self] isVisible in
             self?.handleOverlayVisibilityChange(isVisible)
         }
     }
 
-    func start() {
+    func start(initialSessionIsActive: Bool = true) {
         guard cancelTick == nil else {
             return
         }
@@ -100,6 +107,7 @@ final class AppCoordinator {
         runtimeSettingsPolicy.reset(startupSettings: config)
         idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
         isIdleAwaySuppressionActive = false
+        isSessionAwaySuppressionActive = false
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
         cancelSleepWakeObservation = sleepWakeRegistrar(
@@ -110,11 +118,25 @@ final class AppCoordinator {
                 self?.handleDidWake()
             }
         )
+        cancelSessionActivityObservation = sessionActivityRegistrar(
+            { [weak self] in
+                self?.handleSessionDidResignActive()
+            },
+            { [weak self] in
+                self?.handleSessionDidBecomeActive()
+            }
+        )
         remindersPaused = false
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
         statusItemController.setShowsTimerState(config.showStatusItemTimerState)
-        handle(state: breakTimer.state)
+
+        if initialSessionIsActive {
+            handle(state: breakTimer.state)
+        } else {
+            handleSessionDidResignActive()
+        }
+
         cancelTick = scheduleRepeatingTick(1) { [weak self] in
             self?.advanceTimer()
         }
@@ -145,6 +167,11 @@ final class AppCoordinator {
         let now = currentUptime()
         let elapsedSeconds = max(0, now - lastTickUptime)
         self.lastTickUptime = now
+
+        if isSessionAwaySuppressionActive {
+            pendingElapsedSeconds = 0
+            return
+        }
 
         if reconcileLongIdleIfNeeded(using: breakTimer, nowUptime: now) {
             return
@@ -424,6 +451,56 @@ final class AppCoordinator {
         lastSleepStartedAt = currentSleepAwareTime()
     }
 
+    private func handleSessionDidResignActive() {
+        guard let breakTimer,
+              isSessionAwaySuppressionActive == false else {
+            return
+        }
+
+        pendingElapsedSeconds = 0
+        lastTickUptime = currentUptime()
+        idleAwayEpisodePolicy.reset()
+        isIdleAwaySuppressionActive = false
+        rearmPostWakeIdleBaselineIfNeeded()
+        isSessionAwaySuppressionActive = true
+
+        guard let currentSettings = runtimeSettingsStore?.currentSettings else {
+            statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+            return
+        }
+
+        runtimeSettingsPolicy.reset(startupSettings: currentSettings)
+
+        switch longAwayReconciliationAction(
+            currentState: breakTimer.state,
+            remindersPaused: remindersPaused
+        ) {
+        case .none, .preservePausedWork:
+            statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+        case .resetActiveWork, .resetAfterActiveRest:
+            clearTimerDisplayBaselinesIfNeeded(for: currentSettings)
+            let newBreakTimer = makeBreakTimer(currentSettings)
+            self.breakTimer = newBreakTimer
+            handle(state: newBreakTimer.state)
+        }
+    }
+
+    private func handleSessionDidBecomeActive() {
+        guard isSessionAwaySuppressionActive,
+              let breakTimer else {
+            return
+        }
+
+        idleAwayEpisodePolicy.reset()
+        isIdleAwaySuppressionActive = false
+        capturesPostWakeIdleBaseline = true
+        postWakeIdleBaselineSeconds = nil
+        pendingElapsedSeconds = 0
+        lastTickUptime = currentUptime()
+        isSessionAwaySuppressionActive = false
+        statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+    }
+
     private func handleDidWake() {
         let wokeAt = currentSleepAwareTime()
         let reconciliationAction = wakeReconciliationAction(
@@ -466,6 +543,11 @@ final class AppCoordinator {
 
         let now = currentUptime()
         self.lastTickUptime = now
+
+        if isSessionAwaySuppressionActive || isIdleAwaySuppressionActive {
+            pendingElapsedSeconds = 0
+            return
+        }
 
         if remindersPaused, breakTimer.state.phase == .work {
             return
@@ -536,7 +618,7 @@ final class AppCoordinator {
     }
 
     private func statusDisplayState(for state: BreakTimer.State) -> StatusDisplayState {
-        if isIdleAwaySuppressionActive,
+        if (isSessionAwaySuppressionActive || isIdleAwaySuppressionActive),
            !(remindersPaused && state.phase == .work) {
             return .away
         }
@@ -545,6 +627,7 @@ final class AppCoordinator {
     }
 
     isolated deinit {
+        cancelSessionActivityObservation?()
         cancelSleepWakeObservation?()
         cancelRuntimeSettingsObservation?()
         cancelTick?()

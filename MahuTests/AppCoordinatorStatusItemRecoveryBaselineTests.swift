@@ -3,6 +3,108 @@ import XCTest
 
 @MainActor
 final class AppCoordinatorStatusItemRecoveryBaselineTests: XCTestCase {
+    func testSessionInactiveDuringActiveWorkResetsToFreshWorkWithoutPresentingBreak() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 1)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds)
+        )
+        var createdTimers = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: fakeOverlayManager,
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: startupConfig),
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in
+                defer { createdTimers += 1 }
+                return createdTimers == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([100, 100]),
+            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userIdleTimeProvider: FailingUserIdleTimeProvider()
+        )
+
+        coordinator.start()
+        fakeSessionActivityRegistrar.fireDidResignActive()
+
+        XCTAssertEqual(createdTimers, 2)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
+        XCTAssertEqual(initialTimer.advanceCalls, [])
+        XCTAssertEqual(fakeOverlayManager.events, [])
+        XCTAssertEqual(
+            fakeStatusItemController.statusDisplayStates,
+            [
+                .active(phase: .work, remainingSeconds: 1),
+                .away
+            ]
+        )
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:01", "Away"])
+    }
+
+    func testSessionInactiveDuringActiveRestHidesOverlaySilentlyAndResetsToFreshWork() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()
+        let restTimer = FakeBreakTimer(
+            state: .init(phase: .rest, remainingSeconds: 10)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: startupConfig.workDurationSeconds)
+        )
+        var createdTimers = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: fakeOverlayManager,
+            breakCompletionSoundPlayer: fakeSoundPlayer,
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: startupConfig),
+            loadConfig: { startupConfig },
+            makeBreakTimer: { _ in
+                defer { createdTimers += 1 }
+                return createdTimers == 0 ? restTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, _ in {} },
+            currentUptime: makeCurrentUptimeProvider([200, 200, 200]),
+            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userIdleTimeProvider: FailingUserIdleTimeProvider()
+        )
+
+        coordinator.start()
+        fakeSessionActivityRegistrar.fireDidResignActive()
+
+        XCTAssertEqual(createdTimers, 2)
+        XCTAssertEqual(fakeSoundPlayer.playCallCount, 0)
+        XCTAssertEqual(
+            fakeOverlayManager.events,
+            [.show(10, AppConfig.defaultBreakOverlayMessageText), .hide]
+        )
+        XCTAssertEqual(
+            fakeStatusItemController.statusDisplayStates,
+            [
+                .active(phase: .rest, remainingSeconds: 10),
+                .away
+            ]
+        )
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:10", "Away"])
+    }
+
     func testLongIdleDuringActiveRestWithDeferredRuntimeDurationChangeClearsBaselinesBeforeFreshWorkRenders() {
         let startupConfig = AppConfig(
             workDurationSeconds: 60_000,
