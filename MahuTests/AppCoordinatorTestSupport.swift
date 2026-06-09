@@ -37,6 +37,27 @@ final class ScriptedUserIdleTimeProvider: UserIdleTimeProviding {
     }
 }
 
+final class RecordingUserIdleTimeProvider: UserIdleTimeProviding {
+    private var idleDurationSeconds: [TimeInterval]
+    private let fallbackIdleDurationSeconds: TimeInterval
+    private(set) var queryCount = 0
+
+    init(_ idleDurationSeconds: [TimeInterval]) {
+        self.idleDurationSeconds = idleDurationSeconds
+        fallbackIdleDurationSeconds = idleDurationSeconds.last ?? 0
+    }
+
+    func currentIdleDurationSeconds() -> TimeInterval {
+        queryCount += 1
+
+        guard idleDurationSeconds.isEmpty == false else {
+            return fallbackIdleDurationSeconds
+        }
+
+        return idleDurationSeconds.removeFirst()
+    }
+}
+
 final class CancellationSpy {
     private(set) var cancelCallCount = 0
 
@@ -313,6 +334,8 @@ final class FakeStatusItemController: StatusItemControlling {
             return statusDisplayFormatter.string(
                 for: .active(phase: phase, remainingSeconds: remainingSeconds)
             )
+        case .away:
+            return statusDisplayFormatter.string(for: .away)
         case .paused:
             return statusDisplayFormatter.string(for: .paused)
         }
@@ -340,7 +363,7 @@ final class FakeRuntimeSettingsStore: RuntimeSettingsStoring {
     }
 
     func update(_ newSettings: AppConfig) {
-        guard newSettings.hasSupportedDurations, newSettings != currentSettings else {
+        guard newSettings.hasSupportedSettings, newSettings != currentSettings else {
             return
         }
 

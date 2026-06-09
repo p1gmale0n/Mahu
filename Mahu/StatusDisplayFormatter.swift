@@ -2,6 +2,7 @@ import Foundation
 
 enum StatusDisplayState: Equatable {
     case active(phase: BreakTimer.Phase, remainingSeconds: TimeInterval)
+    case away
     case paused
 }
 
@@ -10,6 +11,8 @@ struct StatusDisplayFormatter {
         switch state {
         case let .active(_, remainingSeconds):
             return Self.countdownText(for: remainingSeconds)
+        case .away:
+            return "Away"
         case .paused:
             return "Paused"
         }

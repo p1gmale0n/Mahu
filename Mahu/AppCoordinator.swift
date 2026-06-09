@@ -27,6 +27,7 @@ final class AppCoordinator {
     private var appliedRuntimeSettings: AppConfig?
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
     private var idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
+    private var isIdleAwaySuppressionActive = false
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
     private var lastSleepStartedAt: TimeInterval?
@@ -98,6 +99,7 @@ final class AppCoordinator {
         syncLaunchAtLoginDesiredState(using: launchAtLoginSettingsStore, reason: "startup")
         runtimeSettingsPolicy.reset(startupSettings: config)
         idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
+        isIdleAwaySuppressionActive = false
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
         cancelSleepWakeObservation = sleepWakeRegistrar(
@@ -178,28 +180,39 @@ final class AppCoordinator {
         using breakTimer: BreakTimerControlling,
         nowUptime: TimeInterval
     ) -> Bool {
+        guard let currentSettings = runtimeSettingsStore?.currentSettings,
+              currentSettings.idleAwayResetEnabled else {
+            isIdleAwaySuppressionActive = false
+            return false
+        }
+
         let idleEpisodeAction = idleAwayEpisodePolicy.action(
             idleDurationSeconds: userIdleTimeProvider.safeCurrentIdleDurationSeconds(),
             currentState: breakTimer.state,
-            remindersPaused: remindersPaused
+            remindersPaused: remindersPaused,
+            longIdleThresholdSeconds: currentSettings.idleAwayResetThresholdSeconds
         )
 
         switch idleEpisodeAction {
         case .none:
+            if isIdleAwaySuppressionActive {
+                isIdleAwaySuppressionActive = false
+                statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+            }
             return false
         case .suppressElapsedOnly:
+            isIdleAwaySuppressionActive = true
             pendingElapsedSeconds = 0
             lastTickUptime = nowUptime
+            statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
             return true
         case .suppressElapsedAndReset(let reconciliationAction):
             pendingElapsedSeconds = 0
             lastTickUptime = nowUptime
+            isIdleAwaySuppressionActive = reconciliationAction != .none && reconciliationAction != .preservePausedWork
 
             guard reconciliationAction != .none else {
-                return true
-            }
-
-            guard let currentSettings = runtimeSettingsStore?.currentSettings else {
+                statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
                 return true
             }
 
@@ -207,6 +220,7 @@ final class AppCoordinator {
 
             switch reconciliationAction {
             case .none, .preservePausedWork:
+                statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
                 return true
             case .resetActiveWork, .resetAfterActiveRest:
                 clearTimerDisplayBaselinesIfNeeded(for: currentSettings)
@@ -273,7 +287,7 @@ final class AppCoordinator {
 
     private func handle(state: BreakTimer.State) {
         let state = applyPendingRuntimeSettingsIfNeeded(to: state)
-        statusItemController.setStatusDisplayState(.active(phase: state.phase, remainingSeconds: state.remainingSeconds))
+        statusItemController.setStatusDisplayState(statusDisplayState(for: state))
 
         switch state.phase {
         case .work:
@@ -307,6 +321,14 @@ final class AppCoordinator {
         appliedRuntimeSettings = newSettings
         statusItemController.setShowsTimerState(newSettings.showStatusItemTimerState)
         reconcileLaunchAtLoginRuntimeSettingsIfNeeded(newSettings)
+
+        if newSettings.idleAwayResetEnabled == false {
+            idleAwayEpisodePolicy.reset()
+            isIdleAwaySuppressionActive = false
+            if let breakTimer {
+                statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+            }
+        }
 
         let currentPhase = breakTimer?.state.phase
         let baselineResetAction = timerDisplayBaselineResetAction(
@@ -412,6 +434,7 @@ final class AppCoordinator {
         )
 
         lastSleepStartedAt = nil
+        isIdleAwaySuppressionActive = false
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
 
@@ -483,6 +506,9 @@ final class AppCoordinator {
 
         remindersPaused = true
         pendingElapsedSeconds = 0
+        if let breakTimer {
+            statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+        }
         statusItemController.setRemindersPaused(true)
     }
 
@@ -507,6 +533,15 @@ final class AppCoordinator {
         }
 
         statusItemController.setRemindersPaused(false)
+    }
+
+    private func statusDisplayState(for state: BreakTimer.State) -> StatusDisplayState {
+        if isIdleAwaySuppressionActive,
+           !(remindersPaused && state.phase == .work) {
+            return .away
+        }
+
+        return .active(phase: state.phase, remainingSeconds: state.remainingSeconds)
     }
 
     isolated deinit {

@@ -2,6 +2,8 @@
 
 ## Overview
 
+Superseded note: the originally shipped always-on idle-away behavior from this completed plan is now narrowed by `docs/plans/2026-06-08-idle-away-reset-config-and-away-state.md`, which makes idle-away reset opt-in by default and surfaces enabled suppression as `Away` in tray-timer mode.
+
 Add idle/away-based timer reconciliation for users who step away from the computer without putting macOS to sleep.
 
 Mahu already treats long sleep as sufficient rest and resets to a fresh work session. This plan adds the analogous behavior for long system idle periods: if the user has been away for at least 300 seconds while the Mac stays awake, Mahu should treat that away time as rest and avoid immediately interrupting the user with a stale near-expired work timer or stale break overlay when they return.

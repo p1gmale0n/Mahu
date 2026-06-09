@@ -23,7 +23,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 ## Current Behavior
 
 - Menu-bar-only app with `LSUIElement = true`.
-- Status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text, with `Paused` shown only while reminders are paused during work and timer-mode width pinned to the widest observed title so the icon does not drift horizontally across countdown updates or `MM:SS -> Paused -> MM:SS` transitions.
+- Status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text, with `Paused` shown only while reminders are paused during work, `Away` shown only while enabled idle-away suppression is active, and timer-mode width pinned to the widest observed title so the icon does not drift horizontally across countdown updates or `MM:SS -> Paused/Away -> MM:SS` transitions.
 - The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset: a transparent, glyph-only template silhouette derived from the app icon motif, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
 - Work timer starts automatically on launch.
 - Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
@@ -33,7 +33,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Pause state is runtime-only; Mahu always launches with reminders enabled.
 - Default schedule is 20 minutes of work and 20 seconds of break.
 - Short sleep preserves the current work or break countdown, while wake after at least 5 minutes of recorded sleep reconciles state: active work resets to a fresh full work interval, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
-- While the Mac stays awake, observed user idle time below 5 minutes preserves the current work or break countdown, while idle time of at least 5 minutes is treated as away/rest time with the same phase semantics as long sleep: active work resets to a fresh full work interval from current runtime settings, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
+- While the Mac stays awake, idle-away reset is disabled by default. When `idleAwayResetEnabled` is `true`, user idle time below the configured threshold preserves the current work or break countdown, while idle time at or above `idleAwayResetThresholdSeconds` is treated as away/rest time with the same phase semantics as long sleep: active work resets to a fresh full work interval from current runtime settings, repeated ticks in the same away episode suppress elapsed consumption, optional tray-timer mode shows `Away` during that suppression, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - `launchAtLoginEnabled` defaults to `false`; on the next launch, `true` requests main-app Login Item registration through `SMAppService.mainApp`, while `false` requests unregister/removal when the Login Item is currently enabled or pending approval and otherwise no-ops. If macOS still requires approval or registration/unregistration fails, Mahu logs a non-fatal warning and keeps running.
 - Missing config creates a default config file and continues running.
@@ -80,6 +80,8 @@ Example:
   "workDurationSeconds": 1200,
   "breakDurationSeconds": 20,
   "showStatusItemTimerState": false,
+  "idleAwayResetEnabled": false,
+  "idleAwayResetThresholdSeconds": 300,
   "breakOverlayMessageText": "Время отвлечься",
   "launchAtLoginEnabled": false
 }
@@ -93,16 +95,22 @@ Manual-edit example with tolerated JSONC-style syntax on load:
   "breakDurationSeconds": 20,
   // Enable menu-bar countdown text.
   "showStatusItemTimerState": true,
+  // Opt into idle-away reset with a custom threshold.
+  "idleAwayResetEnabled": true,
+  "idleAwayResetThresholdSeconds": 180,
 }
 ```
 
 Notes:
 
 - `1200` seconds = 20 minutes.
-- `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`. If reminders are paused during work, the title changes to `Paused`; if pause happens during an active break, Mahu keeps the live break countdown visible while dimming the icon and changing the menu item to `Resume Reminders`. Timer mode keeps the widest observed title width so the icon does not drift horizontally across countdown changes or `MM:SS -> Paused -> MM:SS` transitions.
+- `showStatusItemTimerState` defaults to `false`; set it to `true` to show the tray icon plus active work/rest `MM:SS`. If reminders are paused during work, the title changes to `Paused`; if enabled idle-away suppression is active, the title changes to `Away`; if pause happens during an active break, Mahu keeps the live break countdown visible while dimming the icon and changing the menu item to `Resume Reminders`. Timer mode keeps the widest observed title width so the icon does not drift horizontally across countdown changes or `MM:SS -> Paused/Away -> MM:SS` transitions, and `Away` is intentionally bounded so it does not require more width than `Paused`.
+- `idleAwayResetEnabled` defaults to `false`; leave it missing or set it to `false` to preserve normal timer behavior even after long idle periods while the Mac stays awake.
+- `idleAwayResetThresholdSeconds` defaults to `300`; set it to any positive finite whole-second value if you enable idle-away reset and want a threshold other than 5 minutes.
 - `breakOverlayMessageText` defaults to `Время отвлечься`; omit it to keep backward-compatible behavior, or set it to any non-empty Unicode string to change the break title.
 - `launchAtLoginEnabled` defaults to `false`; set it to `true` to request Launch at Login for the main app on the next launch, or leave/set it to `false` to request unregister/removal on the next launch when a Login Item is currently present.
 - Empty or whitespace-only `breakOverlayMessageText` values normalize back to the default title, while `null` or non-string values make Mahu fall back to the full default config like other malformed config edits.
+- Non-positive, fractional, larger-than-precision, `null`, or non-finite `idleAwayResetThresholdSeconds` values are treated as invalid and fall back to the safe default config behavior rather than creating a partial override.
 - `config.json` is read at launch to seed Mahu's runtime settings and launch-at-login desired state. Editing the file while the app is already running does not apply changes immediately because Mahu intentionally has no file watcher or implicit reload loop; relaunch Mahu after manual config changes.
 - Manual edits may include JSONC-style comments and trailing commas on read, but Mahu-created files remain strict JSON and future app-driven saves remove those comments/trailing commas.
 - Runtime-only updates inside the app should target the shared in-process settings source first and persist back to `config.json`; this foundation exists for a future Settings UI even though no Settings window ships yet.
@@ -162,8 +170,11 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Repeat with a sleep shorter than 5 minutes and confirm the current work or break countdown resumes from the previous remaining time.
 - Pause reminders, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu stays paused, does not show a break, and still starts a fresh full work interval only after `Resume Reminders`.
 - Start an active break, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu closes the stale break, starts a fresh work interval, and does not play `break-completion.caf`.
-- Wait until the work timer is near expiration without sleeping the Mac, stay idle for more than 5 minutes, and confirm Mahu returns to a fresh full work interval instead of immediately showing a stale break.
-- Repeat the long-idle check with less than 5 minutes of idle time and confirm Mahu preserves the current work or break countdown.
+- With missing config or `"idleAwayResetEnabled": false`, wait until the work timer is near expiration, stay idle longer than 5 minutes, and confirm Mahu still reaches the break overlay instead of freezing near `10s` or resetting silently.
+- With `"idleAwayResetEnabled": true`, stay idle longer than `idleAwayResetThresholdSeconds` and confirm Mahu returns to a fresh full work interval instead of immediately showing a stale break.
+- With `"idleAwayResetEnabled": true`, repeat the idle check with less than `idleAwayResetThresholdSeconds` of idle time and confirm Mahu preserves the current work or break countdown.
+- With `"idleAwayResetEnabled": true` and `"showStatusItemTimerState": true`, confirm the status item shows `Away` only while elapsed time is being suppressed, then returns to the countdown after user activity.
+- With `"idleAwayResetEnabled": true` and `"showStatusItemTimerState": true`, confirm `Away` fits within the same tray footprint as `Paused` and does not move the tray icon.
 - Pause reminders, stay idle for more than 5 minutes without sleeping the Mac, and confirm Mahu stays paused, does not show a break, and still starts a fresh full work interval only after `Resume Reminders`.
 - Start an active break, stay idle for more than 5 minutes without sleeping the Mac, and confirm Mahu closes the stale break silently and does not play `break-completion.caf`.
 - Build or archive a properly signed local `.app`, set `"launchAtLoginEnabled": true`, relaunch Mahu, and confirm the app appears in System Settings -> General -> Login Items.

@@ -70,9 +70,9 @@ struct ConfigStore {
 
     @discardableResult
     func save(_ config: AppConfig) -> Bool {
-        guard config.hasSupportedDurations else {
+        guard config.hasSupportedSettings else {
             Self.logger.warning(
-                "Refusing to save config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
+                "Refusing to save config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, small enough to preserve one-second timer precision, and idleAwayResetThresholdSeconds must be a positive finite number."
             )
             return false
         }
@@ -122,9 +122,9 @@ struct ConfigStore {
             let rawData = try loadConfigData(from: readableConfigURL)
             let preprocessedData = try ConfigJSONPreprocessor.preprocess(rawData)
             let config = try JSONDecoder().decode(AppConfig.self, from: preprocessedData)
-            guard config.hasSupportedDurations else {
+            guard config.hasSupportedSettings else {
                 Self.logger.warning(
-                    "Ignoring config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
+                    "Ignoring config at \(self.configURL.path, privacy: .private) because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, small enough to preserve one-second timer precision, and idleAwayResetThresholdSeconds must be a positive finite number."
                 )
                 return .default
             }

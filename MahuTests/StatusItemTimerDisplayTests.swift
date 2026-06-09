@@ -54,6 +54,53 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
     }
 
+    func testIconOnlyModeIgnoresAwayStateUpdatesAfterInstall() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let providedIcon = NSImage(size: NSSize(width: 18, height: 18))
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { providedIcon }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.install()
+
+        controller.setStatusDisplayState(.away)
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(statusItem.length, NSStatusItem.squareLength)
+        XCTAssertEqual(button.title, "")
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "")
+        XCTAssertEqual(button.imagePosition, .imageOnly)
+        XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
+    }
+
+    func testTimerModeShowsAwayTextExactly() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let providedIcon = NSImage(size: NSSize(width: 18, height: 18))
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { providedIcon }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.setStatusDisplayState(.away)
+
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
+        XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  Away")
+        XCTAssertEqual(button.accessibilityLabel(), "Away")
+        XCTAssertEqual(button.imagePosition, .imageLeading)
+        XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
+    }
+
     func testDisablingTimerModeResetsFrozenWidthBackToSquareLength() throws {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         defer { NSStatusBar.system.removeStatusItem(statusItem) }

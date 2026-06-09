@@ -248,9 +248,9 @@ final class RuntimeSettingsStore: RuntimeSettingsStoring {
     }
 
     func update(_ newSettings: AppConfig) {
-        guard newSettings.hasSupportedDurations else {
+        guard newSettings.hasSupportedSettings else {
             Self.logger.warning(
-                "Ignoring runtime settings update because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, and small enough to preserve one-second timer precision."
+                "Ignoring runtime settings update because durations must be finite, between \(Int(AppConfig.minimumSupportedDurationSeconds)) and \(Int64(AppConfig.maximumSupportedDurationSeconds)) seconds, small enough to preserve one-second timer precision, and idleAwayResetThresholdSeconds must be a positive finite number."
             )
             return
         }

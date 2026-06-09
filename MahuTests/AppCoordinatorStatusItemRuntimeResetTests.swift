@@ -272,6 +272,8 @@ final class SequencingStatusItemControllerSpy: StatusItemControlling {
             return statusDisplayFormatter.string(
                 for: .active(phase: phase, remainingSeconds: remainingSeconds)
             )
+        case .away:
+            return statusDisplayFormatter.string(for: .away)
         case .paused:
             return statusDisplayFormatter.string(for: .paused)
         }

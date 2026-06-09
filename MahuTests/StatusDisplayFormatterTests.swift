@@ -23,6 +23,10 @@ final class StatusDisplayFormatterTests: XCTestCase {
         XCTAssertEqual(formatter.string(for: .paused), "Paused")
     }
 
+    func testFormatsAwayDisplayText() {
+        XCTAssertEqual(formatter.string(for: .away), "Away")
+    }
+
     func testCountdownFormattingUsesSafeDisplayWholeSecondsBehaviorForEdgeCases() {
         XCTAssertEqual(
             formatter.string(for: .active(phase: .work, remainingSeconds: -5)),

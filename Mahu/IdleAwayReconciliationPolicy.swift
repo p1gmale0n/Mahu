@@ -18,6 +18,10 @@ enum IdleAwayEpisodeAction: Equatable {
 struct IdleAwayEpisodePolicy {
     private var hasAppliedResetInCurrentIdleEpisode = false
 
+    mutating func reset() {
+        hasAppliedResetInCurrentIdleEpisode = false
+    }
+
     mutating func action(
         idleDurationSeconds: TimeInterval,
         currentState: BreakTimer.State?,

@@ -6,9 +6,12 @@ struct AppConfig: Codable, Equatable {
     static let subsecondPrecisionThresholdSeconds: TimeInterval = 4_503_599_627_370_496
     private static let maximumDisplayableWholeSeconds: TimeInterval = TimeInterval(Int64.max)
     static let defaultBreakOverlayMessageText = "Время отвлечься"
+    static let defaultIdleAwayResetThresholdSeconds: TimeInterval = 300
 
     let workDurationSeconds: TimeInterval
     let breakDurationSeconds: TimeInterval
+    let idleAwayResetEnabled: Bool
+    let idleAwayResetThresholdSeconds: TimeInterval
     let showStatusItemTimerState: Bool
     let breakOverlayMessageText: String
     let launchAtLoginEnabled: Bool
@@ -16,6 +19,8 @@ struct AppConfig: Codable, Equatable {
     static let `default` = AppConfig(
         workDurationSeconds: 1_200,
         breakDurationSeconds: 20,
+        idleAwayResetEnabled: false,
+        idleAwayResetThresholdSeconds: defaultIdleAwayResetThresholdSeconds,
         showStatusItemTimerState: false,
         breakOverlayMessageText: defaultBreakOverlayMessageText,
         launchAtLoginEnabled: false
@@ -24,12 +29,16 @@ struct AppConfig: Codable, Equatable {
     init(
         workDurationSeconds: TimeInterval,
         breakDurationSeconds: TimeInterval,
+        idleAwayResetEnabled: Bool = false,
+        idleAwayResetThresholdSeconds: TimeInterval = AppConfig.defaultIdleAwayResetThresholdSeconds,
         showStatusItemTimerState: Bool = false,
         breakOverlayMessageText: String = AppConfig.defaultBreakOverlayMessageText,
         launchAtLoginEnabled: Bool = false
     ) {
         self.workDurationSeconds = workDurationSeconds
         self.breakDurationSeconds = breakDurationSeconds
+        self.idleAwayResetEnabled = idleAwayResetEnabled
+        self.idleAwayResetThresholdSeconds = idleAwayResetThresholdSeconds
         self.showStatusItemTimerState = showStatusItemTimerState
         self.breakOverlayMessageText = Self.normalizedBreakOverlayMessageText(breakOverlayMessageText)
         self.launchAtLoginEnabled = launchAtLoginEnabled
@@ -38,6 +47,14 @@ struct AppConfig: Codable, Equatable {
     var hasSupportedDurations: Bool {
         Self.isSupportedDuration(workDurationSeconds) &&
             Self.isSupportedDuration(breakDurationSeconds)
+    }
+
+    var hasSupportedIdleAwayResetThreshold: Bool {
+        Self.isSupportedIdleAwayResetThreshold(idleAwayResetThresholdSeconds)
+    }
+
+    var hasSupportedSettings: Bool {
+        hasSupportedDurations && hasSupportedIdleAwayResetThreshold
     }
 
     static func safeDisplayWholeSeconds(_ duration: TimeInterval) -> Int64 {
@@ -59,6 +76,10 @@ struct AppConfig: Codable, Equatable {
             duration <= maximumSupportedDurationSeconds
     }
 
+    private static func isSupportedIdleAwayResetThreshold(_ duration: TimeInterval) -> Bool {
+        duration.isFinite && duration > 0
+    }
+
     static func normalizedBreakOverlayMessageText(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? defaultBreakOverlayMessageText
@@ -68,6 +89,8 @@ struct AppConfig: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case workDurationSeconds
         case breakDurationSeconds
+        case idleAwayResetEnabled
+        case idleAwayResetThresholdSeconds
         case showStatusItemTimerState
         case breakOverlayMessageText
         case launchAtLoginEnabled
@@ -77,6 +100,27 @@ struct AppConfig: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         workDurationSeconds = try container.decode(TimeInterval.self, forKey: .workDurationSeconds)
         breakDurationSeconds = try container.decode(TimeInterval.self, forKey: .breakDurationSeconds)
+        if container.contains(.idleAwayResetEnabled) {
+            idleAwayResetEnabled = try container.decode(Bool.self, forKey: .idleAwayResetEnabled)
+        } else {
+            idleAwayResetEnabled = false
+        }
+
+        if container.contains(.idleAwayResetThresholdSeconds) {
+            let threshold = try container.decode(TimeInterval.self, forKey: .idleAwayResetThresholdSeconds)
+            guard Self.isSupportedIdleAwayResetThreshold(threshold) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .idleAwayResetThresholdSeconds,
+                    in: container,
+                    debugDescription: "idleAwayResetThresholdSeconds must be a positive finite number."
+                )
+            }
+
+            idleAwayResetThresholdSeconds = threshold
+        } else {
+            idleAwayResetThresholdSeconds = Self.defaultIdleAwayResetThresholdSeconds
+        }
+
         if container.contains(.showStatusItemTimerState) {
             showStatusItemTimerState = try container.decode(Bool.self, forKey: .showStatusItemTimerState)
         } else {

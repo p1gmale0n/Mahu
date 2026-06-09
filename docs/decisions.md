@@ -2,6 +2,8 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-08 | Idle-away reset shipped contract | Ship idle-away reset as opt-in through `idleAwayResetEnabled`/`idleAwayResetThresholdSeconds`, and reserve `Away` as the bounded tray label during enabled suppression. | The original always-on behavior could look like a frozen timer near break start; default-off preserves legacy behavior for missing configs, and `Away` explains suppression without widening the tray title slot beyond the existing `Paused` constraint. |
+| 2026-06-08 | Idle-away reset configuration plan | Plan a follow-up that makes idle-away reset opt-in with `idleAwayResetEnabled`, configurable with `idleAwayResetThresholdSeconds`, and visible as bounded `Away` tray text when suppression is active. | Manual verification showed the always-on idle-away suppression can look like a broken timer stuck near break start; default-off config restores safe legacy behavior while preserving the feature for users who opt in, and `Away` explains intentional suppression without exceeding the existing `Paused` tray text footprint. |
 | 2026-06-05 | Idle away reset acceptance coverage | Wire the focused idle reset test file into the `MahuTests` target and align the active implementation plan with the shipped any-input idle query contract. | Review found the branch was claiming reset coverage that never ran because the test file was detached from `project.pbxproj`, and the plan still described the earlier `.null` event type after the production provider moved to `kCGAnyInputEventType`. |
 | 2026-06-05 | Idle input query contract | Query HID idle time with the CoreGraphics any-input event sentinel and normalize invalid readings once at the consumer boundary. | `kCGEventNull` is not the “any input” token used for idle measurement, and duplicating normalization in both the live provider and the consumer obscures the seam contract without adding safety. |
 | 2026-06-05 | Tray timer recovery baseline resets | Clear tray timer baselines before long-idle and long-sleep recovery paths replace the timer from deferred runtime settings. | Otherwise active-rest recovery can bypass the normal deferred-settings boundary hook and keep the tray width frozen to an obsolete longer work duration even though the new runtime schedule is already in effect. |
@@ -2804,3 +2806,34 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Consequences:** Full and targeted XCTest runs now execute the reset-specific idle-away cases, and the plan matches the production provider and later idle-input decision entry. Review and handoff evidence for this feature become materially trustworthy again.
 
 **Alternatives Considered:** Leave the file detached and rely on future manual Xcode cleanup; rejected because the branch already claimed those tests as proof. Leave the plan on `.null` and rely on the later decision entry alone; rejected because the plan is an active implementation artifact, not archival history.
+<<<<<<< HEAD
+=======
+
+## 2026-06-08 / Idle-Away Reset Configuration Plan
+
+**Date:** 2026-06-08
+
+**Area:** Idle-away reset configuration and tray state
+
+**Context:** Manual verification after the idle-away reset implementation showed a severe regression: with current settings the timer can appear stuck around `10` seconds and never show the break overlay. Investigation found this is consistent with the current always-on away suppression path, where repeated long-idle ticks deliberately suppress elapsed-time consumption after the first reset.
+
+**Decision:** Create a follow-up implementation plan that makes idle-away reset opt-in by default through `idleAwayResetEnabled: false`, exposes a positive `idleAwayResetThresholdSeconds` with default `300`, and adds an `Away` tray state when enabled suppression is active. The `Away` label must fit within the existing controlled tray text footprint and not exceed the width requirement already covered by `Paused`.
+
+**Rationale:** The feature can be useful, but always-on suppression is too risky while real-device HID idle behavior is still being validated. Default-off config restores safe legacy timer behavior for existing/missing configs, a configurable threshold gives users control when they opt in, and a visible `Away` state prevents intentional suppression from looking like a frozen countdown.
+
+**Consequences:** Future implementation must update config decoding, runtime settings, coordinator gating, tray display formatting/width tests, README, AGENTS, and decision history. Enabled idle-away semantics can preserve suppression, but disabled mode must not query the idle provider, reset the timer, suppress elapsed time, or emit `Away`.
+
+**Alternatives Considered:** Keep idle-away always on and only add `Away`; rejected because users with missing/legacy config would still hit the risky behavior. Add only a boolean toggle without `Away`; rejected because enabled mode would still look broken when suppression is active. Remove idle-away entirely; rejected because the feature remains valuable once explicitly enabled and clearly represented.
+
+## 2026-06-08 / Idle-Away Reset Shipped Contract
+
+**Context:** The follow-up implementation is now complete: config decoding defaults missing idle-away fields to disabled behavior, coordinator wiring skips idle polling when disabled, enabled suppression surfaces as `Away` in optional tray-timer mode, and the docs must stop describing long idle reset as always-on shipped behavior.
+
+**Decision:** Treat idle-away reset as an opt-in shipped feature controlled by `idleAwayResetEnabled` and `idleAwayResetThresholdSeconds`, with `idleAwayResetEnabled` defaulting to `false` and `idleAwayResetThresholdSeconds` defaulting to `300`. When enabled suppression is active, show `Away` only in tray-timer mode and keep its width bounded by the existing `Paused` title-slot requirement.
+
+**Rationale:** Default-off restores the pre-feature timer contract for missing and legacy configs, which removes the confusing near-break freeze behavior unless the user explicitly opts in. Reusing a short `Away` label explains deliberate elapsed suppression without adding a wider menu-bar state that could reintroduce icon drift.
+
+**Consequences:** README and AGENTS must describe long idle reset as config-gated rather than always-on, manual verification must cover both disabled and enabled modes, and future UI work must preserve the `Away <= Paused` tray-width invariant. Sleep/wake reconciliation stays independent and unchanged.
+
+**Alternatives Considered:** Keep documenting always-on idle reset and mention the toggle only in config examples; rejected because future agents would still treat the old behavior as the default product invariant. Use a longer label such as `Away Reset`; rejected because it adds tray-width risk without improving clarity enough for a menu-bar-only app.
+>>>>>>> cbf4ae3 (feat: update idle-away docs and decisions)

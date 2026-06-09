@@ -4,6 +4,12 @@ import XCTest
 @MainActor
 final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
     func testLongIdleNearExpiredActiveWorkResetsToFreshWorkWithoutPresentingBreak() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
         let fakeStatusItemController = FakeStatusItemController()
         let fakeOverlayManager = FakeBreakOverlayManager()
         let initialTimer = FakeBreakTimer(
@@ -18,9 +24,7 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
         let coordinator = AppCoordinator(
             statusItemController: fakeStatusItemController,
             overlayManager: fakeOverlayManager,
-            runtimeSettingsStore: FakeRuntimeSettingsStore(
-                currentSettings: AppConfig(workDurationSeconds: 600, breakDurationSeconds: 20)
-            ),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
             loadConfig: { .default },
             makeBreakTimer: { _ in
                 defer { timerCreationCount += 1 }
@@ -44,12 +48,19 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
             fakeStatusItemController.statusDisplayStates,
             [
                 .active(phase: .work, remainingSeconds: 1),
-                .active(phase: .work, remainingSeconds: 600)
+                .away
             ]
         )
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:01", "Away"])
     }
 
     func testLongIdleWhilePausedKeepsRemindersPausedAndResumeStartsFreshWorkInterval() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
         let fakeStatusItemController = FakeStatusItemController()
         let initialTimer = FakeBreakTimer(
             state: .init(phase: .work, remainingSeconds: 1)
@@ -63,9 +74,7 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
         let coordinator = AppCoordinator(
             statusItemController: fakeStatusItemController,
             overlayManager: FakeBreakOverlayManager(),
-            runtimeSettingsStore: FakeRuntimeSettingsStore(
-                currentSettings: AppConfig(workDurationSeconds: 600, breakDurationSeconds: 20)
-            ),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
             loadConfig: { .default },
             makeBreakTimer: { _ in
                 defer { timerCreationCount += 1 }
@@ -87,16 +96,17 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
         XCTAssertEqual(timerCreationCount, 2)
         XCTAssertEqual(initialTimer.advanceCalls, [])
         XCTAssertEqual(fakeStatusItemController.remindersPausedUpdates, [true, false])
-        XCTAssertEqual(
-            fakeStatusItemController.statusDisplayStates,
-            [
-                .active(phase: .work, remainingSeconds: 1),
-                .active(phase: .work, remainingSeconds: 600)
-            ]
-        )
+        XCTAssertFalse(fakeStatusItemController.statusDisplayStates.contains(.away))
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:01", "Paused", "10:00"])
     }
 
     func testLongIdleDuringActiveRestHidesOverlaySilentlyWithoutCompletionSound() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
         let fakeStatusItemController = FakeStatusItemController()
         let fakeOverlayManager = FakeBreakOverlayManager()
         let fakeSoundPlayer = FakeBreakCompletionSoundPlayer()
@@ -113,9 +123,7 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
             statusItemController: fakeStatusItemController,
             overlayManager: fakeOverlayManager,
             breakCompletionSoundPlayer: fakeSoundPlayer,
-            runtimeSettingsStore: FakeRuntimeSettingsStore(
-                currentSettings: AppConfig(workDurationSeconds: 600, breakDurationSeconds: 20)
-            ),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
             loadConfig: { .default },
             makeBreakTimer: { _ in
                 defer { timerCreationCount += 1 }
@@ -142,9 +150,210 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
             fakeStatusItemController.statusDisplayStates,
             [
                 .active(phase: .rest, remainingSeconds: 10),
-                .active(phase: .work, remainingSeconds: 600)
+                .away
             ]
         )
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:10", "Away"])
+    }
+
+    func testLongIdleAwayShowsAwayAndKeepsAwayWhileSuppressionRemainsActive() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 600)
+        )
+        var scheduledTick: (() -> Void)?
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 102]),
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([
+                longSleepResetThresholdSeconds,
+                longSleepResetThresholdSeconds + 1
+            ])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 2)
+        XCTAssertEqual(fakeStatusItemController.statusDisplayStates, [
+            .active(phase: .work, remainingSeconds: 300),
+            .away,
+            .away
+        ])
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "Away"])
+    }
+
+    func testIdleActivityBelowThresholdExitsAwayRearmsResetAndRestoresCountdownDisplay() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        let firstResetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 600),
+            statesToReturn: [.init(phase: .work, remainingSeconds: 599)]
+        )
+        let secondResetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 600)
+        )
+        var scheduledTick: (() -> Void)?
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                switch timerCreationCount {
+                case 0:
+                    return initialTimer
+                case 1:
+                    return firstResetTimer
+                default:
+                    return secondResetTimer
+                }
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 102, 103]),
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([
+                longSleepResetThresholdSeconds,
+                longSleepResetThresholdSeconds - 1,
+                longSleepResetThresholdSeconds
+            ])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 3)
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "Away", "10:00", "09:59", "Away"])
+    }
+
+    func testDisabledIdleAwayNeverShowsAwayEvenAfterProviderWouldReportLongIdle() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
+        let disabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: false,
+            showStatusItemTimerState: true
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: enabledSettings)
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeIdleProvider = RecordingUserIdleTimeProvider([
+            longSleepResetThresholdSeconds,
+            longSleepResetThresholdSeconds
+        ])
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        let firstResetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 600),
+            statesToReturn: [.init(phase: .work, remainingSeconds: 599)]
+        )
+        var scheduledTick: (() -> Void)?
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: { .default },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : firstResetTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 102]),
+            userIdleTimeProvider: fakeIdleProvider
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        runtimeSettingsStore.update(disabledSettings)
+        scheduledTick?()
+
+        XCTAssertEqual(fakeIdleProvider.queryCount, 1)
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "Away", "10:00", "09:59"])
+        XCTAssertEqual(fakeStatusItemController.statusDisplayStates.last, .active(phase: .work, remainingSeconds: 599))
+    }
+
+    func testPausedWorkRemainsDistinctFromAwayDuringLongIdle() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let timer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        var scheduledTick: (() -> Void)?
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { .default },
+            makeBreakTimer: { _ in timer },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101]),
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([longSleepResetThresholdSeconds])
+        )
+
+        coordinator.start()
+        fakeStatusItemController.pauseRemindersHandler?()
+        scheduledTick?()
+
+        XCTAssertFalse(fakeStatusItemController.statusDisplayStates.contains(.away))
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "Paused"])
+        XCTAssertEqual(timer.advanceCalls, [])
     }
 
     func testShortIdlePreservesCountdownAndCurrentPhaseBehavior() {

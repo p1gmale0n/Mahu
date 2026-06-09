@@ -137,6 +137,23 @@ final class StatusItemBehaviorRegressionTests: XCTestCase {
         XCTAssertFalse(button.accessibilityLabel()?.contains("\t") == true)
     }
 
+    func testAwayAccessibilityLabelOmitsInternalTitleSlotTerminator() throws {
+        let statusItem = makeStatusItem()
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+        controller.configureReminderActions(onPause: {}, onResume: {})
+        controller.setShowsTimerState(true)
+        controller.setStatusDisplayState(.away)
+        controller.install()
+
+        let button = try XCTUnwrap(statusItem.button)
+        XCTAssertEqual(button.accessibilityLabel(), "Away")
+        XCTAssertFalse(button.accessibilityLabel()?.contains("\t") == true)
+    }
+
     private func makeStatusItem() -> NSStatusItem {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         addTeardownBlock {
