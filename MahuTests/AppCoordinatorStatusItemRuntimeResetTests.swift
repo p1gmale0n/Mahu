@@ -190,7 +190,7 @@ final class AppCoordinatorStatusItemRuntimeResetTests: XCTestCase {
     }
 }
 
-private final class SequencingStatusItemControllerSpy: StatusItemControlling {
+final class SequencingStatusItemControllerSpy: StatusItemControlling {
     enum Event: Equatable {
         case setShowsTimerState(Bool)
         case setRemindersPaused(Bool)
@@ -276,8 +276,4 @@ private final class SequencingStatusItemControllerSpy: StatusItemControlling {
             return statusDisplayFormatter.string(for: .paused)
         }
     }
-}
-
-extension FakeStatusItemController {
-    func clearTimerDisplayBaselines() {}
 }

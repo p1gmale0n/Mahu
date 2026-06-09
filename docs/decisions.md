@@ -2,6 +2,15 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-05 | Idle away reset acceptance coverage | Wire the focused idle reset test file into the `MahuTests` target and align the active implementation plan with the shipped any-input idle query contract. | Review found the branch was claiming reset coverage that never ran because the test file was detached from `project.pbxproj`, and the plan still described the earlier `.null` event type after the production provider moved to `kCGAnyInputEventType`. |
+| 2026-06-05 | Idle input query contract | Query HID idle time with the CoreGraphics any-input event sentinel and normalize invalid readings once at the consumer boundary. | `kCGEventNull` is not the “any input” token used for idle measurement, and duplicating normalization in both the live provider and the consumer obscures the seam contract without adding safety. |
+| 2026-06-05 | Tray timer recovery baseline resets | Clear tray timer baselines before long-idle and long-sleep recovery paths replace the timer from deferred runtime settings. | Otherwise active-rest recovery can bypass the normal deferred-settings boundary hook and keep the tray width frozen to an obsolete longer work duration even though the new runtime schedule is already in effect. |
+| 2026-06-05 | Idle away reset test-safe default provider | Make `AppCoordinator` use a zero-idle default provider when running under XCTest unless a test injects a specific idle seam. | Idle polling is now part of every coordinator tick, so leaving the default on live HID idle time makes unrelated regression tests nondeterministic on hosts that have been idle for 300+ seconds. |
+| 2026-06-05 | Idle away reset documentation contract | Document long idle reset as shipped behavior in README and AGENTS with the same CoreGraphics-backed 300-second threshold and sleep-matching phase semantics, while keeping real HID idle checks manual-only. | Future agents and humans rely on repo docs for product invariants; leaving idle reset undocumented would make the shipped behavior easy to regress or misdescribe, and XCTest still cannot prove live HID/session behavior on real hardware. |
+| 2026-06-05 | Idle away reset test isolation | Add a focused phase-behavior test file and make sleep/wake regression tests inject scripted non-idle values instead of reading live system idle state. | Idle polling is now part of every coordinator tick, so unrelated sleep/wake regression tests must not depend on whatever the host machine's real HID idle time happens to be during CI or local runs. |
+| 2026-06-05 | Idle away reset reconciliation policy | Move the long-away threshold/policy helpers into a dedicated file shared by sleep and idle triggers, and make idle reuse the existing phase outcomes with the same fixed 300-second threshold. | `AppCoordinatorSupport.swift` is already past the local readability limit, and a shared policy file keeps sleep and idle semantics aligned without dragging live CoreGraphics code into coordinator support. |
+| 2026-06-05 | Idle away reset coordinator tick wiring | Poll the injected idle provider at the start of each normal coordinator tick, reset from runtime settings before ordinary elapsed-time consumption, and refresh the tick baseline whenever a long-idle reconciliation fires. | This keeps idle behavior advisory and failure-tolerant, prevents stale elapsed carryover from immediately consuming the fresh timer, and avoids reloading disk config during away recovery. |
+| 2026-06-05 | Idle away reset provider seam | Add a dedicated `UserIdleTimeProviding` seam plus a focused live CoreGraphics provider file, and normalize invalid idle values to a safe zero-second non-idle result. | The idle reset plan needs a public, injectable source for HID idle time without growing the already-large coordinator support file, and clamping bad values keeps future policy/coordinator wiring failure-tolerant. |
 | 2026-06-05 | Idle away reset plan | Plan long-idle timer reconciliation using a CoreGraphics idle-time provider, the existing 300-second away threshold, and the same phase semantics as long sleep. | Users can take meaningful breaks without putting macOS to sleep, and polling public HID idle duration avoids invasive input capture while preserving the existing timer/sleep architecture. |
 | 2026-06-05 | Tray timer hidden-to-visible runtime reset | Reset tray timer baselines for duration-changing runtime updates whenever timer display ends enabled, including hidden-to-visible transitions. | Otherwise `AppCoordinator` can render the old hidden timer once while enabling display and seed stale wide baselines before the restarted shorter timer appears, defeating the explicit settings-boundary shrink contract. |
 | 2026-06-05 | Tray timer runtime reset ordering | Split tray baseline clearing from immediate recomputation so active-work runtime duration changes can clear stale width caches before the first render of the restarted timer, while paused/rest updates still recompute against the current visible title. | Review found that the previous reset seam re-rendered the old title immediately, so a `1000:00 -> 00:59` runtime shrink could keep the old frozen tray width forever despite the explicit settings-boundary reset contract. |
@@ -131,6 +140,18 @@
 | 2026-05-21 | Verification truthfulness | Keep multi-display manual validation explicitly incomplete in the plan until someone runs it on real hardware. | The abstraction-level overlay tests do not prove fullscreen Space or external-display behavior, so marking those checks complete would overstate acceptance evidence. |
 | 2026-05-21 | Runtime hardening | Drive live timer ticks from monotonic awake uptime, require config durations of at least one second, and make overlay windows key-capable while restoring the previous frontmost app after breaks. | The review found runtime drift, config-driven freeze potential, and focus/interactivity bugs that all live in the MVP hot path and should be fixed without expanding into full sleep/wake reconciliation. |
 
+**2026-06-05 / Idle away reset provider seam**
+
+Context: The idle-away reset feature needs a small injectable source for macOS HID idle time before any coordinator policy wiring can land, but `AppCoordinatorSupport.swift` is already over the local readability threshold and should not absorb live CoreGraphics API details.
+
+Decision: Add a dedicated `UserIdleTimeProviding` seam in its own source file, keep the live implementation on top of `CGEventSource.secondsSinceLastEventType` with the exact event-type contract documented separately, and normalize invalid idle readings such as `NaN`, infinities, and negative seconds to `0`.
+
+Rationale: This is the smallest production-safe boundary for Task 1. It keeps AppKit/CoreGraphics edge code out of coordinator support, preserves future test injection, and ensures later policy wiring can treat invalid provider output as a harmless "not idle" signal instead of branching on undefined numeric states.
+
+Consequences: Future coordinator and policy code should consume the provider through this seam and rely on the safe idle-duration contract. Additional idle-episode logic can build on the same interface without touching the live CoreGraphics call site.
+
+Alternatives Considered: Adding the provider directly to `AppCoordinatorSupport.swift` was rejected because that file is already large and mixes unrelated coordinator support concerns. Event taps, Accessibility APIs, and IOKit `HIDIdleTime` were rejected for this task because the plan explicitly prefers the lighter public CoreGraphics query.
+
 **2026-06-04 / Tray timer title slot**
 
 Context: Tray timer mode already froze `NSStatusItem.length` to the widest observed width, but AppKit still recentered the live `icon + title` group whenever the visible title switched between countdown strings and `Paused`.
@@ -209,6 +230,22 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Consequences:** Shorter runtime schedules can shrink a previously widened timer title slot at the intended explicit settings boundary, while ordinary countdown ticks and unrelated runtime settings preserve the existing stable-width behavior. The coordinator/test-double contract grows by one narrow method, which is smaller than exposing concrete controller internals or pushing width policy into coordinator code.
 
 **Alternatives Considered:** Leave the seam concrete-only; rejected because future runtime settings changes could not reach it through the production abstraction. Reset on every runtime settings update; rejected because unrelated settings changes should not gratuitously perturb tray layout. Downcast `StatusItemControlling` to `StatusItemController`; rejected because it breaks the existing test seam and couples coordinator logic to the concrete AppKit implementation.
+
+## 2026-06-05 / Idle Away Reset Test Isolation
+
+**Date:** 2026-06-05
+
+**Area:** Idle away reset tests
+
+**Context:** Idle polling now runs at the start of every coordinator tick. Existing sleep/wake regression tests did not inject an idle provider, so they read the host machine's live HID idle duration and could fail spuriously when the development machine happened to be idle long enough to trigger away reconciliation during otherwise unrelated short-sleep scenarios.
+
+**Decision:** Add a focused `AppCoordinatorIdleAwayPhaseBehaviorTests.swift` file for the Task 5 phase semantics, and make sleep/wake regression tests inject scripted non-idle values instead of relying on the production `LiveUserIdleTimeProvider`.
+
+**Rationale:** This keeps the new phase-specific idle coverage out of the already-busy existing idle test file and makes sleep/wake tests deterministic again. Injecting a scripted provider is the smallest fix because it proves idle and sleep logic can coexist without depending on workstation activity or CI timing.
+
+**Consequences:** Coordinator idle/sleep tests now exercise the intended semantics deterministically across active work, paused work, active rest, short idle, and short sleep. The test harness gains one small reusable idle-provider fake, while production idle wiring remains unchanged.
+
+**Alternatives Considered:** Keep adding cases to `AppCoordinatorIdleAwayResetTests.swift`; rejected because that file was already near the local readability threshold. Leave sleep/wake tests on the live provider; rejected because they become host-state-dependent and flaky. Disable idle polling in sleep tests through production flags; rejected because it would prove a different code path than the shipped coordinator tick flow.
 
 ## 2026-06-05 / Tray Timer Runtime Reset Ordering
 
@@ -2703,3 +2740,67 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Consequences:** VoiceOver/accessibility consumers now read the visible timer text instead of the internal tab terminator. The raw attributed title string still contains the tab for layout, so any future work that needs fully clean semantic text everywhere should revisit the layout mechanism itself.
 
 **Alternatives Considered:** Remove the tab-stop approach immediately; rejected for this pass because it would reopen the just-landed anchor-stability fix without a proven smaller native alternative. Ignore the accessibility leak; rejected because the control character is already externally observable through AppKit accessibility APIs.
+
+## 2026-06-05 / Idle Away Reset Test-Safe Default Provider
+
+**Date:** 2026-06-05
+
+**Area:** Idle away reset test determinism
+
+**Context:** Task 7 validation exposed that many older coordinator and status-item tests construct `AppCoordinator` without injecting `userIdleTimeProvider`. Once idle polling became part of every normal tick, those tests started reading the host machine's real HID idle duration, so a workstation that had been idle for 300+ seconds triggered unrelated long-away resets and broke large parts of the regression suite nondeterministically.
+
+**Decision:** Make `AppCoordinator` resolve its default idle provider through a small helper that returns a zero-idle provider under XCTest and the live CoreGraphics provider otherwise. Tests that need real idle semantics still inject explicit scripted providers.
+
+**Rationale:** This is the smallest fix that restores deterministic full-suite behavior without editing dozens of unrelated legacy tests or weakening the new idle-away production path.
+
+**Consequences:** Existing tests that never cared about user idle state remain stable regardless of the developer machine's current idle duration, while production continues to use the public CoreGraphics idle query. Focused idle-away tests keep full control because they already inject explicit providers.
+
+**Alternatives Considered:** Patch every existing coordinator test to inject `ScriptedUserIdleTimeProvider([0])`; rejected because it would create broad mechanical churn across many files for the same single default-behavior issue. Keep the live provider active in tests and require humans to stay non-idle while validating; rejected because it is nondeterministic and not CI-safe.
+
+## 2026-06-05 / Tray Timer Recovery Baseline Resets
+
+**Date:** 2026-06-05
+
+**Area:** Status item runtime recovery
+
+**Context:** Tray timer baseline clearing already runs when deferred runtime duration changes take over at the normal work/rest boundary. Review found two remaining recovery paths that also replace the timer from current runtime settings: long-idle reset during active rest and long-sleep wake reset during active rest. Both bypass the deferred-boundary hook, so a `1000:00 -> 00:59` runtime shrink can keep the tray width frozen to the stale longer duration after away recovery.
+
+**Decision:** Call `clearTimerDisplayBaselinesIfNeeded(...)` before creating the replacement timer in both long-idle and long-sleep recovery paths, and cover those cases with focused status-item regression tests.
+
+**Rationale:** This preserves the existing tray-width contract at every runtime-settings boundary without adding more coordinator state. The recovery paths already choose current runtime settings as the new source of truth, so they must also honor the same first-render baseline reset rule as the ordinary deferred-update path.
+
+**Consequences:** Active-rest recovery after long idle or long sleep now shrinks the tray width to the new runtime schedule on the first fresh-work render instead of preserving an obsolete wider baseline. The new focused tests keep both recovery paths aligned with the existing status-item runtime reset behavior.
+
+**Alternatives Considered:** Leave recovery paths untouched and accept stale tray width after away recovery; rejected because it violates the existing runtime-settings display contract. Add a separate pending-baseline-reset flag to `AppCoordinator`; rejected because the current recovery hooks already provide the exact point where the replacement timer becomes effective.
+
+## 2026-06-05 / Idle Input Query Contract
+
+**Date:** 2026-06-05
+
+**Area:** Idle away provider correctness
+
+**Context:** Review found that the live idle provider was calling `CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .null)`. CoreGraphics documents the idle-time query for keyboard/mouse/tablet input against `kCGAnyInputEventType`, and the provider was also normalizing invalid values a second time even though `safeCurrentIdleDurationSeconds()` already defines the consumer-side clamp.
+
+**Decision:** Change the live provider to query `.hidSystemState` with the CoreGraphics any-input sentinel (`CGEventType(rawValue: UInt32.max)!`), keep the provider returning the raw source reading, and rely on `safeCurrentIdleDurationSeconds()` as the single normalization boundary.
+
+**Rationale:** This restores the intended HID idle semantics and removes duplicate sanitization logic. A single normalization point keeps fake and live providers under the same contract while allowing tests to assert the exact event-type arguments without depending on live workstation idle state.
+
+**Consequences:** Real keyboard and mouse activity now resets the idle clock correctly for long-away detection. The unit suite can pin the event type and state ID explicitly, and invalid test readings still collapse to a safe non-idle `0` at the consumer boundary.
+
+**Alternatives Considered:** Keep `.null`; rejected because it is `kCGEventNull`, not the “any input” event token described by the CoreGraphics header. Continue normalizing in both the provider and the consumer; rejected because it expands the test surface and leaves the seam contract ambiguous.
+
+## 2026-06-05 / Idle Away Reset Acceptance Coverage
+
+**Date:** 2026-06-05
+
+**Area:** Idle away reset verification
+
+**Context:** Second review pass found `MahuTests/AppCoordinatorIdleAwayResetTests.swift` present on disk but missing from the Xcode project/test target, so key reset scenarios never ran in `xcodebuild test` even though the branch plan and handoff treated them as acceptance evidence. The same pass also found the active implementation plan still describing the earlier `.null` event type after the production provider had already switched to the CoreGraphics any-input sentinel.
+
+**Decision:** Add `AppCoordinatorIdleAwayResetTests.swift` to `Mahu.xcodeproj` and sync the active plan references/snippet to `CGEventType(rawValue: UInt32.max)!` / `kCGAnyInputEventType`.
+
+**Rationale:** Acceptance coverage must be real, not implied by an untracked file in the diff. Keeping the plan aligned with the shipped idle-query contract also prevents future agents from reintroducing the already-fixed `.null` bug by following stale implementation guidance.
+
+**Consequences:** Full and targeted XCTest runs now execute the reset-specific idle-away cases, and the plan matches the production provider and later idle-input decision entry. Review and handoff evidence for this feature become materially trustworthy again.
+
+**Alternatives Considered:** Leave the file detached and rely on future manual Xcode cleanup; rejected because the branch already claimed those tests as proof. Leave the plan on `.null` and rely on the later decision entry alone; rejected because the plan is an active implementation artifact, not archival history.

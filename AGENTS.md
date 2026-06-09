@@ -39,6 +39,7 @@
 - Manual config edits still apply only on relaunch; do not add live config reload or file-watcher behavior.
 - Short sleep/wake cycles must preserve the current work/rest phase and countdown while refreshing the awake-time baseline so sleep time is not consumed on the next tick.
 - Long sleep/wake cycles of at least 300 seconds must reset active work to a fresh work interval from current runtime settings, keep paused reminders paused until resume, and close active breaks silently into fresh work without playing the completion sound.
+- Long idle/away periods of at least 300 seconds while macOS stays awake must use the same phase semantics as long sleep: reset active work to a fresh work interval from current runtime settings, keep paused reminders paused until resume, and close active breaks silently into fresh work without playing the completion sound.
 - If the config is missing or invalid, use 20-20-20 defaults and keep the app running.
 - Keep timer, config, status item, and overlay responsibilities separated so deferred features can be added without rewriting the core timer flow.
 - Treat possible App Store release as a constraint: avoid private APIs and invasive input capture.

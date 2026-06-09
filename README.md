@@ -33,6 +33,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - Pause state is runtime-only; Mahu always launches with reminders enabled.
 - Default schedule is 20 minutes of work and 20 seconds of break.
 - Short sleep preserves the current work or break countdown, while wake after at least 5 minutes of recorded sleep reconciles state: active work resets to a fresh full work interval, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
+- While the Mac stays awake, observed user idle time below 5 minutes preserves the current work or break countdown, while idle time of at least 5 minutes is treated as away/rest time with the same phase semantics as long sleep: active work resets to a fresh full work interval from current runtime settings, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
 - `launchAtLoginEnabled` defaults to `false`; on the next launch, `true` requests main-app Login Item registration through `SMAppService.mainApp`, while `false` requests unregister/removal when the Login Item is currently enabled or pending approval and otherwise no-ops. If macOS still requires approval or registration/unregistration fails, Mahu logs a non-fatal warning and keeps running.
 - Missing config creates a default config file and continues running.
@@ -161,6 +162,10 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 - Repeat with a sleep shorter than 5 minutes and confirm the current work or break countdown resumes from the previous remaining time.
 - Pause reminders, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu stays paused, does not show a break, and still starts a fresh full work interval only after `Resume Reminders`.
 - Start an active break, sleep the Mac longer than 5 minutes, wake it, and confirm Mahu closes the stale break, starts a fresh work interval, and does not play `break-completion.caf`.
+- Wait until the work timer is near expiration without sleeping the Mac, stay idle for more than 5 minutes, and confirm Mahu returns to a fresh full work interval instead of immediately showing a stale break.
+- Repeat the long-idle check with less than 5 minutes of idle time and confirm Mahu preserves the current work or break countdown.
+- Pause reminders, stay idle for more than 5 minutes without sleeping the Mac, and confirm Mahu stays paused, does not show a break, and still starts a fresh full work interval only after `Resume Reminders`.
+- Start an active break, stay idle for more than 5 minutes without sleeping the Mac, and confirm Mahu closes the stale break silently and does not play `break-completion.caf`.
 - Build or archive a properly signed local `.app`, set `"launchAtLoginEnabled": true`, relaunch Mahu, and confirm the app appears in System Settings -> General -> Login Items.
 - Quit Mahu, log out/in or reboot, and confirm Mahu starts automatically as a menu-bar-only app with no Dock icon.
 - Set `"launchAtLoginEnabled": false`, relaunch Mahu, and confirm the Login Item is removed or disabled in System Settings.

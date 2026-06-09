@@ -19,6 +19,24 @@ func makeCurrentSleepAwareTimeProvider(_ values: [Date]) -> () -> TimeInterval {
     makeCurrentUptimeProvider(values.map(\.timeIntervalSinceReferenceDate))
 }
 
+final class ScriptedUserIdleTimeProvider: UserIdleTimeProviding {
+    private var idleDurationSeconds: [TimeInterval]
+    private let fallbackIdleDurationSeconds: TimeInterval
+
+    init(_ idleDurationSeconds: [TimeInterval]) {
+        self.idleDurationSeconds = idleDurationSeconds
+        fallbackIdleDurationSeconds = idleDurationSeconds.last ?? 0
+    }
+
+    func currentIdleDurationSeconds() -> TimeInterval {
+        guard idleDurationSeconds.isEmpty == false else {
+            return fallbackIdleDurationSeconds
+        }
+
+        return idleDurationSeconds.removeFirst()
+    }
+}
+
 final class CancellationSpy {
     private(set) var cancelCallCount = 0
 
@@ -221,6 +239,7 @@ final class FakeStatusItemController: StatusItemControlling {
     private(set) var renderedTimerTexts: [String] = []
     private(set) var pauseRemindersHandler: (() -> Void)?
     private(set) var resumeRemindersHandler: (() -> Void)?
+    private(set) var clearTimerDisplayBaselinesCallCount = 0
     private(set) var resetTimerDisplayBaselinesCallCount = 0
 
     private var remindersPaused = false
@@ -247,6 +266,10 @@ final class FakeStatusItemController: StatusItemControlling {
         self.showsTimerState = showsTimerState
         showsTimerStateUpdates.append(showsTimerState)
         recordRenderedTimerTextIfNeeded()
+    }
+
+    func clearTimerDisplayBaselines() {
+        clearTimerDisplayBaselinesCallCount += 1
     }
 
     func resetTimerDisplayBaselines() {

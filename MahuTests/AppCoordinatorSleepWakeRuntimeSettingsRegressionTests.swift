@@ -47,7 +47,8 @@ final class AppCoordinatorSleepWakeRuntimeSettingsRegressionTests: XCTestCase {
             },
             currentUptime: makeCurrentUptimeProvider([10, 10, 20, 21]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
         )
 
         coordinator.start()
@@ -102,7 +103,8 @@ final class AppCoordinatorSleepWakeRuntimeSettingsRegressionTests: XCTestCase {
             },
             currentUptime: makeCurrentUptimeProvider([30, 30, 40, 41]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
         )
 
         coordinator.start()

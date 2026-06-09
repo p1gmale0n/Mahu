@@ -16,6 +16,7 @@ final class AppCoordinator {
     private let currentUptime: CurrentUptimeProvider
     private let currentSleepAwareTime: CurrentSleepAwareTimeProvider
     private let sleepWakeRegistrar: SleepWakeObservationRegistrar
+    private let userIdleTimeProvider: UserIdleTimeProviding
 
     private var cancelTick: (() -> Void)?
     private var cancelRuntimeSettingsObservation: (() -> Void)?
@@ -25,6 +26,7 @@ final class AppCoordinator {
     private var runtimeSettingsStore: RuntimeSettingsStoring?
     private var appliedRuntimeSettings: AppConfig?
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
+    private var idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
     private var remindersPaused = false
     private var lastTickUptime: TimeInterval?
     private var lastSleepStartedAt: TimeInterval?
@@ -46,7 +48,8 @@ final class AppCoordinator {
         scheduleRepeatingTick: @escaping RepeatingTickScheduler = LiveRepeatingScheduler.schedule,
         currentUptime: @escaping CurrentUptimeProvider = { ProcessInfo.processInfo.systemUptime },
         currentSleepAwareTime: @escaping CurrentSleepAwareTimeProvider = LiveSleepAwareTimeSource.now,
-        sleepWakeRegistrar: @escaping SleepWakeObservationRegistrar = LiveSleepWakeObservationRegistrar.make
+        sleepWakeRegistrar: @escaping SleepWakeObservationRegistrar = LiveSleepWakeObservationRegistrar.make,
+        userIdleTimeProvider: UserIdleTimeProviding? = nil
     ) {
         self.statusItemController = statusItemController ?? StatusItemController()
         self.overlayManager = overlayManager ?? BreakOverlayManager()
@@ -61,6 +64,7 @@ final class AppCoordinator {
         self.currentUptime = currentUptime
         self.currentSleepAwareTime = currentSleepAwareTime
         self.sleepWakeRegistrar = sleepWakeRegistrar
+        self.userIdleTimeProvider = userIdleTimeProvider ?? makeDefaultUserIdleTimeProvider()
         self.overlayManager.onVisibleOverlayWindowsChange = { [weak self] isVisible in
             self?.handleOverlayVisibilityChange(isVisible)
         }
@@ -93,6 +97,7 @@ final class AppCoordinator {
         launchAtLoginSettingsStore.update(config.launchAtLoginEnabled)
         syncLaunchAtLoginDesiredState(using: launchAtLoginSettingsStore, reason: "startup")
         runtimeSettingsPolicy.reset(startupSettings: config)
+        idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
         cancelSleepWakeObservation = sleepWakeRegistrar(
@@ -135,14 +140,17 @@ final class AppCoordinator {
 
         let allowBreakCompletionSound = overlayManager.hasActiveBreakSession && overlayManager.hasVisibleOverlayWindows
 
-        if remindersPaused, breakTimer.state.phase == .work {
-            self.lastTickUptime = currentUptime()
-            return
-        }
-
         let now = currentUptime()
         let elapsedSeconds = max(0, now - lastTickUptime)
         self.lastTickUptime = now
+
+        if reconcileLongIdleIfNeeded(using: breakTimer, nowUptime: now) {
+            return
+        }
+
+        if remindersPaused, breakTimer.state.phase == .work {
+            return
+        }
 
         if breakTimer.state.phase == .rest {
             if overlayManager.hasActiveBreakSession == false {
@@ -164,6 +172,50 @@ final class AppCoordinator {
             using: breakTimer,
             allowBreakCompletionSound: allowBreakCompletionSound
         )
+    }
+
+    private func reconcileLongIdleIfNeeded(
+        using breakTimer: BreakTimerControlling,
+        nowUptime: TimeInterval
+    ) -> Bool {
+        let idleEpisodeAction = idleAwayEpisodePolicy.action(
+            idleDurationSeconds: userIdleTimeProvider.safeCurrentIdleDurationSeconds(),
+            currentState: breakTimer.state,
+            remindersPaused: remindersPaused
+        )
+
+        switch idleEpisodeAction {
+        case .none:
+            return false
+        case .suppressElapsedOnly:
+            pendingElapsedSeconds = 0
+            lastTickUptime = nowUptime
+            return true
+        case .suppressElapsedAndReset(let reconciliationAction):
+            pendingElapsedSeconds = 0
+            lastTickUptime = nowUptime
+
+            guard reconciliationAction != .none else {
+                return true
+            }
+
+            guard let currentSettings = runtimeSettingsStore?.currentSettings else {
+                return true
+            }
+
+            runtimeSettingsPolicy.reset(startupSettings: currentSettings)
+
+            switch reconciliationAction {
+            case .none, .preservePausedWork:
+                return true
+            case .resetActiveWork, .resetAfterActiveRest:
+                clearTimerDisplayBaselinesIfNeeded(for: currentSettings)
+                let newBreakTimer = makeBreakTimer(currentSettings)
+                self.breakTimer = newBreakTimer
+                handle(state: newBreakTimer.state)
+                return true
+            }
+        }
     }
 
     private func consumeElapsedTime(
@@ -377,6 +429,7 @@ final class AppCoordinator {
         case .none, .preservePausedWork:
             return
         case .resetActiveWork, .resetAfterActiveRest:
+            clearTimerDisplayBaselinesIfNeeded(for: currentSettings)
             let newBreakTimer = makeBreakTimer(currentSettings)
             breakTimer = newBreakTimer
             handle(state: newBreakTimer.state)

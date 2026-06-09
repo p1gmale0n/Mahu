@@ -26,7 +26,8 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
             },
             currentUptime: makeCurrentUptimeProvider([30, 31.4, 40, 41]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
         )
 
         coordinator.start()
@@ -67,7 +68,8 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
             },
             currentUptime: makeCurrentUptimeProvider([70, 70, 71.4, 80, 81]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
         )
 
         coordinator.start()
@@ -112,7 +114,8 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
             },
             currentUptime: makeCurrentUptimeProvider([50, 51.4, 60, 61]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
         )
 
         coordinator.start()
@@ -150,7 +153,8 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([90, 90]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepAwareDates),
-            sleepWakeRegistrar: fakeSleepWakeRegistrar.register
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
         )
 
         coordinator.start()

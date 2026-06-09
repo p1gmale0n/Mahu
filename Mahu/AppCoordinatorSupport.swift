@@ -37,8 +37,6 @@ typealias CurrentUptimeProvider = () -> TimeInterval
 typealias CurrentSleepAwareTimeProvider = () -> TimeInterval
 typealias OverlayVisibilityChangeHandler = (Bool) -> Void
 
-let longSleepResetThresholdSeconds: TimeInterval = 300
-
 enum LiveSleepAwareTimeSource {
     private static let clock = ContinuousClock()
     private static let baseline = clock.now
@@ -100,13 +98,6 @@ enum PendingRuntimeSettingsDirective {
     case keep(BreakTimer.State)
     case replaceTimerAndAdvanceToRest(AppConfig)
     case replaceTimerAfterRest(AppConfig)
-}
-
-enum WakeReconciliationAction {
-    case none
-    case preservePausedWork
-    case resetActiveWork
-    case resetAfterActiveRest
 }
 
 struct RuntimeSettingsApplicationPolicy {
@@ -232,30 +223,6 @@ func timerDisplayBaselineResetAction(
         return .clearImmediately
     case .applyAtNextBreak, .applyAfterCurrentRestEnds:
         return .clearWhenDeferredSettingsApply
-    }
-}
-
-func wakeReconciliationAction(
-    sleepStartedAt: TimeInterval?,
-    wokeAt: TimeInterval,
-    currentState: BreakTimer.State?,
-    remindersPaused: Bool,
-    longSleepThresholdSeconds: TimeInterval = longSleepResetThresholdSeconds
-) -> WakeReconciliationAction {
-    guard let sleepStartedAt,
-          let currentState else {
-        return .none
-    }
-
-    guard max(0, wokeAt - sleepStartedAt) >= longSleepThresholdSeconds else {
-        return .none
-    }
-
-    switch currentState.phase {
-    case .work:
-        return remindersPaused ? .preservePausedWork : .resetActiveWork
-    case .rest:
-        return .resetAfterActiveRest
     }
 }
 

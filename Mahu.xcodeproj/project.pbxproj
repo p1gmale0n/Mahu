@@ -72,6 +72,13 @@
 			A000000000000000000000C2 /* StatusItemBehaviorRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */; };
 			A000000000000000000000C4 /* AppCoordinatorStatusItemRuntimeResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C5 /* AppCoordinatorStatusItemRuntimeResetTests.swift */; };
 			A000000000000000000000C6 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C7 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift */; };
+			A000000000000000000000C8 /* UserIdleTimeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000C9 /* UserIdleTimeProvider.swift */; };
+			A000000000000000000000CA /* UserIdleTimeProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000CB /* UserIdleTimeProviderTests.swift */; };
+			A000000000000000000000CC /* IdleAwayReconciliationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000CD /* IdleAwayReconciliationPolicy.swift */; };
+			A000000000000000000000CE /* IdleAwayReconciliationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000CF /* IdleAwayReconciliationPolicyTests.swift */; };
+			A000000000000000000000D0 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000D1 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift */; };
+			A000000000000000000000D2 /* AppCoordinatorStatusItemRecoveryBaselineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000D3 /* AppCoordinatorStatusItemRecoveryBaselineTests.swift */; };
+			A000000000000000000000D4 /* AppCoordinatorIdleAwayResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000D5 /* AppCoordinatorIdleAwayResetTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -153,6 +160,13 @@
 			A000000000000000000000C3 /* StatusItemBehaviorRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemBehaviorRegressionTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000C5 /* AppCoordinatorStatusItemRuntimeResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemRuntimeResetTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000C7 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000C9 /* UserIdleTimeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIdleTimeProvider.swift; sourceTree = "<group>"; };
+			A000000000000000000000CB /* UserIdleTimeProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIdleTimeProviderTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000CD /* IdleAwayReconciliationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleAwayReconciliationPolicy.swift; sourceTree = "<group>"; };
+			A000000000000000000000CF /* IdleAwayReconciliationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleAwayReconciliationPolicyTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000D1 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorIdleAwayPhaseBehaviorTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000D3 /* AppCoordinatorStatusItemRecoveryBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorStatusItemRecoveryBaselineTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000D5 /* AppCoordinatorIdleAwayResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorIdleAwayResetTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -193,9 +207,11 @@
 				A00000000000000000000002 /* AppDelegate.swift */,
 				A0000000000000000000000D /* AppCoordinator.swift */,
 				A0000000000000000000005B /* AppCoordinatorSupport.swift */,
+				A000000000000000000000CD /* IdleAwayReconciliationPolicy.swift */,
 				A000000000000000000000B4 /* LaunchAtLoginController.swift */,
 				A000000000000000000000B0 /* LaunchAtLoginSettingsStore.swift */,
 				A000000000000000000000A6 /* SleepWakeObservation.swift */,
+				A000000000000000000000C9 /* UserIdleTimeProvider.swift */,
 				A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */,
 				A00000000000000000000008 /* AppConfig.swift */,
 				A00000000000000000000009 /* ConfigStore.swift */,
@@ -236,6 +252,7 @@
 				A000000000000000000000A0 /* AppCoordinatorRuntimeSettingsTests.swift */,
 				A000000000000000000000A3 /* AppCoordinatorRuntimeSettingsRegressionTests.swift */,
 				A000000000000000000000C5 /* AppCoordinatorStatusItemRuntimeResetTests.swift */,
+				A000000000000000000000D3 /* AppCoordinatorStatusItemRecoveryBaselineTests.swift */,
 				A000000000000000000000C7 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift */,
 				A0000000000000000000009A /* AppCoordinatorStatusItemDisplayTests.swift */,
 					A0000000000000000000009C /* AppCoordinatorStatusItemPauseResumeTests.swift */,
@@ -251,7 +268,11 @@
 				A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */,
 					A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */,
 					A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */,
-					A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */,
+				A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */,
+				A000000000000000000000CB /* UserIdleTimeProviderTests.swift */,
+				A000000000000000000000CF /* IdleAwayReconciliationPolicyTests.swift */,
+				A000000000000000000000D5 /* AppCoordinatorIdleAwayResetTests.swift */,
+				A000000000000000000000D1 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift */,
 				A00000000000000000000093 /* ConfigStoreStatusItemTimerTests.swift */,
 				A00000000000000000000097 /* StatusDisplayFormatterTests.swift */,
 				A0000000000000000000000C /* BreakTimerTests.swift */,
@@ -396,9 +417,11 @@
 				A00000000000000000000021 /* AppDelegate.swift in Sources */,
 				A00000000000000000000029 /* AppCoordinator.swift in Sources */,
 				A0000000000000000000005C /* AppCoordinatorSupport.swift in Sources */,
+				A000000000000000000000CC /* IdleAwayReconciliationPolicy.swift in Sources */,
 				A000000000000000000000B5 /* LaunchAtLoginController.swift in Sources */,
 				A000000000000000000000B1 /* LaunchAtLoginSettingsStore.swift in Sources */,
 				A000000000000000000000A7 /* SleepWakeObservation.swift in Sources */,
+				A000000000000000000000C8 /* UserIdleTimeProvider.swift in Sources */,
 				A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */,
 				A00000000000000000000024 /* AppConfig.swift in Sources */,
 				A00000000000000000000025 /* ConfigStore.swift in Sources */,
@@ -426,6 +449,7 @@
 				A000000000000000000000A1 /* AppCoordinatorRuntimeSettingsTests.swift in Sources */,
 				A000000000000000000000A2 /* AppCoordinatorRuntimeSettingsRegressionTests.swift in Sources */,
 				A000000000000000000000C4 /* AppCoordinatorStatusItemRuntimeResetTests.swift in Sources */,
+				A000000000000000000000D2 /* AppCoordinatorStatusItemRecoveryBaselineTests.swift in Sources */,
 				A000000000000000000000C6 /* AppCoordinatorStatusItemRuntimeVisibilityResetTests.swift in Sources */,
 				A0000000000000000000009B /* AppCoordinatorStatusItemDisplayTests.swift in Sources */,
 					A0000000000000000000009D /* AppCoordinatorStatusItemPauseResumeTests.swift in Sources */,
@@ -442,8 +466,12 @@
 				A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */,
 					A000000000000000000000A9 /* FakeSleepWakeObserverRegistrarTests.swift in Sources */,
 					A000000000000000000000AD /* AppCoordinatorSleepWakeAccountingTests.swift in Sources */,
-					A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */,
-					A00000000000000000000092 /* ConfigStoreStatusItemTimerTests.swift in Sources */,
+				A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */,
+				A000000000000000000000CA /* UserIdleTimeProviderTests.swift in Sources */,
+				A000000000000000000000CE /* IdleAwayReconciliationPolicyTests.swift in Sources */,
+				A000000000000000000000D4 /* AppCoordinatorIdleAwayResetTests.swift in Sources */,
+				A000000000000000000000D0 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift in Sources */,
+				A00000000000000000000092 /* ConfigStoreStatusItemTimerTests.swift in Sources */,
 				A00000000000000000000096 /* StatusDisplayFormatterTests.swift in Sources */,
 				A00000000000000000000028 /* BreakTimerTests.swift in Sources */,
 					A0000000000000000000002E /* BreakOverlayManagerTests.swift in Sources */,
