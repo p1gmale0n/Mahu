@@ -73,6 +73,22 @@ final class RuntimeSettingsStoreTests: XCTestCase {
         XCTAssertTrue(receivedSettings.isEmpty)
     }
 
+    func testRuntimeSettingsStoreRejectsUnsupportedIdleAwayThresholdUpdates() {
+        let store = RuntimeSettingsStore()
+        let unsupportedUpdates = [
+            AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20, idleAwayResetThresholdSeconds: 0),
+            AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20, idleAwayResetThresholdSeconds: -5),
+            AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20, idleAwayResetThresholdSeconds: .infinity),
+        ]
+        var receivedSettings: [AppConfig] = []
+
+        _ = store.addObserver { receivedSettings.append($0) }
+        unsupportedUpdates.forEach(store.update)
+
+        XCTAssertEqual(store.currentSettings, .default)
+        XCTAssertTrue(receivedSettings.isEmpty)
+    }
+
     func testRuntimeSettingsStoreUpdatesDoNotTouchFilesystem() throws {
         let store = RuntimeSettingsStore()
         let runtimeOnlyConfig = AppConfig(

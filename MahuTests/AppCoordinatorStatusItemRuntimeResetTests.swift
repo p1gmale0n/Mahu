@@ -135,6 +135,7 @@ final class AppCoordinatorStatusItemRuntimeResetTests: XCTestCase {
             [
                 .setShowsTimerState(true),
                 .render("05:00"),
+                .render("05:00"),
                 .setRemindersPaused(true),
                 .render("Paused"),
                 .resetTimerDisplayBaselines("Paused"),

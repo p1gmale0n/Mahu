@@ -1,0 +1,22 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Reused one shared `UserAwaySourceAggregationState` across the pre-launch latch in `AppDelegate` and the production `LiveUserAwayActivityObservationRegistrar`, so startup/current-state away sampling and the live runtime observer no longer drift apart.
+  - Promoted distributed `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` notifications to authoritative runtime away/active edges, while keeping `ScreenLockStateProvider` as the startup/off-console sampling seam instead of gating one-shot runtime transitions on a potentially stale session-dictionary read.
+  - Added a focused `UserAwayActivityObservationStartupTests.swift` file instead of growing the already oversize live registrar test file, and updated the old resample-oriented registrar test to the new runtime-edge contract.
+- Validation:
+  - `git diff --check`
+  - `command -v swiftlint` (`swiftlint` unavailable in this environment)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md docs -S` (no repo-owned lint target found)
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/UserAwayActivityObservationStartupTests -only-testing:MahuTests/SmokeTests -only-testing:MahuTests/LiveSessionActivityObservationRegistrarTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+- Friction/CDD:
+  - The review gate still implies lint proof, but this repo still has no tracked lint command and `swiftlint` is unavailable here, so lint cannot be validated reproducibly from repository-owned tooling.
+  - The original bug lived across lifecycle boundaries rather than in one file: startup sampling, runtime observation, and coordinator start-up had to agree on one away model. Keeping the real fix at the observation edge avoided growing `AppCoordinator.swift` even further, but this area is still high-friction because coordinator lifecycle code remains large.
+- Next Steps:
+  - Let the external review loop rerun from the new fix commit.
+  - If lint remains mandatory, add a repo-owned lint command or provision `swiftlint` in the execution environment.
+  - Keep manual hardware checks open for Apple Menu Lock Screen, Control-Command-Q, off-console/session-switch transitions, and fullscreen/external-display behavior; this pass closed verified model bugs but did not replace real WindowServer validation.

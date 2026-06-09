@@ -1,5 +1,11 @@
 # Session Lock Away Reconciliation
 
+## Status Note
+
+This archived plan is superseded by [`docs/plans/2026-06-08-screen-lock-detection-model-fix.md`](../2026-06-08-screen-lock-detection-model-fix.md).
+
+It records the earlier `NSWorkspace`-only session-lock model for review history. The current shipped model treats ordinary Lock Screen as a separate away source implemented through isolated best-effort `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` observation plus `CGSessionCopyCurrentDictionary()` sampling, while `NSWorkspace` session notifications remain the session-switch path.
+
 ## Overview
 
 Treat macOS session lock / session inactive transitions as an immediate away state for Mahu, independent of HID idle duration and independent of `idleAwayResetEnabled`.
@@ -42,7 +48,7 @@ This plan adds a public `NSWorkspace` session activity observer and reconciles s
     - `NSWorkspace.sessionDidBecomeActiveNotification`
     - registration through `NSWorkspace.shared.notificationCenter`
   - External context: `.tmp/external-context/apple-macos-session-state/session-lock-and-screen-sleep-notifications.md`.
-  - Avoid using undocumented distributed notification names such as `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` as the primary mechanism.
+  - Historical scope note: this archived plan avoided undocumented distributed notification names such as `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` as the primary mechanism. The superseding screen-lock plan later adopted them behind an isolated best-effort seam for the ordinary Lock Screen path.
   - `ralphex` is installed at `/opt/homebrew/bin/ralphex`.
 
 ## Selected Approach
@@ -213,7 +219,7 @@ The notification object is the shared `NSWorkspace` instance and the notificatio
 
 ### Rejected primary sources
 
-- `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` distributed notifications are widely observed but not documented by Apple as stable public notification names; do not use them as the primary mechanism.
+- Historical note: `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` distributed notifications were rejected here as a primary mechanism. The superseding screen-lock plan later accepted them behind an isolated best-effort seam because ordinary Lock Screen did not reliably emit the public `NSWorkspace` session notifications.
 - Event taps, Accessibility/Input Monitoring, and input capture are out of scope and violate the project’s public-API/App Store posture.
 - HID idle duration is not sufficient for lock screen handling because keyboard/mouse events on the lock screen can reset the idle timer.
 
@@ -249,5 +255,5 @@ Coordinator state should give session-away suppression priority over idle-away p
 
 **Future follow-up**:
 
-- If manual testing shows `NSWorkspace.sessionDidResignActiveNotification` misses a specific lock path, consider a separate explicit decision for a best-effort distributed-notification fallback, isolated behind a small observer seam.
+- Superseded: the follow-up screen-lock plan already added a best-effort distributed-notification seam plus current-state sampling for ordinary Lock Screen, while keeping `NSWorkspace` notifications as the session-switch path.
 - If users later need alternate unlock behavior, consider a configurable recovery mode, but keep overlay/sound suppression while locked as a safety invariant.

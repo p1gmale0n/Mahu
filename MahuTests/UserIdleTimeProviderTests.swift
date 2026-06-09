@@ -43,11 +43,16 @@ final class UserIdleTimeProviderTests: XCTestCase {
     }
 
     func testDefaultUserIdleTimeProviderReturnsZeroDuringTests() {
+        var liveFactoryCallCount = 0
         let provider = makeDefaultUserIdleTimeProvider(environment: [
             "XCTestConfigurationFilePath": "/tmp/session.xctestconfiguration"
-        ])
+        ], liveProviderFactory: {
+            liveFactoryCallCount += 1
+            return FakeUserIdleTimeProvider(idleDurationSeconds: 99)
+        })
 
         XCTAssertEqual(provider.safeCurrentIdleDurationSeconds(), 0)
+        XCTAssertEqual(liveFactoryCallCount, 0)
     }
 
     func testDefaultUserIdleTimeProviderUsesLiveFactoryOutsideTests() {

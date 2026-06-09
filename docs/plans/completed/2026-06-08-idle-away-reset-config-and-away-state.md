@@ -161,16 +161,16 @@ Chosen tray state:
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] verify missing/legacy config defaults to `idleAwayResetEnabled == false`
-- [ ] verify disabled idle-away cannot freeze the timer at `10s` and can still reach the break overlay
-- [ ] verify enabled idle-away uses configured threshold and shows `Away` while suppressing elapsed time
-- [ ] verify `Away` does not require more tray width than `Paused` and does not break icon anchoring
-- [ ] verify sleep/wake reconciliation still uses the existing long-sleep semantics independently of idle-away settings
-- [ ] verify no live config reload or file watcher was introduced
-- [ ] run full unit test suite with `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
-- [ ] run build with `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
-- [ ] run `make build`
-- [ ] run `git diff --check`
+- [x] verify missing/legacy config defaults to `idleAwayResetEnabled == false`
+- [x] verify disabled idle-away cannot freeze the timer at `10s` and can still reach the break overlay
+- [x] verify enabled idle-away uses configured threshold and shows `Away` while suppressing elapsed time
+- [x] verify `Away` does not require more tray width than `Paused` and does not break icon anchoring
+- [x] verify sleep/wake reconciliation still uses the existing long-sleep semantics independently of idle-away settings
+- [x] verify no live config reload or file watcher was introduced
+- [x] run full unit test suite with `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- [x] run build with `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+- [x] run `make build`
+- [x] run `git diff --check`
 
 ## Technical Details
 

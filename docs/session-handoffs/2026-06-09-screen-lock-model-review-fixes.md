@@ -1,0 +1,23 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Aggregated screen-lock and session-switch away state by source inside `LiveUserAwayActivityObservationRegistrar` so Mahu no longer clears `Away` on the first active signal while another source still holds the user away.
+  - Treated distributed screen-lock notifications as triggers to resample `ScreenLockStateProvider` before changing away state, which hardens unlock handling against stale or spoofed notification order without expanding `AppCoordinator`.
+  - Registered the temporary startup away observer before the initial screen-lock sample in `AppDelegate`, then OR-ed the sample into the observed latch to shrink the launch-time missed-event window.
+  - Fixed only verified doc/test gaps from review: strengthened the idle-provider test, added the missing wake-baseline regression, added the enabled-without-threshold config test, added a screen-lock registrar factory seam test, and marked the older archived session-lock plan as superseded by the current screen-lock model.
+- Validation:
+  - `git diff --check`
+  - `command -v swiftlint` (`swiftlint` unavailable in this environment)
+  - `rg -n "(^lint:|swiftlint|make lint)" Makefile README.md docs -S` (no repo-owned lint target found)
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/LiveSessionActivityObservationRegistrarTests -only-testing:MahuTests/LiveScreenLockObservationRegistrarTests -only-testing:MahuTests/SmokeTests -only-testing:MahuTests/UserIdleTimeProviderTests -only-testing:MahuTests/AppCoordinatorSleepWakeAccountingTests -only-testing:MahuTests/ConfigStoreIdleAwaySettingsTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+- Friction/CDD:
+  - The review gate still implies lint proof, but this repo still has no tracked lint command and `swiftlint` is unavailable here, so lint cannot be validated reproducibly from repository-owned tooling.
+  - `Mahu/AppCoordinator.swift` remains above the local readability threshold. This fix kept the real source-aggregation change out of the coordinator, but the next lifecycle-heavy change should still extract more state/policy out of that file.
+- Next Steps:
+  - Let the external review loop rerun from the new fix commit.
+  - If lint remains mandatory, add a repo-owned lint command or provision `swiftlint` in the environment.
+  - Keep manual hardware checks open for real Lock Screen paths, tray readability, and fullscreen/external-display behavior; this pass strengthened the model and tests but did not replace those manual proofs.

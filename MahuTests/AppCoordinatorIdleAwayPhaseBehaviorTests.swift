@@ -357,7 +357,15 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
     }
 
     func testShortIdlePreservesCountdownAndCurrentPhaseBehavior() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
         let fakeOverlayManager = FakeBreakOverlayManager()
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeIdleProvider = RecordingUserIdleTimeProvider([longSleepResetThresholdSeconds - 1])
         let timer = FakeBreakTimer(
             state: .init(phase: .work, remainingSeconds: 300),
             statesToReturn: [.init(phase: .work, remainingSeconds: 299)]
@@ -365,28 +373,36 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
         var scheduledTick: (() -> Void)?
 
         let coordinator = AppCoordinator(
-            statusItemController: FakeStatusItemController(),
+            statusItemController: fakeStatusItemController,
             overlayManager: fakeOverlayManager,
-            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: .default),
-            loadConfig: { .default },
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { enabledSettings },
             makeBreakTimer: { _ in timer },
             scheduleRepeatingTick: { _, tick in
                 scheduledTick = tick
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([300, 301]),
-            userIdleTimeProvider: ScriptedUserIdleTimeProvider([longSleepResetThresholdSeconds - 1])
+            userIdleTimeProvider: fakeIdleProvider
         )
 
         coordinator.start()
         scheduledTick?()
 
+        XCTAssertEqual(fakeIdleProvider.queryCount, 1)
+        XCTAssertFalse(fakeStatusItemController.statusDisplayStates.contains(.away))
         XCTAssertEqual(timer.advanceCalls, [1])
         XCTAssertEqual(fakeOverlayManager.events, [])
     }
 
     func testIdlePollingDoesNotBreakIndependentShortSleepReconciliation() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true
+        )
         let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let fakeIdleProvider = RecordingUserIdleTimeProvider([0])
         let timer = FakeBreakTimer(
             state: .init(phase: .work, remainingSeconds: 300)
         )
@@ -399,8 +415,8 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
         let coordinator = AppCoordinator(
             statusItemController: FakeStatusItemController(),
             overlayManager: FakeBreakOverlayManager(),
-            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: .default),
-            loadConfig: { .default },
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { enabledSettings },
             makeBreakTimer: { _ in timer },
             scheduleRepeatingTick: { _, tick in
                 scheduledTick = tick
@@ -409,7 +425,7 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
             currentUptime: makeCurrentUptimeProvider([30, 31.4, 40, 41]),
             currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
-            userIdleTimeProvider: ScriptedUserIdleTimeProvider([0])
+            userIdleTimeProvider: fakeIdleProvider
         )
 
         coordinator.start()
@@ -417,6 +433,7 @@ final class AppCoordinatorIdleAwayPhaseBehaviorTests: XCTestCase {
         fakeSleepWakeRegistrar.fireDidWake()
         scheduledTick?()
 
+        XCTAssertEqual(fakeIdleProvider.queryCount, 1)
         XCTAssertEqual(timer.advanceCalls.count, 2)
         XCTAssertEqual(timer.advanceCalls[0], 1.4, accuracy: 0.000_001)
         XCTAssertEqual(timer.advanceCalls[1], 1.0, accuracy: 0.000_001)

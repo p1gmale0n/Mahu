@@ -2,6 +2,16 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-09 | Review fix for source-aware startup away sampling | Preserve source identity in startup screen-lock/off-console sampling by seeding `UserAwaySourceAggregationState` per source instead of raising only the aggregate away flag. | The third review pass found that a startup bool sample could be cleared by the first unrelated `active` edge, which let Mahu leave `Away` while another sampled source still held the user away. |
+| 2026-06-09 | Review fix for startup away-state continuity | Reuse one shared `UserAwaySourceAggregationState` across the pre-launch latch and the production coordinator registrar, and treat runtime distributed lock/unlock notifications as authoritative edges instead of waiting for a matching current-state resample before changing away state. | The second review pass found two real failure modes: startup sampling could leave the live aggregator unaware that Mahu had already started away, and one-shot lock/unlock notifications could be dropped entirely if `CGSessionCopyCurrentDictionary()` lagged the event. |
+| 2026-06-09 | Review fix for user-away aggregation | Aggregate session-switch and screen-lock state by source inside `LiveUserAwayActivityObservationRegistrar`, and treat screen-lock notifications as triggers to resample current lock state before emitting away/active transitions. | The review found that a single last-event-wins away flag could clear suppression too early when sources overlapped, and raw distributed unlock notifications could resume timers even if the current lock sample still said the user was away. |
+| 2026-06-09 | Review fix for startup away latch ordering | Register the pre-launch away observer before sampling screen-lock state in `AppDelegate`, then OR the sample into the observed startup latch. | Sampling before observer registration left a launch race where lock/unlock could be missed; moving registration first is the smallest fix that preserves the existing session-away latch while shrinking the startup gap. |
+| 2026-06-09 | Screen-lock documentation contract refresh | Update `README.md` and `AGENTS.md` to describe ordinary Lock Screen as a distinct lifecycle source implemented through isolated best-effort distributed lock/unlock observation plus current-state sampling, while keeping `NSWorkspace` notifications scoped to session switching. | The shipped implementation no longer matches the older `NSWorkspace`-only documentation; aligning docs with the actual model prevents future regressions, preserves the idle-away/sleep/wake separation, and records the Apple-stability caveat around the practical lock signals. |
+| 2026-06-09 | Screen-lock boundary preservation | Close Task 6 with focused regression tests for paused tray state, icon-only tray mode, idle-away re-arming after screen unlock, and sleep/wake interaction, without changing production coordinator wiring. | The corrected screen-lock model already preserved these boundaries; adding a dedicated test seam proves the neighboring lifecycle contracts explicitly and avoids growing the already large coordinator for behavior that is already correct. |
+| 2026-06-09 | Screen-lock coordinator coverage | Prove Task 5 through a dedicated `AppCoordinatorScreenLockAwayTests.swift` file and keep runtime coordinator logic unchanged. | `AppCoordinator.swift` is already oversized, and the corrected away model was already implemented; focused regression tests are the smallest safe way to lock in screen-lock-specific coordinator behavior without broadening production scope. |
+| 2026-06-09 | Startup screen-lock latch | Sample the current screen-lock/off-console state in `AppDelegate.applicationWillFinishLaunching(...)` before coordinator startup, then let the pre-launch away observer overwrite that latch until `applicationDidFinishLaunching(...)`. | Lock/unlock can happen before the coordinator exists, and ordinary Lock Screen may have no `NSWorkspace` startup signal at all; sampling once plus observing until startup closes that gap without moving lifecycle state into `AppCoordinator`. |
+| 2026-06-09 | User-away observation composition | Compose `NSWorkspace` session-switch signals and screen-lock signals behind a shared `LiveUserAwayActivityObservationRegistrar`, and keep duplicate away/active handling idempotent in the coordinator. | Ordinary Lock Screen and session switching are distinct lifecycle sources, but they should feed the same suppression seam; central composition keeps AppKit/distributed observer wiring out of `AppCoordinator` while preserving the existing no-double-reset guards. |
+| 2026-06-09 | Screen lock observer seam | Add a dedicated distributed screen-lock registrar isolated in `ScreenLockObservation.swift`, keep delivery synchronous onto the main actor, and keep cancellation idempotent. | Ordinary Lock Screen events do not reliably arrive through `NSWorkspace` session notifications; isolating the observed distributed names behind a small seam preserves the existing coordinator contract while containing the non-documented dependency and teardown risk. |
 | 2026-06-08 | Session launch-state handoff | Latch session inactive state in `AppDelegate` before `applicationDidFinishLaunching`, pass it into `AppCoordinator.start(...)`, and ignore duplicate inactive notifications while suppression is already active. | Apple can deliver session-inactive before the coordinator exists; latching closes that startup gap, and idempotence prevents one lock episode from repeatedly resetting fresh work. |
 | 2026-06-08 | Session lock documentation contract | Document session lock suppression as always-on public-API behavior distinct from config-gated idle-away reset, and keep external distributed lock-notification research non-normative. | Future agents and humans need repo docs to reflect the shipped lock semantics without implying a config knob or dependence on undocumented notification names. |
 | 2026-06-08 | Session unlock recovery | Clear session-away only after a real inactive period, refresh the uptime baseline on unlock, and re-arm idle-away sampling from a fresh post-unlock baseline. | Unlock must not consume locked time or instantly reuse stale HID idle state, while stray `sessionDidBecomeActive` notifications during normal active operation should stay non-destructive. |
@@ -209,6 +219,39 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 | 2026-05-22 | Overlay startup hot-plug race | Reconcile active overlays once immediately after screen-observer registration in `showBreak()`. | A display change between the first screen snapshot and observer installation can otherwise miss the only notification and leave the new display uncovered for the rest of the break. |
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
+| 2026-06-09 | Screen lock current-state provider | Add a dedicated `ScreenLockStateProvider` on top of `CGSessionCopyCurrentDictionary()`, treat observed `CGSSessionScreenIsLocked == true` or documented `kCGSessionOnConsoleKey == false` as away, and fail open to unlocked for nil/unusable dictionaries. | Ordinary lock state must be sampled before notification wiring exists, but startup should not get stuck in a false away state when the session dictionary is missing or contains unexpected values. |
+
+## 2026-06-09 / Screen-Lock Documentation Contract Refresh
+
+**Date:** 2026-06-09
+
+**Area:** Product documentation
+
+**Context:** Tasks 1 through 6 corrected Mahu's lock model so ordinary Lock Screen no longer depends on `NSWorkspace.sessionDidResignActiveNotification`, but `README.md` and `AGENTS.md` still described the shipped behavior as if public `NSWorkspace` session notifications were the whole lock path. That mismatch could mislead future edits back toward the broken model and obscured the intentional boundary between screen lock, session switching, idle-away, and sleep/wake.
+
+**Decision:** Update `README.md` and `AGENTS.md` to describe ordinary Lock Screen as a distinct lifecycle source implemented through isolated best-effort distributed lock/unlock observation plus current-state/startup sampling, while keeping `NSWorkspace` notifications scoped to session switching that feeds the same away reconciliation path.
+
+**Rationale:** This is the smallest safe way to close the documentation gap without reopening implementation scope. It records the shipped model, keeps the Apple stability caveat attached to the practical lock signals, and preserves the user's mental model for why `Away` can appear from different lifecycle sources.
+
+**Consequences:** Future agents and humans now have one consistent story across plan, README, and AGENTS for ordinary Lock Screen behavior. Manual verification remains necessary for live lock/unlock UX because XCTest can prove only the injected observer/state-sampling paths.
+
+**Alternatives Considered:** Leave the older `NSWorkspace`-only language in place and rely on tests alone; rejected because the repo treats README/AGENTS as product invariants and future implementation prompts often derive acceptance criteria from them. Reword the docs without mentioning the practical distributed lock source; rejected because it would hide the actual implementation trade-off and make the startup/current-state seam harder to justify later.
+
+## 2026-06-09 / Screen-Lock Coordinator Coverage
+
+**Date:** 2026-06-09
+
+**Area:** Screen-lock coordinator behavior
+
+**Context:** Task 5 needed explicit proof that the corrected screen-lock/user-away model actually preserves the coordinator contract: no hidden break overlay or completion sound at a near-expired work boundary, silent teardown of active rest, no HID idle polling while away, clean unlock baseline refresh, and idempotence when `NSWorkspace` and distributed lock signals overlap. `AppCoordinator.swift` is already well past the local readability threshold, so adding more production branches without first proving a real gap would increase risk and cognitive load.
+
+**Decision:** Add a dedicated focused XCTest file, `AppCoordinatorScreenLockAwayTests.swift`, that drives the shared `UserAwayActivityObservationRegistrar` seam with captured screen-lock callbacks and overlapping session-switch callbacks. Keep production coordinator logic unchanged unless those focused tests expose a real behavioral regression.
+
+**Rationale:** The corrected away model was already wired in Tasks 3 and 4; Task 5's remaining risk was regression coverage, not missing architecture. A focused test file gives explicit lock-path proof, keeps existing larger coordinator suites from growing further, and respects the repo rule to prefer the smallest correct change.
+
+**Consequences:** Screen-lock coordinator semantics now have isolated, fast regression coverage for the exact user-visible paths this plan cares about. Future work on tray, idle-away, or sleep/wake boundaries can build on these tests without reopening the same coordinator proof gap.
+
+**Alternatives Considered:** Add the new assertions into `AppCoordinatorSessionInactiveTickSuppressionTests.swift`; rejected because that file was already growing toward the local readability threshold and mixes session-switch and screen-lock concerns. Add new branches to `AppCoordinator.swift` preemptively; rejected because the focused tests already passed, so extra runtime changes would only widen risk without fixing a real defect.
 
 ## 2026-06-04 / Tray Timer Icon Anchor Plan
 
@@ -239,6 +282,22 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Rationale:** Runtime settings changes are the explicit boundary where width shrink/recompute is allowed. Surfacing the seam on the existing protocol keeps layout ownership in `StatusItemController`, lets coordinator-driven runtime updates use it without new AppKit coupling, and avoids resetting tray layout for unrelated settings such as launch-at-login or overlay message text.
 
 **Consequences:** Shorter runtime schedules can shrink a previously widened timer title slot at the intended explicit settings boundary, while ordinary countdown ticks and unrelated runtime settings preserve the existing stable-width behavior. The coordinator/test-double contract grows by one narrow method, which is smaller than exposing concrete controller internals or pushing width policy into coordinator code.
+
+## 2026-06-09 / Screen Lock Current-State Provider
+
+**Date:** 2026-06-09
+
+**Area:** Screen lock lifecycle
+
+**Context:** The corrected screen-lock plan needs a startup/current-state seam before distributed lock notifications are wired. `NSWorkspace` session-active notifications do not cover ordinary Apple Menu Lock Screen, but `CGSessionCopyCurrentDictionary()` is a public API that can expose enough current session state to start Mahu in away mode when the user is already locked or off-console.
+
+**Decision:** Add a dedicated `ScreenLockStateProvider` file backed by `CGSessionCopyCurrentDictionary()`. Treat the observed `CGSSessionScreenIsLocked` key as the primary locked-state hint, treat documented `kCGSessionOnConsoleKey == false` as away/off-console, and return unlocked for nil or type-invalid dictionaries so startup fails open instead of sticking Mahu in a false `Away` state.
+
+**Rationale:** This is the smallest safe Task 1 boundary. It isolates the undocumented string key in one place, preserves a public CoreGraphics API boundary, gives later AppDelegate wiring an injectable seam, and prefers avoiding persistent false-positive away suppression when the session dictionary is missing or malformed.
+
+**Consequences:** Future startup wiring can sample one focused provider instead of reading CoreGraphics directly. Ordinary lock-screen correctness still depends on later distributed notification wiring, and the current-state path remains best-effort because Apple does not document `CGSSessionScreenIsLocked` as a stable key.
+
+**Alternatives Considered:** Reading `CGSessionCopyCurrentDictionary()` directly inside `AppDelegate` was rejected because it would spread stringly-typed lock-state parsing into app startup wiring. Treating unknown dictionaries as away was rejected because a transient or unexpected session dictionary shape could leave Mahu permanently stuck in false suppression until an explicit unlock event arrives.
 
 **Alternatives Considered:** Leave the seam concrete-only; rejected because future runtime settings changes could not reach it through the production abstraction. Reset on every runtime settings update; rejected because unrelated settings changes should not gratuitously perturb tray layout. Downcast `StatusItemControlling` to `StatusItemController`; rejected because it breaks the existing test seam and couples coordinator logic to the concrete AppKit implementation.
 
@@ -2924,6 +2983,38 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 
 **Alternatives Considered:** Tighten validation to whole-second bounded integers immediately; rejected because it changes the already-shipped config contract during a review-fix pass and was not required by the implementation plan. Leave README as-is; rejected because it misdescribes real behavior and would mislead manual config editing.
 
+## 2026-06-09 / Review Fix for User-Away Aggregation
+
+**Date:** 2026-06-09
+
+**Area:** Screen-lock and session-away coordination
+
+**Context:** Review found that the shared `LiveUserAwayActivityObservationRegistrar` forwarded raw away/active callbacks from both `NSWorkspace` session notifications and distributed screen-lock notifications into a single coordinator away flag. That meant the first `active` event could clear suppression even if another source still held the user away, and a raw unlock notification could resume timers without checking the latest screen-lock sample.
+
+**Decision:** Aggregate away state by source inside `LiveUserAwayActivityObservationRegistrar`. Track session-away and screen-lock state separately, emit only aggregate `away -> active` or `active -> away` transitions, and treat distributed screen-lock notifications as triggers to resample `ScreenLockStateProvider` before changing screen-lock state.
+
+**Rationale:** This is the smallest fix that preserves the current coordinator contract while correcting the real model error. It keeps source-specific lifecycle state near the observation seam, prevents last-event-wins ordering bugs, and hardens unlock handling against stale or spoofed distributed notifications without expanding `AppCoordinator`.
+
+**Consequences:** Overlapping session-switch and screen-lock sequences now keep Mahu in `Away` until every source clears. Coordinator tests continue to exercise only aggregate callbacks, while observer tests now prove that screen-lock notifications are rechecked against the current sampled state before they can change suppression.
+
+**Alternatives Considered:** Track per-source away flags in `AppCoordinator`; rejected because it would further enlarge the already oversized coordinator and duplicate source semantics outside the observation layer. Keep forwarding raw notifications and rely on coordinator idempotence; rejected because it does not fix the early-unlock bug or the unlock-with-stale-lock-state bug found in review.
+
+## 2026-06-09 / Review Fix for Startup Away Latch Ordering
+
+**Date:** 2026-06-09
+
+**Area:** App startup lifecycle
+
+**Context:** Review found a launch race in `AppDelegate.applicationWillFinishLaunching(...)`: the code sampled `screenLockStateProvider` before registering the temporary pre-launch away observer. A lock or unlock between those two operations could be missed, which left the startup `startsUserAway` latch wrong exactly in the launch window it was meant to close.
+
+**Decision:** Register the temporary pre-launch away observer first, then fold the current screen-lock sample into the observed latch with `startsUserAway = startsUserAway || sampledScreenLockState`.
+
+**Rationale:** This is the smallest safe ordering fix that preserves the existing boolean startup latch and the separate session-away callback path. It narrows the lock/unlock race without introducing a new startup state machine or moving launch-only concerns into `AppCoordinator`.
+
+**Consequences:** Lock events that arrive while the initial screen-lock sample is running no longer get dropped before coordinator startup, and the new smoke tests prove the observer is installed before the sample executes. The startup sample still remains best-effort because session-switch current-state sampling does not exist, but the specific screen-lock ordering gap is closed.
+
+**Alternatives Considered:** Build a new startup monitor object that returns an atomic aggregate state plus cancellation token; rejected for this review-fix pass because it expands scope and overlaps with the existing live observation seam. Keep sampling first and accept the launch gap; rejected because the review found a concrete missed-event window in shipped code.
+
 ## 2026-06-08 / Idle-Away Wake Baseline Re-Arm on Disable
 
 **Date:** 2026-06-08
@@ -2957,6 +3048,37 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 **Alternatives Considered:** Use `com.apple.screenIsLocked` / `screenIsUnlocked`; rejected as a primary path because those distributed notification names are not documented as stable public APIs. Gate lock suppression behind `idleAwayResetEnabled`; rejected because default-disabled idle-away would still allow overlay/sound while locked. Add a separate disable flag for lock suppression; rejected for now because it lets users re-enable the bad hidden-overlay/sound behavior.
 
 **Alternatives Considered:** Clear the wake-baseline state completely on disable; rejected because the next enabled sample would then count all idle time accumulated while the feature was disabled. Re-arm baseline capture on every enable/disable toggle; rejected because it would silently change the existing no-wake re-enable semantics already covered by tests.
+## 2026-06-09 / Startup Away-State Continuity
+
+**Date:** 2026-06-09
+
+**Area:** Screen lock and session startup recovery
+
+**Context:** The second review pass found that startup/current-state sampling and the live away registrar were tracking different truths. `AppDelegate` could start `AppCoordinator` in away mode after a pre-launch sample, but the new `LiveUserAwayActivityObservationRegistrar` still started from an all-active aggregation state. The same review also confirmed that treating distributed lock/unlock notifications only as triggers to resample `CGSessionCopyCurrentDictionary()` can silently drop the only real runtime edge if the session dictionary lags the notification.
+
+**Decision:** Reuse one shared `UserAwaySourceAggregationState` across the pre-launch latch and the production coordinator registrar, seed it when startup sampling finds Mahu already away, and treat runtime distributed `screenIsLocked` / `screenIsUnlocked` notifications as authoritative away/active edges. Keep `ScreenLockStateProvider` for startup/off-console sampling rather than per-notification gating.
+
+**Rationale:** This is the smallest fix that closes both verified bugs without moving more lifecycle state into `AppCoordinator`. Shared aggregation preserves startup continuity through the `applicationWillFinishLaunching -> applicationDidFinishLaunching` handoff, and authoritative one-shot runtime edges are safer than dropping the only real lock/unlock event because a best-effort current-state sample is momentarily stale.
+
+**Consequences:** Mahu can now launch while already locked/off-console and still clear `Away` on the first matching active event after startup. A single runtime lock notification now suppresses timers immediately instead of waiting for a second event or a synchronized session-dictionary update. The trade-off is that runtime lock/unlock behavior now trusts the isolated distributed observer seam directly, while current-state sampling stays confined to startup/off-console recovery where it provides real value.
+
+**Alternatives Considered:** Keep resample-before-transition and add more retries; rejected because it still leaves real one-shot event loss windows and expands the observer state machine more than the verified defect requires. Push per-source startup state into `AppCoordinator`; rejected because it grows the already-oversized coordinator instead of preserving lifecycle semantics at the observation edge.
+
+## 2026-06-09 / Source-Aware Startup Away Sampling
+
+**Date:** 2026-06-09
+
+**Area:** Screen lock and session startup recovery
+
+**Context:** The third review pass found that startup current-state sampling still collapsed screen lock and off-console state into one `startsUserAway` boolean plus one aggregate `isUserAway` seed inside `UserAwaySourceAggregationState`. That meant the first `screenIsUnlocked` or `sessionDidBecomeActive` callback could clear `Away` even when the other sampled source still held the user away.
+
+**Decision:** Preserve startup source identity all the way into the shared aggregation state. `ScreenLockStateProvider` now exposes a structured snapshot with separate `isScreenLocked` and `isOffConsole` flags, and `AppDelegate` seeds `UserAwaySourceAggregationState` through source-specific `seedScreenLockedIfNeeded()` and `seedSessionAwayIfNeeded()` calls instead of a single aggregate `seedUserAwayIfNeeded()` latch.
+
+**Rationale:** This is the smallest fix that closes the verified early-unlock bug without changing the runtime lock-edge model. Once startup seeding keeps the same per-source semantics as the live registrar, aggregate `Away` can only clear after every seeded source has actually cleared.
+
+**Consequences:** Mahu no longer leaves `Away` on the first unrelated active edge after launching while already away. Startup sampling remains best-effort, but it now composes correctly with later session-activity and screen-lock events instead of flattening them into one lossy boolean.
+
+**Alternatives Considered:** Keep the bool sample and add more coordinator guards; rejected because the loss of source identity happens before `AppCoordinator` ever sees the lifecycle state. Seed only one guessed source for any startup-away sample; rejected because off-console and screen-locked states can overlap, and guessing the source would keep the same premature-clear failure mode.
 **2026-06-08 / Session inactive tick suppression**
 
 Context: Task 2 already resets active work/rest state when the macOS session becomes inactive, but the ordinary scheduled tick path still ran idle-away polling before any session-lock guard. That left a path where locked ticks could continue reading HID idle duration or consume enough elapsed time to cross timer boundaries if future state had already been reset to fresh work.

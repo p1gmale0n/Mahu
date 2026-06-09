@@ -165,4 +165,194 @@ final class AppCoordinatorSleepWakeAccountingTests: XCTestCase {
         XCTAssertEqual(timerCreationCount, 2)
         XCTAssertEqual(resetTimer.state, .init(phase: .work, remainingSeconds: AppConfig.default.workDurationSeconds))
     }
+
+    func testShortSleepClearsAwayStateAndIgnoresStalePostWakeIdleUntilAwakeTimeAccumulates() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300)
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: enabledSettings.workDurationSeconds),
+            statesToReturn: [.init(phase: .work, remainingSeconds: enabledSettings.workDurationSeconds - 1)]
+        )
+        let sleepDates = [
+            Date(timeIntervalSinceReferenceDate: 5_000),
+            Date(timeIntervalSinceReferenceDate: 5_000 + longSleepResetThresholdSeconds - 1)
+        ]
+        var scheduledTick: (() -> Void)?
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { enabledSettings },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 101, 101, 101, 102]),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([
+                longSleepResetThresholdSeconds,
+                longSleepResetThresholdSeconds
+            ])
+        )
+
+        coordinator.start()
+        scheduledTick?()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 2)
+        XCTAssertEqual(initialTimer.advanceCalls, [])
+        XCTAssertEqual(resetTimer.advanceCalls, [1])
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "Away", "10:00", "09:59"])
+        XCTAssertEqual(fakeStatusItemController.statusDisplayStates.last, .active(phase: .work, remainingSeconds: 599))
+    }
+
+    func testShortSleepClearsCapturedPostWakeIdleBaselineWhenUserActivityDropsBelowIt() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            idleAwayResetThresholdSeconds: 100,
+            showStatusItemTimerState: true
+        )
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300),
+            statesToReturn: [
+                .init(phase: .work, remainingSeconds: 299),
+                .init(phase: .work, remainingSeconds: 298)
+            ]
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: enabledSettings.workDurationSeconds)
+        )
+        let sleepDates = [
+            Date(timeIntervalSinceReferenceDate: 5_500),
+            Date(timeIntervalSinceReferenceDate: 5_500 + longSleepResetThresholdSeconds - 1)
+        ]
+        var scheduledTick: (() -> Void)?
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: FakeRuntimeSettingsStore(currentSettings: enabledSettings),
+            loadConfig: { enabledSettings },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 100, 100, 101, 102, 103, 104]),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([150, 10, 110])
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+        scheduledTick?()
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 2)
+        XCTAssertEqual(initialTimer.advanceCalls, [1, 1])
+        XCTAssertEqual(resetTimer.advanceCalls, [])
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "04:59", "04:58", "Away"])
+        XCTAssertEqual(fakeStatusItemController.statusDisplayStates.last, .away)
+    }
+
+    func testDisablingIdleAwayAfterShortSleepRearmsWakeBaselineBeforeFutureReenable() {
+        let enabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            showStatusItemTimerState: true
+        )
+        let disabledSettings = AppConfig(
+            workDurationSeconds: 600,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: false,
+            showStatusItemTimerState: true
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: enabledSettings)
+        let fakeStatusItemController = FakeStatusItemController()
+        let fakeSleepWakeRegistrar = FakeSleepWakeObserverRegistrar()
+        let initialTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: 300),
+            statesToReturn: [
+                .init(phase: .work, remainingSeconds: 299),
+                .init(phase: .work, remainingSeconds: 298)
+            ]
+        )
+        let resetTimer = FakeBreakTimer(
+            state: .init(phase: .work, remainingSeconds: enabledSettings.workDurationSeconds)
+        )
+        let sleepDates = [
+            Date(timeIntervalSinceReferenceDate: 6_000),
+            Date(timeIntervalSinceReferenceDate: 6_000 + longSleepResetThresholdSeconds - 1)
+        ]
+        var scheduledTick: (() -> Void)?
+        var timerCreationCount = 0
+
+        let coordinator = AppCoordinator(
+            statusItemController: fakeStatusItemController,
+            overlayManager: FakeBreakOverlayManager(),
+            runtimeSettingsStore: runtimeSettingsStore,
+            loadConfig: { enabledSettings },
+            makeBreakTimer: { _ in
+                defer { timerCreationCount += 1 }
+                return timerCreationCount == 0 ? initialTimer : resetTimer
+            },
+            scheduleRepeatingTick: { _, tick in
+                scheduledTick = tick
+                return {}
+            },
+            currentUptime: makeCurrentUptimeProvider([100, 100, 101, 102, 103, 104]),
+            currentSleepAwareTime: makeCurrentSleepAwareTimeProvider(sleepDates),
+            sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
+            userIdleTimeProvider: ScriptedUserIdleTimeProvider([
+                longSleepResetThresholdSeconds,
+                longSleepResetThresholdSeconds * 2,
+                longSleepResetThresholdSeconds * 3
+            ])
+        )
+
+        coordinator.start()
+        fakeSleepWakeRegistrar.fireWillSleep()
+        fakeSleepWakeRegistrar.fireDidWake()
+        scheduledTick?()
+        runtimeSettingsStore.update(disabledSettings)
+        runtimeSettingsStore.update(enabledSettings)
+        scheduledTick?()
+        scheduledTick?()
+
+        XCTAssertEqual(timerCreationCount, 2)
+        XCTAssertEqual(initialTimer.advanceCalls, [1, 1])
+        XCTAssertEqual(resetTimer.advanceCalls, [])
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["05:00", "04:59", "04:58", "Away"])
+        XCTAssertEqual(fakeStatusItemController.statusDisplayStates.last, .away)
+    }
 }

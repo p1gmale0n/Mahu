@@ -74,6 +74,32 @@ final class ConfigStoreIdleAwaySettingsTests: XCTestCase {
         )
     }
 
+    func testLoadDefaultsIdleAwayThresholdWhenEnabledIsTrueAndThresholdIsOmitted() throws {
+        let store = makeStore()
+        try writeRawConfig(
+            """
+            {
+              "workDurationSeconds": 300,
+              "breakDurationSeconds": 45,
+              "idleAwayResetEnabled": true
+            }
+            """,
+            to: store.configURL
+        )
+
+        let config = store.load()
+
+        XCTAssertEqual(
+            config,
+            AppConfig(
+                workDurationSeconds: 300,
+                breakDurationSeconds: 45,
+                idleAwayResetEnabled: true,
+                idleAwayResetThresholdSeconds: AppConfig.defaultIdleAwayResetThresholdSeconds
+            )
+        )
+    }
+
     func testLoadDecodesIdleAwayResetEnabledFalseWithCustomThreshold() throws {
         let store = makeStore()
         try writeRawConfig(
@@ -224,9 +250,11 @@ final class ConfigStoreIdleAwaySettingsTests: XCTestCase {
         XCTAssertTrue(store.save(savedConfig))
 
         let rawJSON = try XCTUnwrap(String(data: Data(contentsOf: store.configURL), encoding: .utf8))
-        XCTAssertNotNil(try JSONSerialization.jsonObject(with: Data(rawJSON.utf8)) as? [String: Any])
-        XCTAssertTrue(rawJSON.contains("\"idleAwayResetEnabled\":true"))
-        XCTAssertTrue(rawJSON.contains("\"idleAwayResetThresholdSeconds\":180"))
+        let persistedConfig = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(rawJSON.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(persistedConfig["idleAwayResetEnabled"] as? Bool, true)
+        XCTAssertEqual(persistedConfig["idleAwayResetThresholdSeconds"] as? Double, 180)
         XCTAssertEqual(store.load(), savedConfig)
     }
 

@@ -31,7 +31,7 @@ final class AppCoordinatorStatusItemRecoveryBaselineTests: XCTestCase {
             },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([100, 100]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
@@ -82,7 +82,7 @@ final class AppCoordinatorStatusItemRecoveryBaselineTests: XCTestCase {
             },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([200, 200, 200]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
@@ -109,11 +109,13 @@ final class AppCoordinatorStatusItemRecoveryBaselineTests: XCTestCase {
         let startupConfig = AppConfig(
             workDurationSeconds: 60_000,
             breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
             showStatusItemTimerState: true
         )
         let updatedConfig = AppConfig(
             workDurationSeconds: 59,
             breakDurationSeconds: 45,
+            idleAwayResetEnabled: true,
             showStatusItemTimerState: true
         )
         let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
@@ -157,7 +159,7 @@ final class AppCoordinatorStatusItemRecoveryBaselineTests: XCTestCase {
                 .setShowsTimerState(true),
                 .render("00:20"),
                 .clearTimerDisplayBaselines,
-                .render("00:59")
+                .render("Away")
             ]
         )
     }

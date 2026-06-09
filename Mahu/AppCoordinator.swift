@@ -16,13 +16,13 @@ final class AppCoordinator {
     private let currentUptime: CurrentUptimeProvider
     private let currentSleepAwareTime: CurrentSleepAwareTimeProvider
     private let sleepWakeRegistrar: SleepWakeObservationRegistrar
-    private let sessionActivityRegistrar: SessionActivityObservationRegistrar
+    private let userAwayActivityRegistrar: UserAwayActivityObservationRegistrar
     private let userIdleTimeProvider: UserIdleTimeProviding
 
     private var cancelTick: (() -> Void)?
     private var cancelRuntimeSettingsObservation: (() -> Void)?
     private var cancelSleepWakeObservation: SleepWakeObservationCancellation?
-    private var cancelSessionActivityObservation: SessionActivityObservationCancellation?
+    private var cancelUserAwayActivityObservation: UserAwayActivityObservationCancellation?
     private var breakTimer: BreakTimerControlling?
     private var launchAtLoginSettingsStore: LaunchAtLoginSettingsStoring?
     private var runtimeSettingsStore: RuntimeSettingsStoring?
@@ -30,7 +30,7 @@ final class AppCoordinator {
     private var runtimeSettingsPolicy = RuntimeSettingsApplicationPolicy()
     private var idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
     private var isIdleAwaySuppressionActive = false
-    private var isSessionAwaySuppressionActive = false
+    private var isUserAwaySuppressionActive = false
     private var capturesPostWakeIdleBaseline = false
     private var postWakeIdleBaselineSeconds: TimeInterval?
     private var remindersPaused = false
@@ -55,7 +55,7 @@ final class AppCoordinator {
         currentUptime: @escaping CurrentUptimeProvider = { ProcessInfo.processInfo.systemUptime },
         currentSleepAwareTime: @escaping CurrentSleepAwareTimeProvider = LiveSleepAwareTimeSource.now,
         sleepWakeRegistrar: @escaping SleepWakeObservationRegistrar = LiveSleepWakeObservationRegistrar.make,
-        sessionActivityRegistrar: @escaping SessionActivityObservationRegistrar = LiveSessionActivityObservationRegistrar.make,
+        userAwayActivityRegistrar: @escaping UserAwayActivityObservationRegistrar = LiveUserAwayActivityObservationRegistrar.make,
         userIdleTimeProvider: UserIdleTimeProviding? = nil
     ) {
         self.statusItemController = statusItemController ?? StatusItemController()
@@ -71,14 +71,14 @@ final class AppCoordinator {
         self.currentUptime = currentUptime
         self.currentSleepAwareTime = currentSleepAwareTime
         self.sleepWakeRegistrar = sleepWakeRegistrar
-        self.sessionActivityRegistrar = sessionActivityRegistrar
+        self.userAwayActivityRegistrar = userAwayActivityRegistrar
         self.userIdleTimeProvider = userIdleTimeProvider ?? makeDefaultUserIdleTimeProvider()
         self.overlayManager.onVisibleOverlayWindowsChange = { [weak self] isVisible in
             self?.handleOverlayVisibilityChange(isVisible)
         }
     }
 
-    func start(initialSessionIsActive: Bool = true) {
+    func start(initialUserIsActive: Bool = true) {
         guard cancelTick == nil else {
             return
         }
@@ -107,7 +107,7 @@ final class AppCoordinator {
         runtimeSettingsPolicy.reset(startupSettings: config)
         idleAwayEpisodePolicy = IdleAwayEpisodePolicy()
         isIdleAwaySuppressionActive = false
-        isSessionAwaySuppressionActive = false
+        isUserAwaySuppressionActive = false
         let breakTimer = makeBreakTimer(config)
         self.breakTimer = breakTimer
         cancelSleepWakeObservation = sleepWakeRegistrar(
@@ -118,12 +118,12 @@ final class AppCoordinator {
                 self?.handleDidWake()
             }
         )
-        cancelSessionActivityObservation = sessionActivityRegistrar(
+        cancelUserAwayActivityObservation = userAwayActivityRegistrar(
             { [weak self] in
-                self?.handleSessionDidResignActive()
+                self?.handleUserDidBecomeAway()
             },
             { [weak self] in
-                self?.handleSessionDidBecomeActive()
+                self?.handleUserDidBecomeActive()
             }
         )
         remindersPaused = false
@@ -131,10 +131,10 @@ final class AppCoordinator {
         lastTickUptime = currentUptime()
         statusItemController.setShowsTimerState(config.showStatusItemTimerState)
 
-        if initialSessionIsActive {
+        if initialUserIsActive {
             handle(state: breakTimer.state)
         } else {
-            handleSessionDidResignActive()
+            handleUserDidBecomeAway()
         }
 
         cancelTick = scheduleRepeatingTick(1) { [weak self] in
@@ -168,7 +168,7 @@ final class AppCoordinator {
         let elapsedSeconds = max(0, now - lastTickUptime)
         self.lastTickUptime = now
 
-        if isSessionAwaySuppressionActive {
+        if isUserAwaySuppressionActive {
             pendingElapsedSeconds = 0
             return
         }
@@ -214,7 +214,9 @@ final class AppCoordinator {
         }
 
         let idleEpisodeAction = idleAwayEpisodePolicy.action(
-            idleDurationSeconds: userIdleTimeProvider.safeCurrentIdleDurationSeconds(),
+            idleDurationSeconds: adjustedIdleDurationSecondsAfterWakeIfNeeded(
+                userIdleTimeProvider.safeCurrentIdleDurationSeconds()
+            ),
             currentState: breakTimer.state,
             remindersPaused: remindersPaused,
             longIdleThresholdSeconds: currentSettings.idleAwayResetThresholdSeconds
@@ -349,9 +351,11 @@ final class AppCoordinator {
         statusItemController.setShowsTimerState(newSettings.showStatusItemTimerState)
         reconcileLaunchAtLoginRuntimeSettingsIfNeeded(newSettings)
 
-        if newSettings.idleAwayResetEnabled == false {
+        if newSettings.idleAwayResetEnabled == false,
+           previousSettings?.idleAwayResetEnabled == true || isIdleAwaySuppressionActive {
             idleAwayEpisodePolicy.reset()
             isIdleAwaySuppressionActive = false
+            rearmPostWakeIdleBaselineIfNeeded()
             if let breakTimer {
                 statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
             }
@@ -451,9 +455,9 @@ final class AppCoordinator {
         lastSleepStartedAt = currentSleepAwareTime()
     }
 
-    private func handleSessionDidResignActive() {
+    private func handleUserDidBecomeAway() {
         guard let breakTimer,
-              isSessionAwaySuppressionActive == false else {
+              isUserAwaySuppressionActive == false else {
             return
         }
 
@@ -462,7 +466,7 @@ final class AppCoordinator {
         idleAwayEpisodePolicy.reset()
         isIdleAwaySuppressionActive = false
         rearmPostWakeIdleBaselineIfNeeded()
-        isSessionAwaySuppressionActive = true
+        isUserAwaySuppressionActive = true
 
         guard let currentSettings = runtimeSettingsStore?.currentSettings else {
             statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
@@ -485,8 +489,8 @@ final class AppCoordinator {
         }
     }
 
-    private func handleSessionDidBecomeActive() {
-        guard isSessionAwaySuppressionActive,
+    private func handleUserDidBecomeActive() {
+        guard isUserAwaySuppressionActive,
               let breakTimer else {
             return
         }
@@ -497,7 +501,7 @@ final class AppCoordinator {
         postWakeIdleBaselineSeconds = nil
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
-        isSessionAwaySuppressionActive = false
+        isUserAwaySuppressionActive = false
         statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
     }
 
@@ -511,11 +515,18 @@ final class AppCoordinator {
         )
 
         lastSleepStartedAt = nil
+        let wasIdleAwaySuppressionActive = isIdleAwaySuppressionActive
+        idleAwayEpisodePolicy.reset()
         isIdleAwaySuppressionActive = false
+        capturesPostWakeIdleBaseline = true
+        postWakeIdleBaselineSeconds = nil
         pendingElapsedSeconds = 0
         lastTickUptime = currentUptime()
 
         guard reconciliationAction != .none else {
+            if wasIdleAwaySuppressionActive, let breakTimer {
+                statusItemController.setStatusDisplayState(statusDisplayState(for: breakTimer.state))
+            }
             return
         }
 
@@ -544,7 +555,7 @@ final class AppCoordinator {
         let now = currentUptime()
         self.lastTickUptime = now
 
-        if isSessionAwaySuppressionActive || isIdleAwaySuppressionActive {
+        if isUserAwaySuppressionActive || isIdleAwaySuppressionActive {
             pendingElapsedSeconds = 0
             return
         }
@@ -618,7 +629,7 @@ final class AppCoordinator {
     }
 
     private func statusDisplayState(for state: BreakTimer.State) -> StatusDisplayState {
-        if (isSessionAwaySuppressionActive || isIdleAwaySuppressionActive),
+        if (isUserAwaySuppressionActive || isIdleAwaySuppressionActive),
            !(remindersPaused && state.phase == .work) {
             return .away
         }
@@ -626,8 +637,40 @@ final class AppCoordinator {
         return .active(phase: state.phase, remainingSeconds: state.remainingSeconds)
     }
 
+    private func rearmPostWakeIdleBaselineIfNeeded() {
+        guard capturesPostWakeIdleBaseline || postWakeIdleBaselineSeconds != nil else {
+            return
+        }
+
+        capturesPostWakeIdleBaseline = true
+        postWakeIdleBaselineSeconds = nil
+    }
+
+    private func adjustedIdleDurationSecondsAfterWakeIfNeeded(_ sampledIdleDurationSeconds: TimeInterval) -> TimeInterval {
+        guard capturesPostWakeIdleBaseline || postWakeIdleBaselineSeconds != nil else {
+            return sampledIdleDurationSeconds
+        }
+
+        if capturesPostWakeIdleBaseline {
+            capturesPostWakeIdleBaseline = false
+            postWakeIdleBaselineSeconds = sampledIdleDurationSeconds
+            return 0
+        }
+
+        guard let postWakeIdleBaselineSeconds else {
+            return sampledIdleDurationSeconds
+        }
+
+        if sampledIdleDurationSeconds < postWakeIdleBaselineSeconds {
+            self.postWakeIdleBaselineSeconds = nil
+            return sampledIdleDurationSeconds
+        }
+
+        return max(0, sampledIdleDurationSeconds - postWakeIdleBaselineSeconds)
+    }
+
     isolated deinit {
-        cancelSessionActivityObservation?()
+        cancelUserAwayActivityObservation?()
         cancelSleepWakeObservation?()
         cancelRuntimeSettingsObservation?()
         cancelTick?()

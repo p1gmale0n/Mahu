@@ -77,7 +77,7 @@ final class StatusItemTimerAnchorTests: XCTestCase {
         XCTAssertEqual(widthAfterPause, widthBeforePause, accuracy: 0.001)
     }
 
-    func testAwayStateDoesNotExpandStableTitleSlotBeyondPausedWidth() throws {
+    func testAwayStateKeepsStableTitleSlotAcrossCountdownTransitionsWithoutExpandingPastPausedWidth() throws {
         let harness = makeHarness()
 
         harness.controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 10))
@@ -93,8 +93,13 @@ final class StatusItemTimerAnchorTests: XCTestCase {
         let awayWidth = timerTitleSlotWidth(for: harness.statusItem)
         XCTAssertEqual(try currentTitle(for: harness.statusItem), "  Away")
 
+        harness.controller.setStatusDisplayState(.active(phase: .work, remainingSeconds: 9))
+        let resumedCountdownWidth = timerTitleSlotWidth(for: harness.statusItem)
+        XCTAssertEqual(try currentTitle(for: harness.statusItem), "  00:09")
+
         XCTAssertGreaterThanOrEqual(pausedWidth, countdownWidth)
         XCTAssertEqual(awayWidth, pausedWidth, accuracy: 0.001)
+        XCTAssertEqual(resumedCountdownWidth, pausedWidth, accuracy: 0.001)
     }
 
     func testResetTimerDisplayBaselinesAllowsShorterStableSlotAfterExplicitBoundary() throws {

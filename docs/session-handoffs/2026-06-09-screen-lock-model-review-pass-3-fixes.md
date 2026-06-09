@@ -1,0 +1,21 @@
+# 🏁 Session Handoff
+
+- Status: Done
+- Key Decisions:
+  - Preserved startup away-state by source instead of as one bool latch: `ScreenLockStateProvider` now exposes separate `isScreenLocked` and `isOffConsole` flags, and `AppDelegate` seeds `UserAwaySourceAggregationState` through source-specific methods.
+  - Kept the runtime lock-edge model unchanged for this pass. The verified bug was in startup sampling losing source identity, not in the live observer handoff path.
+- Validation:
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/ScreenLockStateProviderTests -only-testing:MahuTests/UserAwayActivityObservationStartupTests -only-testing:MahuTests/SmokeTests -only-testing:MahuTests/LiveSessionActivityObservationRegistrarTests`
+  - `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`
+  - `make build`
+  - `git diff --check`
+  - `command -v swiftlint` (`swiftlint` unavailable in this environment)
+  - `rg -n '^lint:' Makefile` (no repo-owned lint target found)
+- Friction/CDD:
+  - The review gate still implies lint proof, but this repo still has neither `swiftlint` in the environment nor a tracked `Makefile` lint target, so lint cannot be validated reproducibly from repository-owned tooling.
+  - The failure mode crossed `AppDelegate` startup sampling and shared away-state aggregation. This pass fixed the verified data-loss boundary without expanding the already large coordinator path.
+- Next Steps:
+  - Let the external review loop rerun from the next fix commit.
+  - If lint remains mandatory, add a repo-owned lint command or provision `swiftlint` in the execution environment.
+  - Keep manual hardware checks open for real Lock Screen, off-console/session-switch transitions, and fullscreen/external-display behavior.

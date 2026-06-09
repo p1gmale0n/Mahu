@@ -84,6 +84,14 @@
 			A000000000000000000000DB /* FakeSessionActivityObserverRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000DA /* FakeSessionActivityObserverRegistrarTests.swift */; };
 			A000000000000000000000DD /* LiveSessionActivityObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000DC /* LiveSessionActivityObservationRegistrarTests.swift */; };
 			A000000000000000000000DE /* AppCoordinatorSessionInactiveTickSuppressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000DF /* AppCoordinatorSessionInactiveTickSuppressionTests.swift */; };
+			A000000000000000000000E0 /* AppCoordinatorSleepWakeAwaySuppressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000E1 /* AppCoordinatorSleepWakeAwaySuppressionTests.swift */; };
+			A000000000000000000000E2 /* ScreenLockStateProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000E3 /* ScreenLockStateProvider.swift */; };
+			A000000000000000000000E4 /* ScreenLockStateProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000E5 /* ScreenLockStateProviderTests.swift */; };
+			A000000000000000000000E6 /* ScreenLockObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000E7 /* ScreenLockObservation.swift */; };
+			A000000000000000000000E8 /* LiveScreenLockObservationRegistrarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000E9 /* LiveScreenLockObservationRegistrarTests.swift */; };
+			A000000000000000000000EA /* AppCoordinatorScreenLockAwayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000EB /* AppCoordinatorScreenLockAwayTests.swift */; };
+			A000000000000000000000EC /* AppCoordinatorScreenLockBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000ED /* AppCoordinatorScreenLockBoundaryTests.swift */; };
+			A000000000000000000000EE /* UserAwayActivityObservationStartupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000EF /* UserAwayActivityObservationStartupTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -177,6 +185,14 @@
 			A000000000000000000000DA /* FakeSessionActivityObserverRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeSessionActivityObserverRegistrarTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000DC /* LiveSessionActivityObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSessionActivityObservationRegistrarTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000DF /* AppCoordinatorSessionInactiveTickSuppressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorSessionInactiveTickSuppressionTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000E1 /* AppCoordinatorSleepWakeAwaySuppressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorSleepWakeAwaySuppressionTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000E3 /* ScreenLockStateProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockStateProvider.swift; sourceTree = "<group>"; };
+			A000000000000000000000E5 /* ScreenLockStateProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockStateProviderTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000E7 /* ScreenLockObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockObservation.swift; sourceTree = "<group>"; };
+			A000000000000000000000E9 /* LiveScreenLockObservationRegistrarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveScreenLockObservationRegistrarTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000EB /* AppCoordinatorScreenLockAwayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorScreenLockAwayTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000ED /* AppCoordinatorScreenLockBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorScreenLockBoundaryTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000EF /* UserAwayActivityObservationStartupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAwayActivityObservationStartupTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -222,6 +238,8 @@
 				A000000000000000000000B0 /* LaunchAtLoginSettingsStore.swift */,
 				A000000000000000000000A6 /* SleepWakeObservation.swift */,
 				A000000000000000000000D8 /* SessionActivityObservation.swift */,
+				A000000000000000000000E7 /* ScreenLockObservation.swift */,
+				A000000000000000000000E3 /* ScreenLockStateProvider.swift */,
 				A000000000000000000000C9 /* UserIdleTimeProvider.swift */,
 				A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */,
 				A00000000000000000000008 /* AppConfig.swift */,
@@ -280,12 +298,15 @@
 					A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */,
 					A000000000000000000000DA /* FakeSessionActivityObserverRegistrarTests.swift */,
 					A000000000000000000000AC /* AppCoordinatorSleepWakeAccountingTests.swift */,
-				A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */,
-				A000000000000000000000CB /* UserIdleTimeProviderTests.swift */,
-				A000000000000000000000CF /* IdleAwayReconciliationPolicyTests.swift */,
+					A000000000000000000000E1 /* AppCoordinatorSleepWakeAwaySuppressionTests.swift */,
+					A000000000000000000000AF /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift */,
+					A000000000000000000000CB /* UserIdleTimeProviderTests.swift */,
+					A000000000000000000000CF /* IdleAwayReconciliationPolicyTests.swift */,
 				A000000000000000000000D5 /* AppCoordinatorIdleAwayResetTests.swift */,
 				A000000000000000000000D1 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift */,
 				A000000000000000000000DF /* AppCoordinatorSessionInactiveTickSuppressionTests.swift */,
+				A000000000000000000000EB /* AppCoordinatorScreenLockAwayTests.swift */,
+				A000000000000000000000ED /* AppCoordinatorScreenLockBoundaryTests.swift */,
 				A000000000000000000000D7 /* ConfigStoreIdleAwaySettingsTests.swift */,
 				A00000000000000000000093 /* ConfigStoreStatusItemTimerTests.swift */,
 				A00000000000000000000097 /* StatusDisplayFormatterTests.swift */,
@@ -296,11 +317,14 @@
 					A00000000000000000000018 /* BreakOverlayFocusRetentionTests.swift */,
 					A0000000000000000000001B /* LiveBreakFocusObservationRegistrarTests.swift */,
 					A0000000000000000000001E /* LiveBreakScreenObservationRegistrarTests.swift */,
-					A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */,
+				A000000000000000000000AA /* LiveSleepWakeObservationRegistrarTests.swift */,
 					A000000000000000000000DC /* LiveSessionActivityObservationRegistrarTests.swift */,
+					A000000000000000000000E9 /* LiveScreenLockObservationRegistrarTests.swift */,
+					A000000000000000000000E5 /* ScreenLockStateProviderTests.swift */,
+					A000000000000000000000EF /* UserAwayActivityObservationStartupTests.swift */,
 				A00000000000000000000019 /* BreakOverlayViewTests.swift */,
-					A0000000000000000000004B /* TrayIconAssetTests.swift */,
-				A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */,
+						A0000000000000000000004B /* TrayIconAssetTests.swift */,
+					A0000000000000000000004E /* StatusItemMenuAcceptanceTests.swift */,
 				A00000000000000000000015 /* StatusItemControllerTests.swift */,
 				A00000000000000000000098 /* StatusItemTimerDisplayTests.swift */,
 				A000000000000000000000C1 /* StatusItemTimerAnchorTests.swift */,
@@ -437,6 +461,8 @@
 				A000000000000000000000B1 /* LaunchAtLoginSettingsStore.swift in Sources */,
 				A000000000000000000000A7 /* SleepWakeObservation.swift in Sources */,
 				A000000000000000000000D9 /* SessionActivityObservation.swift in Sources */,
+				A000000000000000000000E6 /* ScreenLockObservation.swift in Sources */,
+				A000000000000000000000E2 /* ScreenLockStateProvider.swift in Sources */,
 				A000000000000000000000C8 /* UserIdleTimeProvider.swift in Sources */,
 				A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */,
 				A00000000000000000000024 /* AppConfig.swift in Sources */,
@@ -483,12 +509,15 @@
 					A000000000000000000000A9 /* FakeSleepWakeObserverRegistrarTests.swift in Sources */,
 					A000000000000000000000DB /* FakeSessionActivityObserverRegistrarTests.swift in Sources */,
 					A000000000000000000000AD /* AppCoordinatorSleepWakeAccountingTests.swift in Sources */,
-				A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */,
-				A000000000000000000000CA /* UserIdleTimeProviderTests.swift in Sources */,
-				A000000000000000000000CE /* IdleAwayReconciliationPolicyTests.swift in Sources */,
+					A000000000000000000000E0 /* AppCoordinatorSleepWakeAwaySuppressionTests.swift in Sources */,
+					A000000000000000000000AE /* AppCoordinatorSleepWakeRuntimeSettingsRegressionTests.swift in Sources */,
+					A000000000000000000000CA /* UserIdleTimeProviderTests.swift in Sources */,
+					A000000000000000000000CE /* IdleAwayReconciliationPolicyTests.swift in Sources */,
 				A000000000000000000000D4 /* AppCoordinatorIdleAwayResetTests.swift in Sources */,
 				A000000000000000000000D0 /* AppCoordinatorIdleAwayPhaseBehaviorTests.swift in Sources */,
 				A000000000000000000000DE /* AppCoordinatorSessionInactiveTickSuppressionTests.swift in Sources */,
+				A000000000000000000000EA /* AppCoordinatorScreenLockAwayTests.swift in Sources */,
+				A000000000000000000000EC /* AppCoordinatorScreenLockBoundaryTests.swift in Sources */,
 				A000000000000000000000D6 /* ConfigStoreIdleAwaySettingsTests.swift in Sources */,
 				A00000000000000000000092 /* ConfigStoreStatusItemTimerTests.swift in Sources */,
 				A00000000000000000000096 /* StatusDisplayFormatterTests.swift in Sources */,
@@ -498,10 +527,13 @@
 					A00000000000000000000034 /* BreakOverlayFocusRetentionTests.swift in Sources */,
 					A00000000000000000000037 /* LiveBreakFocusObservationRegistrarTests.swift in Sources */,
 					A0000000000000000000003A /* LiveBreakScreenObservationRegistrarTests.swift in Sources */,
-					A000000000000000000000AB /* LiveSleepWakeObservationRegistrarTests.swift in Sources */,
+				A000000000000000000000AB /* LiveSleepWakeObservationRegistrarTests.swift in Sources */,
 					A000000000000000000000DD /* LiveSessionActivityObservationRegistrarTests.swift in Sources */,
-				A00000000000000000000035 /* BreakOverlayViewTests.swift in Sources */,
-				A0000000000000000000004A /* TrayIconAssetTests.swift in Sources */,
+					A000000000000000000000E8 /* LiveScreenLockObservationRegistrarTests.swift in Sources */,
+					A000000000000000000000E4 /* ScreenLockStateProviderTests.swift in Sources */,
+					A000000000000000000000EE /* UserAwayActivityObservationStartupTests.swift in Sources */,
+					A00000000000000000000035 /* BreakOverlayViewTests.swift in Sources */,
+						A0000000000000000000004A /* TrayIconAssetTests.swift in Sources */,
 				A0000000000000000000004F /* StatusItemMenuAcceptanceTests.swift in Sources */,
 				A0000000000000000000002F /* StatusItemControllerTests.swift in Sources */,
 				A00000000000000000000099 /* StatusItemTimerDisplayTests.swift in Sources */,

@@ -37,7 +37,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 100, 110, 140]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: fakeIdleProvider
         )
 
@@ -89,7 +89,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([200, 200, 900]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: fakeIdleProvider
         )
 
@@ -138,7 +138,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 100, 150, 151]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
@@ -177,7 +177,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
             makeBreakTimer: { _ in timer },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([100]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
@@ -237,7 +237,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 100, 101, 102, 103, 104]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: ScriptedUserIdleTimeProvider([
                 longSleepResetThresholdSeconds,
                 longSleepResetThresholdSeconds,
@@ -293,7 +293,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
-        coordinator.start(initialSessionIsActive: false)
+        coordinator.start(initialUserIsActive: false)
 
         XCTAssertEqual(fakeStatusItemController.installCallCount, 1)
         XCTAssertEqual(createdTimers, 2)
@@ -305,7 +305,7 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
         XCTAssertEqual(resetTimer.advanceCalls, [])
     }
 
-    func testRepeatedSessionInactiveNotificationsDoNotResetFreshWorkMoreThanOnce() {
+    func testDuplicateAwayEventsFromSessionSwitchAndScreenLockDoNotResetFreshWorkMoreThanOnce() {
         let settings = AppConfig(
             workDurationSeconds: 300,
             breakDurationSeconds: 20,
@@ -313,6 +313,8 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
         )
         let fakeStatusItemController = FakeStatusItemController()
         let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        var didLockScreen: (@MainActor () -> Void)?
+        var didUnlockScreen: (@MainActor () -> Void)?
         let initialTimer = FakeBreakTimer(
             state: .init(phase: .work, remainingSeconds: 1)
         )
@@ -332,17 +334,33 @@ final class AppCoordinatorSessionInactiveTickSuppressionTests: XCTestCase {
             },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([100, 100, 101]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: { didBecomeAway, didBecomeActive in
+                let cancelSessionActivity = fakeSessionActivityRegistrar.register(
+                    didResignActive: didBecomeAway,
+                    didBecomeActive: didBecomeActive
+                )
+                didLockScreen = didBecomeAway
+                didUnlockScreen = didBecomeActive
+
+                return {
+                    cancelSessionActivity()
+                    didLockScreen = nil
+                    didUnlockScreen = nil
+                }
+            },
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
         coordinator.start()
         fakeSessionActivityRegistrar.fireDidResignActive()
-        fakeSessionActivityRegistrar.fireDidResignActive()
+        didLockScreen?()
+        fakeSessionActivityRegistrar.fireDidBecomeActive()
+        didUnlockScreen?()
 
         XCTAssertEqual(createdTimers, 2)
-        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 2)
-        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:01", "Away"])
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didBecomeActiveCallCount, 1)
+        XCTAssertEqual(fakeStatusItemController.renderedTimerTexts, ["00:01", "Away", "05:00"])
         XCTAssertEqual(initialTimer.advanceCalls, [])
         XCTAssertEqual(resetTimer.advanceCalls, [])
     }

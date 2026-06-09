@@ -158,6 +158,21 @@ final class ConfigStorePersistenceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.configURL.path))
     }
 
+    func testSaveRejectsUnsupportedIdleAwayThresholdWithoutWritingConfig() {
+        let store = makeStore()
+        let invalidConfigs = [
+            AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20, idleAwayResetThresholdSeconds: 0),
+            AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20, idleAwayResetThresholdSeconds: -5),
+            AppConfig(workDurationSeconds: 300, breakDurationSeconds: 20, idleAwayResetThresholdSeconds: .infinity),
+        ]
+
+        invalidConfigs.forEach { invalidConfig in
+            XCTAssertFalse(store.save(invalidConfig))
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.configURL.path))
+    }
+
     func testSaveRejectsConfigThatWouldExceedLoadSizeLimit() {
         let store = makeStore()
         let oversizedConfig = AppConfig(

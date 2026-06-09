@@ -106,7 +106,7 @@ final class SmokeTests: XCTestCase {
         appDelegate.environmentProvider = {
             [AppRuntime.disableCoordinatorStartupEnvironmentKey: "1"]
         }
-        appDelegate.coordinatorStarter = { _ in
+        appDelegate.coordinatorStarter = { _, _ in
             startCallCount += 1
             return NSObject()
         }
@@ -125,9 +125,9 @@ final class SmokeTests: XCTestCase {
         weak var coordinatorReference: NSObject?
         let appDelegate = AppDelegate()
         appDelegate.environmentProvider = { [:] }
-        appDelegate.coordinatorStarter = { startsSessionInactive in
+        appDelegate.coordinatorStarter = { startsUserAway, _ in
             startCallCount += 1
-            startedInactiveValues.append(startsSessionInactive)
+            startedInactiveValues.append(startsUserAway)
             let coordinator = NSObject()
             coordinatorReference = coordinator
             return coordinator
@@ -143,14 +143,40 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testAppDelegateStartsCoordinatorInactiveWhenSessionResignsBeforeDidFinishLaunching() {
+    func testAppDelegateStartsCoordinatorInactiveWhenScreenIsAlreadyLockedAtWillFinishLaunching() {
+        var startedInactiveValues: [Bool] = []
+        let appDelegate = AppDelegate()
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.screenLockStateProvider = FakeScreenLockStateProvider(isLockedOrOffConsole: true)
+        appDelegate.coordinatorStarter = { startsUserAway, _ in
+            startedInactiveValues.append(startsUserAway)
+            return NSObject()
+        }
+
+        appDelegate.applicationWillFinishLaunching(
+            Notification(name: NSApplication.willFinishLaunchingNotification)
+        )
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        XCTAssertEqual(startedInactiveValues, [true])
+    }
+
+    @MainActor
+    func testAppDelegateStartsCoordinatorInactiveWhenLockEventArrivesBeforeDidFinishLaunching() {
         var startedInactiveValues: [Bool] = []
         let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
         let appDelegate = AppDelegate()
         appDelegate.environmentProvider = { [:] }
-        appDelegate.sessionActivityRegistrar = fakeSessionActivityRegistrar.register
-        appDelegate.coordinatorStarter = { startsSessionInactive in
-            startedInactiveValues.append(startsSessionInactive)
+        appDelegate.userAwayActivityRegistrar = { didBecomeAway, didBecomeActive in
+            fakeSessionActivityRegistrar.register(
+                didResignActive: didBecomeAway,
+                didBecomeActive: didBecomeActive
+            )
+        }
+        appDelegate.coordinatorStarter = { startsUserAway, _ in
+            startedInactiveValues.append(startsUserAway)
             return NSObject()
         }
 
@@ -166,6 +192,69 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(fakeSessionActivityRegistrar.registrationCount, 1)
         XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
         XCTAssertEqual(fakeSessionActivityRegistrar.cancelCount, 1)
+    }
+
+    @MainActor
+    func testAppDelegateUnlockBeforeDidFinishLaunchingClearsStartupAwayLatch() {
+        var startedInactiveValues: [Bool] = []
+        let fakeSessionActivityRegistrar = FakeSessionActivityObserverRegistrar()
+        let appDelegate = AppDelegate()
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.userAwayActivityRegistrar = { didBecomeAway, didBecomeActive in
+            fakeSessionActivityRegistrar.register(
+                didResignActive: didBecomeAway,
+                didBecomeActive: didBecomeActive
+            )
+        }
+        appDelegate.coordinatorStarter = { startsUserAway, _ in
+            startedInactiveValues.append(startsUserAway)
+            return NSObject()
+        }
+
+        appDelegate.applicationWillFinishLaunching(
+            Notification(name: NSApplication.willFinishLaunchingNotification)
+        )
+        fakeSessionActivityRegistrar.fireDidResignActive()
+        fakeSessionActivityRegistrar.fireDidBecomeActive()
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        XCTAssertEqual(startedInactiveValues, [false])
+        XCTAssertEqual(fakeSessionActivityRegistrar.didResignActiveCallCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.didBecomeActiveCallCount, 1)
+        XCTAssertEqual(fakeSessionActivityRegistrar.cancelCount, 1)
+    }
+
+    @MainActor
+    func testAppDelegateRegistersAwayObserverBeforeSamplingScreenLockState() {
+        var didRegisterObserver = false
+        var startedInactiveValues: [Bool] = []
+        let appDelegate = AppDelegate()
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.userAwayActivityRegistrar = { _, _ in
+            didRegisterObserver = true
+            return {}
+        }
+        appDelegate.screenLockStateProvider = CallbackScreenLockStateProvider(
+            isLockedOrOffConsole: true,
+            onSample: {
+                XCTAssertTrue(didRegisterObserver)
+            }
+        )
+        appDelegate.coordinatorStarter = { startsUserAway, _ in
+            startedInactiveValues.append(startsUserAway)
+            return NSObject()
+        }
+
+        appDelegate.applicationWillFinishLaunching(
+            Notification(name: NSApplication.willFinishLaunchingNotification)
+        )
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        XCTAssertEqual(startedInactiveValues, [true])
     }
 
     @MainActor
@@ -200,5 +289,23 @@ final class SmokeTests: XCTestCase {
         let resolvedResourceURL = resourceURL.resolvingSymlinksInPath()
 
         return resolvedResourceURL.path.hasPrefix(bundleURL.path + "/")
+    }
+}
+
+private struct FakeScreenLockStateProvider: ScreenLockStateProviding {
+    let isLockedOrOffConsole: Bool
+
+    func isScreenLockedOrOffConsole() -> Bool {
+        isLockedOrOffConsole
+    }
+}
+
+private struct CallbackScreenLockStateProvider: ScreenLockStateProviding {
+    let isLockedOrOffConsole: Bool
+    let onSample: () -> Void
+
+    func isScreenLockedOrOffConsole() -> Bool {
+        onSample()
+        return isLockedOrOffConsole
     }
 }

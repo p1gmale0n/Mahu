@@ -68,7 +68,7 @@ final class AppCoordinatorTests: XCTestCase {
                 return {}
             },
             sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register
         )
 
         coordinator.start()
@@ -787,7 +787,7 @@ final class AppCoordinatorTests: XCTestCase {
                     cancellationSpy.cancel
                 },
                 sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
-                sessionActivityRegistrar: fakeSessionActivityRegistrar.register
+                userAwayActivityRegistrar: fakeSessionActivityRegistrar.register
             )
             weakCoordinator = coordinator
 
@@ -812,7 +812,7 @@ final class AppCoordinatorTests: XCTestCase {
                 makeBreakTimer: { _ in FakeBreakTimer() },
                 scheduleRepeatingTick: { _, _ in {} },
                 sleepWakeRegistrar: fakeSleepWakeRegistrar.register,
-                sessionActivityRegistrar: fakeSessionActivityRegistrar.register
+                userAwayActivityRegistrar: fakeSessionActivityRegistrar.register
             )
 
             coordinator.start()

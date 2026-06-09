@@ -33,33 +33,48 @@ enum AppRuntime {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var environmentProvider: () -> [String: String] = { ProcessInfo.processInfo.environment }
-    var sessionActivityRegistrar: SessionActivityObservationRegistrar = LiveSessionActivityObservationRegistrar.make
-    var coordinatorStarter: @MainActor (_ startsSessionInactive: Bool) -> AnyObject = { startsSessionInactive in
-        let appCoordinator = AppCoordinator()
-        appCoordinator.start(initialSessionIsActive: startsSessionInactive == false)
+    var screenLockStateProvider: ScreenLockStateProviding = ScreenLockStateProvider()
+    var userAwayActivityRegistrar: UserAwayActivityObservationRegistrar?
+    var coordinatorStarter: @MainActor (
+        _ startsUserAway: Bool,
+        _ userAwayActivityRegistrar: @escaping UserAwayActivityObservationRegistrar
+    ) -> AnyObject = { startsUserAway, userAwayActivityRegistrar in
+        let appCoordinator = AppCoordinator(userAwayActivityRegistrar: userAwayActivityRegistrar)
+        appCoordinator.start(initialUserIsActive: startsUserAway == false)
         return appCoordinator
     }
     private var coordinatorLifetime: AnyObject?
-    private var cancelInitialSessionActivityObservation: SessionActivityObservationCancellation?
-    private var startsSessionInactive = false
+    private var cancelInitialUserAwayObservation: UserAwayActivityObservationCancellation?
+    private let startupUserAwayAggregationState = UserAwaySourceAggregationState()
+    private var startsUserAway = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard AppRuntime.shouldStartProductionCoordinator(environment: environmentProvider()) else {
             return
         }
 
-        guard cancelInitialSessionActivityObservation == nil else {
+        guard cancelInitialUserAwayObservation == nil else {
             return
         }
 
-        cancelInitialSessionActivityObservation = sessionActivityRegistrar(
+        let userAwayActivityRegistrar = makeSharedUserAwayActivityRegistrar()
+        cancelInitialUserAwayObservation = userAwayActivityRegistrar(
             { [weak self] in
-                self?.startsSessionInactive = true
+                self?.startsUserAway = true
             },
             { [weak self] in
-                self?.startsSessionInactive = false
+                self?.startsUserAway = false
             }
         )
+
+        let startupScreenLockState = screenLockStateProvider.currentState()
+        if startupScreenLockState.isScreenLocked {
+            startupUserAwayAggregationState.seedScreenLockedIfNeeded()
+        }
+        if startupScreenLockState.isOffConsole {
+            startupUserAwayAggregationState.seedSessionAwayIfNeeded()
+        }
+        startsUserAway = startsUserAway || startupScreenLockState.isUserAway
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -67,8 +82,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        coordinatorLifetime = coordinatorStarter(startsSessionInactive)
-        cancelInitialSessionActivityObservation?()
-        cancelInitialSessionActivityObservation = nil
+        coordinatorLifetime = coordinatorStarter(startsUserAway, makeSharedUserAwayActivityRegistrar())
+        cancelInitialUserAwayObservation?()
+        cancelInitialUserAwayObservation = nil
+    }
+
+    private func makeSharedUserAwayActivityRegistrar() -> UserAwayActivityObservationRegistrar {
+        if let userAwayActivityRegistrar {
+            return userAwayActivityRegistrar
+        }
+
+        let aggregationState = startupUserAwayAggregationState
+        return { didBecomeAway, didBecomeActive in
+            LiveUserAwayActivityObservationRegistrar.make(
+                didBecomeAway: didBecomeAway,
+                didBecomeActive: didBecomeActive,
+                sessionActivityRegistrar: LiveSessionActivityObservationRegistrar.make,
+                screenLockRegistrar: LiveScreenLockObservationRegistrar.make,
+                aggregationState: aggregationState
+            )
+        }
     }
 }

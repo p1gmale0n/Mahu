@@ -151,7 +151,7 @@ final class AppCoordinatorStatusItemPauseResumeTests: XCTestCase {
             makeBreakTimer: { _ in fakeTimer },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([10, 10]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
@@ -202,7 +202,7 @@ final class AppCoordinatorStatusItemPauseResumeTests: XCTestCase {
                 return {}
             },
             currentUptime: makeCurrentUptimeProvider([100, 100, 100, 110]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
@@ -261,7 +261,7 @@ final class AppCoordinatorStatusItemPauseResumeTests: XCTestCase {
             makeBreakTimer: { _ in fakeTimer },
             scheduleRepeatingTick: { _, _ in {} },
             currentUptime: makeCurrentUptimeProvider([10, 10]),
-            sessionActivityRegistrar: fakeSessionActivityRegistrar.register,
+            userAwayActivityRegistrar: fakeSessionActivityRegistrar.register,
             userIdleTimeProvider: FailingUserIdleTimeProvider()
         )
 
