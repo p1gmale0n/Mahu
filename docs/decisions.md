@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-10 | Settings UI architecture plan | Plan the Settings UI as an AppKit-owned window opened from the status menu, hosting the designed SwiftUI view while applying changes through `RuntimeSettingsStore` first and persisting with `ConfigStore.save(_:)`. | The source design is ready visually, but its `@AppStorage` persistence would create a second settings source; AppKit-owned presentation preserves Mahu's menu-bar architecture and keeps runtime settings authoritative. |
 | 2026-06-09 | Review fix for source-aware startup away sampling | Preserve source identity in startup screen-lock/off-console sampling by seeding `UserAwaySourceAggregationState` per source instead of raising only the aggregate away flag. | The third review pass found that a startup bool sample could be cleared by the first unrelated `active` edge, which let Mahu leave `Away` while another sampled source still held the user away. |
 | 2026-06-09 | Review fix for startup away-state continuity | Reuse one shared `UserAwaySourceAggregationState` across the pre-launch latch and the production coordinator registrar, and treat runtime distributed lock/unlock notifications as authoritative edges instead of waiting for a matching current-state resample before changing away state. | The second review pass found two real failure modes: startup sampling could leave the live aggregator unaware that Mahu had already started away, and one-shot lock/unlock notifications could be dropped entirely if `CGSessionCopyCurrentDictionary()` lagged the event. |
 | 2026-06-09 | Review fix for user-away aggregation | Aggregate session-switch and screen-lock state by source inside `LiveUserAwayActivityObservationRegistrar`, and treat screen-lock notifications as triggers to resample current lock state before emitting away/active transitions. | The review found that a single last-event-wins away flag could clear suppression too early when sources overlapped, and raw distributed unlock notifications could resume timers even if the current lock sample still said the user was away. |
@@ -3102,3 +3103,19 @@ Rationale: Lock handling is a safety/lifecycle invariant, not a user-tunable idl
 Consequences: README manual checks now explicitly cover lock-before-break, unlock recovery, silent active-rest teardown, and bounded `Away` tray behavior for session inactivity. AGENTS now carries the same invariant for future planning and review work.
 
 Alternatives Considered: Document session lock as just another `Away` source without naming the public API; rejected because it weakens the guardrail against future private/distributed-notification drift. Add a config toggle for lock suppression; rejected because it would let users opt back into the hidden-overlay/sound failure mode this task was meant to remove.
+
+## 2026-06-10 / Settings UI Architecture Plan
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI / Runtime settings
+
+**Context:** The repo now has a designed SwiftUI settings surface in `source-assets/SettingsView.swift` and a visual reference in `source-assets/settings.png`. The source view is visually close to the desired product shape, but it persists with `@AppStorage`/UserDefaults and hardcodes Launch at Login as unavailable. Mahu's shipped settings architecture instead uses `RuntimeSettingsStore` as the in-process source of truth and `ConfigStore` as the strict-JSON persistence layer, while Launch at Login is already a desired-state flow through `SMAppService.mainApp`.
+
+**Decision:** Plan the Settings UI as an AppKit-owned window opened from the status-item menu, hosting an adapted SwiftUI `SettingsView`. The adapted view must bind to a `SettingsViewModel` backed by the shared `RuntimeSettingsStore`, apply edits immediately to runtime settings, then persist immediately through `ConfigStore.save(_:)`. Save failures remain non-fatal and visible in the Settings UI. The standard SwiftUI `Settings` scene remains disabled for this first integration pass.
+
+**Rationale:** This preserves Mahu's menu-bar/`LSUIElement` architecture and avoids a second settings source. An AppKit presenter follows the existing overlay-window boundary pattern and keeps UI side effects out of `AppCoordinator`, while `RuntimeSettingsStore` lets existing timer/status/idle/launch-at-login runtime behavior continue to own application semantics.
+
+**Consequences:** The implementation should add focused Settings view-model/window/menu seams instead of expanding already-large coordinator files. README and AGENTS must move Settings UI out of deferred scope when the implementation ships. Launch at Login remains desired state in the UI; real registration still depends on a suitable Apple-signed app and macOS approval.
+
+**Alternatives Considered:** Use the source view unchanged with `@AppStorage`; rejected because it bypasses `RuntimeSettingsStore` and `ConfigStore`. Use a SwiftUI `Settings { ... }` scene first; rejected for this pass because dependency sharing with `AppDelegate`/`AppCoordinator` is riskier for the current menu-bar app. Implement both status-menu and `Cmd+,` entry points immediately; rejected as extra scope that can follow after the primary settings path is proven.
