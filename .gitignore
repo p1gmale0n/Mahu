@@ -2,4 +2,7 @@
 build/
 config.json
 output.txt
+xcuserdata/
+*.xcuserstate
+*.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
 !AGENTS.md
