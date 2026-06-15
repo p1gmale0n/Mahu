@@ -20,7 +20,7 @@ Modern work makes it too easy to stare at a display for hours. Mahu is intention
 - **Skip when needed** — keep control when a break would interrupt something important.
 - **Pause and resume** — temporarily stop reminders whenever you need uninterrupted focus.
 - **Sleep and lock aware** — avoids counting hidden locked/sleep time as real work or break time.
-- **Minimal, calm design** — dark break screen, readable text, and no noisy interruptions.
+- **Minimal, calm design** — a soft background image with readable overlay text and no noisy interruptions.
 
 ## How it feels
 
