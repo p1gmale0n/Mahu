@@ -2,7 +2,19 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-10 | Settings window close commit | Commit the break-overlay message draft from the retained AppKit settings window close path instead of relying only on SwiftUI focus/disappear hooks. | The second review pass found that a reused `NSWindow` can close without dropping the SwiftUI view hierarchy, which leaves the message draft stale on reopen even when runtime/config have already normalized it. |
+| 2026-06-10 | Settings normalization warning contract | Make the Settings normalization warning and README explicitly say that unsupported raw timer values stay active until the matching control is edited. | The shipped view model preserves untouched legacy config values, so the earlier warning copy falsely promised next-change canonicalization and misdescribed actual runtime/persistence state. |
+| 2026-06-10 | Settings review fix semantics v4 | Restore raw runtime settings as the save base for untouched controls and run strict-JSON `config.json` saves synchronously in the production Settings path. | The next review pass confirmed that the v3 canonicalized save base still violated the published backward-compatibility contract for manual config edits, and the background save queue violated the shipped `persist immediately` requirement by allowing quit-before-write races. |
+| 2026-06-10 | Settings review fix semantics v3 | Canonicalize future Settings edits against UI-supported timer values, surface a visible normalization warning for out-of-range manual config, and move config persistence off the main thread while keeping runtime updates immediate. | A follow-up review confirmed two major gaps: the window could silently lie about active legacy timer values during unrelated saves, and per-keystroke strict-JSON writes on `@MainActor` could stall the menu-bar app and its timer loop. |
+| 2026-06-10 | Settings review fix semantics v2 | Keep raw runtime settings as the save base for untouched controls, apply break-overlay message edits immediately while preserving draft text locally, and soften save-failure copy around system-integrated settings. | A second review pass confirmed that the previous canonicalize-on-save strategy still rewrote manual config values during unrelated edits and that draft-only break-message commits violated the immediate-apply contract. |
+| 2026-06-10 | Settings review fix semantics | Canonicalize UI-backed Settings values before future saves, observe external runtime-settings updates inside `SettingsViewModel`, and commit break-message text on edit completion instead of normalizing every keystroke. | Review found that legacy config values could silently diverge from what the Settings UI showed, external runtime updates could be overwritten from a stale snapshot, and live normalization in the text field fought normal editing. |
+| 2026-06-10 | Status menu settings entry | Extract status-menu item descriptors into a small helper file and add Settings… as a separately configured status-item action between Pause/Resume and Quit. | `StatusItemController.swift` had already crossed the local readability threshold, and the Settings window needs menu-bar entry wiring without coupling status-item code to settings persistence or disturbing existing timer/icon behavior. |
 | 2026-06-10 | Settings UI architecture plan | Plan the Settings UI as an AppKit-owned window opened from the status menu, hosting the designed SwiftUI view while applying changes through `RuntimeSettingsStore` first and persisting with `ConfigStore.save(_:)`. | The source design is ready visually, but its `@AppStorage` persistence would create a second settings source; AppKit-owned presentation preserves Mahu's menu-bar architecture and keeps runtime settings authoritative. |
+| 2026-06-10 | Settings view-model persistence seam | Add a dedicated `SettingsViewModel` that maps `AppConfig` into UI-friendly minutes/seconds fields, applies accepted edits to `RuntimeSettingsStore` before disk save, and keeps save failures as UI-visible warnings without rolling runtime settings back. | The Settings window needs immediate in-process behavior changes without introducing a second persistence source or hiding `config.json` save failures; keeping runtime-first application preserves the existing single-source-of-truth contract and future UI composition. |
+| 2026-06-10 | Settings SwiftUI view binding | Keep the shipped Settings form as a thin SwiftUI layer bound entirely to `SettingsViewModel`, including desired-state Launch at Login copy, inline save warnings, and a disk-free preview initializer. | The imported design already matches the product structure, so the smallest safe implementation is to preserve that layout while replacing `@AppStorage` with explicit bindings to Mahu's runtime source of truth. |
+| 2026-06-10 | Settings window presentation seam | Add a dedicated `SettingsWindowController` that owns one reusable AppKit `NSWindow`, hosts `SettingsView` through `NSHostingController`, and injects window creation plus app activation seams for focused tests. | The menu-bar app needs Settings presentation at the AppKit edge without coupling window lifecycle to `AppCoordinator`; reusing one retained window matches native macOS behavior and keeps the presenter independently testable. |
+| 2026-06-10 | Settings startup composition | Compose one launch-loaded `ConfigStore`, one shared `RuntimeSettingsStore`, one retained `SettingsWindowController`, and one status-item Settings handler in `AppDelegate`, then inject the shared runtime store into `AppCoordinator`. | The menu-bar Settings window and coordinator must share one in-process settings source without reloading config or growing coordinator ownership; `AppDelegate` is the smallest composition root that can wire the presenter and menu action together for an `LSUIElement` app. |
+| 2026-06-10 | Settings documentation contract | Move Settings UI from deferred to shipped documentation, keep `config.json` as persistence/backward-compatibility, and describe Launch at Login as desired state rather than guaranteed registration. | The feature is now implemented, so README and AGENTS must reflect the real menu-bar Settings flow without implying live config reload or overstating Launch at Login behavior on unsigned/unapproved builds. |
 | 2026-06-09 | Review fix for source-aware startup away sampling | Preserve source identity in startup screen-lock/off-console sampling by seeding `UserAwaySourceAggregationState` per source instead of raising only the aggregate away flag. | The third review pass found that a startup bool sample could be cleared by the first unrelated `active` edge, which let Mahu leave `Away` while another sampled source still held the user away. |
 | 2026-06-09 | Review fix for startup away-state continuity | Reuse one shared `UserAwaySourceAggregationState` across the pre-launch latch and the production coordinator registrar, and treat runtime distributed lock/unlock notifications as authoritative edges instead of waiting for a matching current-state resample before changing away state. | The second review pass found two real failure modes: startup sampling could leave the live aggregator unaware that Mahu had already started away, and one-shot lock/unlock notifications could be dropped entirely if `CGSessionCopyCurrentDictionary()` lagged the event. |
 | 2026-06-09 | Review fix for user-away aggregation | Aggregate session-switch and screen-lock state by source inside `LiveUserAwayActivityObservationRegistrar`, and treat screen-lock notifications as triggers to resample current lock state before emitting away/active transitions. | The review found that a single last-event-wins away flag could clear suppression too early when sources overlapped, and raw distributed unlock notifications could resume timers even if the current lock sample still said the user was away. |
@@ -29,6 +41,7 @@
 | 2026-06-05 | Tray timer recovery baseline resets | Clear tray timer baselines before long-idle and long-sleep recovery paths replace the timer from deferred runtime settings. | Otherwise active-rest recovery can bypass the normal deferred-settings boundary hook and keep the tray width frozen to an obsolete longer work duration even though the new runtime schedule is already in effect. |
 | 2026-06-05 | Idle away reset test-safe default provider | Make `AppCoordinator` use a zero-idle default provider when running under XCTest unless a test injects a specific idle seam. | Idle polling is now part of every coordinator tick, so leaving the default on live HID idle time makes unrelated regression tests nondeterministic on hosts that have been idle for 300+ seconds. |
 | 2026-06-05 | Idle away reset documentation contract | Document long idle reset as shipped behavior in README and AGENTS with the same CoreGraphics-backed 300-second threshold and sleep-matching phase semantics, while keeping real HID idle checks manual-only. | Future agents and humans rely on repo docs for product invariants; leaving idle reset undocumented would make the shipped behavior easy to regress or misdescribe, and XCTest still cannot prove live HID/session behavior on real hardware. |
+
 | 2026-06-05 | Idle away reset test isolation | Add a focused phase-behavior test file and make sleep/wake regression tests inject scripted non-idle values instead of reading live system idle state. | Idle polling is now part of every coordinator tick, so unrelated sleep/wake regression tests must not depend on whatever the host machine's real HID idle time happens to be during CI or local runs. |
 | 2026-06-05 | Idle away reset reconciliation policy | Move the long-away threshold/policy helpers into a dedicated file shared by sleep and idle triggers, and make idle reuse the existing phase outcomes with the same fixed 300-second threshold. | `AppCoordinatorSupport.swift` is already past the local readability limit, and a shared policy file keeps sleep and idle semantics aligned without dragging live CoreGraphics code into coordinator support. |
 | 2026-06-05 | Idle away reset coordinator tick wiring | Poll the injected idle provider at the start of each normal coordinator tick, reset from runtime settings before ordinary elapsed-time consumption, and refresh the tick baseline whenever a long-idle reconciliation fires. | This keeps idle behavior advisory and failure-tolerant, prevents stale elapsed carryover from immediately consuming the fresh timer, and avoids reloading disk config during away recovery. |
@@ -115,6 +128,14 @@
 | 2026-05-29 | Break completion sound documentation contract | Document `break-completion.caf` as the only shipped completion-sound filename in README/build verification, while keeping `source-assets/11labs-sound-sample.caf` as a staging/source asset name only. | The repo now has different source and runtime filenames; locking the docs to the bundled name avoids stale `sound.wav` references and prevents humans or future agents from confusing the editable source asset with the app-bundle contract. |
 | 2026-05-29 | Source asset organization and completion sound | Rename the repository staging folder from `images/` to `source-assets/`, use `Warm Focus Nudge 48k 16bit.wav` as the source for the bundled completion audio, and keep the runtime bundle filename as `Mahu/Resources/sound.wav`. | `source-assets/` describes mixed design/audio source material more clearly than `images/`; preserving the stable bundled `sound.wav` name avoids Xcode project churn, spaces in runtime resource names, and unnecessary code/test/Makefile changes. |
 | 2026-05-29 | Native status item layout | Roll back status-item length/render-size experiments and keep the native `NSStatusItem.squareLength` layout with an 18x18 template image. | Manual checks showed the 20pt/18x18 and 18pt/20x20 tuning attempts did not visibly reduce menu-bar spacing; using a custom view would be less native and risk menu-bar behavior for a minor visual deviation, so the safest result is to keep AppKit's standard status-item layout. |
+
+**Date:** 2026-06-10
+**Area:** Settings window presentation seam
+**Context:** Task 3 of the settings-window integration plan needs a real Settings window for an `LSUIElement` menu-bar app without growing `AppCoordinator` or duplicating AppKit lifecycle state.
+**Decision:** Add a dedicated `SettingsWindowController` that owns one reusable AppKit `NSWindow`, hosts `SettingsView` through `NSHostingController`, and injects window creation plus app activation seams for focused tests.
+**Rationale:** The menu-bar app needs Settings presentation at the AppKit edge without coupling window lifecycle to timer logic; reusing one retained window matches native macOS behavior and keeps the presenter independently testable.
+**Consequences:** The composition root can later retain one presenter and expose a simple `showSettingsWindow()` handler; closing the window will not destroy the presenter because the window remains retained.
+**Alternatives Considered:** Put Settings-window ownership inside `AppCoordinator`; rebuild the window each time the user opens Settings.
 | 2026-05-28 | Tray icon visual fit | Tighten the status item slot to 18pt and render the existing `TrayIconTemplate` image at 20x20. | The earlier 20pt slot with an 18x18 rendered image did not visibly reduce menu-bar whitespace; increasing rendered glyph size while tightening the slot keeps the same asset and behavior but better matches neighboring menu-bar icons. |
 | 2026-05-28 | Compact status item length | Use an explicit 20pt `NSStatusItem` length for Mahu's icon-only tray control while keeping the `TrayIconTemplate` image at 18x18. | After fixing glyph bounds, the remaining visual imbalance came from the menu-bar slot width rather than the asset itself; tuning the status-item length reduces horizontal padding without degrading the template artwork or changing menu behavior. |
 | 2026-05-28 | Tray icon high-resolution crop | Regenerate `TrayIconTemplate` from the archive's high-resolution transparent source, crop to the visible glyph bounds, and downscale to 18x18/36x36 instead of editing the existing low-resolution tray PNGs. | The live menu-bar icon looked smaller than neighboring icons because the glyph did not fill enough of the template canvas; using the high-resolution archive source avoids compounding low-res artifacts while glyph-bound tests prevent future padded-mask regressions. |
@@ -185,6 +206,18 @@ Rationale: This is the smallest change that fixes icon drift without moving layo
 Consequences: Timer-mode rendering now depends on two width baselines: the outer frozen status-item length and the inner fixed-width title slot. Ordinary timer ticks do not shrink either baseline; explicit reset boundaries can recompute them.
 
 Alternatives Considered: Full monospace timer text was rejected because `monospacedDigitSystemFont` does not make `Paused`, colons, and different-length strings equal width. A custom status item view was rejected for this scope because it adds more AppKit surface area, maintenance cost, and native-behavior risk than the fixed-slot approach.
+
+**2026-06-10 / Settings window close commit**
+
+Context: The second review pass found a retained-window lifecycle bug in the shipped Settings presenter. `SettingsView` commits the break-overlay message draft on submit, focus loss, and `onDisappear`, but the reused AppKit `NSWindow` keeps its hosted SwiftUI hierarchy alive across ordinary close/reopen cycles. If the user leaves only whitespace in the field and closes the window, runtime and `config.json` are already normalized back to the default message while the stale draft text remains in memory and reappears on the next open.
+
+Decision: Make `SettingsWindowController` own the close-path commit by becoming the `NSWindowDelegate`, attaching itself to the retained window, and calling `SettingsViewModel.commitBreakOverlayMessageDraft()` from `windowWillClose(_:)`.
+
+Rationale: This is the smallest robust fix because the bug lives at the AppKit window-lifecycle boundary, not in timer logic or the SwiftUI form structure. Committing from the presenter keeps the single-window reuse architecture intact and stops relying on SwiftUI disappearance semantics that are not guaranteed for an `isReleasedWhenClosed = false` window.
+
+Consequences: Closing the Settings window now normalizes the visible draft back to the active runtime/config value before the next reopen, so the form no longer lies about a whitespace-only break message after close. Existing immediate-apply semantics for non-empty typing stay unchanged.
+
+Alternatives Considered: Rely only on `.onDisappear`; rejected because ordinary close does not reliably tear down the hosted view for the retained window. Move the draft-commit responsibility into a custom `NSHostingController`; rejected because the presenter already owns the relevant lifecycle boundary and the extra controller layer would add indirection without improving correctness.
 | 2026-05-21 | Break transition integrity | Stop delayed work ticks at the work-to-break boundary so Mahu never spends unseen break time before the overlay is visible. | A large main-run-loop delay could otherwise consume some or all of the rest phase before the user ever sees it, including the worst case where the break is skipped entirely. |
 | 2026-05-21 | Local build artifact | Add `make build` to produce `build/Mahu.app` while keeping Xcode intermediate files under ignored `build/DerivedData`. | Users need a predictable app path, but keeping Xcode cache/artifacts out of source control avoids polluting the repo and preserves standard `xcodebuild` behavior. |
 | 2026-05-21 | Overlay focus hardening plan | Plan focus retention as public-API bounce-back while the break overlay is active, not as global keyboard shortcut blocking. | This addresses accidental hidden-app input after `Cmd+Tab` without introducing Accessibility/Input Monitoring permissions or App Store-hostile input capture. |
@@ -221,6 +254,38 @@ Alternatives Considered: Full monospace timer text was rejected because `monospa
 | 2026-05-22 | Review lifecycle and focus docs fixes | Use `isolated deinit` for `@MainActor` teardown paths and narrow focus-retention docs to best-effort bounce-back only. | Ordinary `deinit` is not actor-isolated, and the current public-API focus bounce-back cannot guarantee zero leaked keystrokes after `Cmd+Tab`. |
 | 2026-05-22 | App icon asset catalog | Use a standard `Assets.xcassets/AppIcon.appiconset` generated from the root `icon.png` and wire it through the existing `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` setting. | App icons are a build-time bundle identity asset, so an asset catalog is the native Xcode path and avoids hand-maintaining `.icns` files. |
 | 2026-06-09 | Screen lock current-state provider | Add a dedicated `ScreenLockStateProvider` on top of `CGSessionCopyCurrentDictionary()`, treat observed `CGSSessionScreenIsLocked == true` or documented `kCGSessionOnConsoleKey == false` as away, and fail open to unlocked for nil/unusable dictionaries. | Ordinary lock state must be sampled before notification wiring exists, but startup should not get stuck in a false away state when the session dictionary is missing or contains unexpected values. |
+
+## 2026-06-10 / Settings SwiftUI View Binding
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI composition
+
+**Context:** Task 2 integrates the designed SwiftUI Settings form into the app target before the AppKit window presenter exists. The source design currently persists via `@AppStorage`, hard-disables Launch at Login for unsigned builds, and has no hook for Mahu's non-fatal `config.json` save warnings.
+
+**Decision:** Keep `SettingsView.swift` as a thin SwiftUI form that preserves the design's sections and labels, binds every control directly to `SettingsViewModel` actions/state, leaves Launch at Login enabled as a desired-state toggle with explanatory footer copy, and exposes a preview initializer backed by an in-memory `RuntimeSettingsStore`.
+
+**Rationale:** This preserves the agreed visual structure while avoiding a second persistence source, keeps save-failure behavior visible without adding AppKit coupling, and gives later tasks a ready-to-host SwiftUI surface for the reusable settings window.
+
+**Consequences:** The view remains intentionally dependent on view-model-provided copy and display strings, so future Settings copy changes should stay centralized in the model or a dedicated presentation seam. Preview/test construction stays disk-free, but it does not prove real AppKit window lifecycle behavior yet.
+
+**Alternatives Considered:** Keep `@AppStorage` just for the view; rejected because it would diverge from Mahu's launch-loaded `config.json` and in-process runtime store. Move all UI copy into the view as ad hoc literals; rejected because tests need stable view-facing state for warnings and footer behavior.
+
+## 2026-06-10 / Settings View-Model Persistence Seam
+
+**Date:** 2026-06-10
+
+**Area:** Settings runtime and persistence
+
+**Context:** The Settings window needs a model before any SwiftUI view or AppKit presenter can be integrated. Mahu already treats `RuntimeSettingsStore` as the in-process source of truth and `ConfigStore.save(_:)` as strict-JSON persistence, but the designed source view stores values in `@AppStorage` units that do not match `AppConfig` directly.
+
+**Decision:** Add a dedicated `SettingsViewModel` that maps `AppConfig` into UI-friendly work minutes, break seconds, and idle-away minutes, applies accepted edits to `RuntimeSettingsStore` first, then calls an injected config-save closure, and keeps save failures as UI-visible warnings without rolling runtime settings back.
+
+**Rationale:** This is the smallest seam that preserves Mahu's single runtime source of truth, keeps filesystem behavior out of the runtime store, and makes future SwiftUI bindings straightforward. Runtime-first application also matches the shipped requirement that settings changes take effect immediately even if writing `config.json` fails.
+
+**Consequences:** Settings edits can become active in-memory even when persistence fails, so the UI must surface that warning clearly. Legacy or hand-edited durations that do not match the UI step sizes are normalized into the shipped Settings ranges when mapped through the view-model.
+
+**Alternatives Considered:** Bind the future SwiftUI view directly to `ConfigStore`; rejected because it would bypass the runtime source of truth and couple view code to disk writes. Reuse `@AppStorage` from the design source; rejected because it would create a second settings store unrelated to Mahu's launch-loaded `config.json` contract.
 
 ## 2026-06-09 / Screen-Lock Documentation Contract Refresh
 
@@ -3119,3 +3184,115 @@ Alternatives Considered: Document session lock as just another `Away` source wit
 **Consequences:** The implementation should add focused Settings view-model/window/menu seams instead of expanding already-large coordinator files. README and AGENTS must move Settings UI out of deferred scope when the implementation ships. Launch at Login remains desired state in the UI; real registration still depends on a suitable Apple-signed app and macOS approval.
 
 **Alternatives Considered:** Use the source view unchanged with `@AppStorage`; rejected because it bypasses `RuntimeSettingsStore` and `ConfigStore`. Use a SwiftUI `Settings { ... }` scene first; rejected for this pass because dependency sharing with `AppDelegate`/`AppCoordinator` is riskier for the current menu-bar app. Implement both status-menu and `Cmd+,` entry points immediately; rejected as extra scope that can follow after the primary settings path is proven.
+
+## 2026-06-10 / Settings Review Fix Semantics v4
+
+**Date:** 2026-06-10
+
+**Area:** Settings review fixes
+
+**Context:** The next external review pass re-verified two shipped-contract regressions introduced by the v3 settings fix. First, using the clamped UI snapshot as the stored `currentSettings` base still rewrote untouched legacy timer values when the user changed an unrelated toggle. Second, moving persistence onto a background queue meant Settings no longer guaranteed immediate `config.json` writes before app termination.
+
+**Decision:** Keep the raw runtime `AppConfig` as the stored base for later Settings edits, derive clamped UI control values separately from that raw snapshot, and run the production Settings save dispatcher synchronously so `ConfigStore.save(_:)` completes before the user action returns.
+
+**Rationale:** This is the smallest fix that restores the README contract for manual config backward compatibility and the plan/README contract that Settings changes persist immediately, while still keeping the UI explicit about clamped display values through the existing normalization notice.
+
+**Consequences:** Unrelated Settings edits no longer rewrite hidden legacy duration or threshold values, the normalization warning remains truthful until the relevant control is actually edited, and quitting immediately after a change can no longer drop the last persisted config write. The tradeoff is that strict-JSON saves are back on the main action path; that remains acceptable for the current small config file but should be revisited only if persistence grows materially beyond today's bounded settings payload.
+
+**Alternatives Considered:** Keep the canonicalized save base from v3; rejected because it still mutates untouched manual config fields. Keep asynchronous persistence plus a termination flush; rejected because it still breaks the shipped "persist immediately" contract during ordinary interaction and adds lifecycle complexity for a tiny config write.
+
+## 2026-06-10 / Settings Startup Composition
+
+**Date:** 2026-06-10
+
+**Area:** App startup / Settings wiring
+
+**Context:** Task 5 of the settings-window integration plan needs the shipped Settings window, status-menu entry, and runtime coordinator to operate on the same launch-loaded settings instance. The existing code still let `AppCoordinator` create its own `RuntimeSettingsStore` from `loadConfig()`, and `AppDelegate` did not yet retain a settings presenter or wire the status-item Settings action.
+
+**Decision:** Move the Settings dependency composition into `AppDelegate`: create one `ConfigStore`, load startup config once, create one shared `RuntimeSettingsStore(initialSettings:)`, build the `SettingsViewModel` and retained `SettingsWindowController` from that shared store, configure the status-item Settings handler before coordinator startup, and inject the same runtime store into `AppCoordinator`.
+
+**Rationale:** `AppDelegate` is the existing composition root for this `LSUIElement` app, so it is the smallest safe place to wire shared startup dependencies without adding settings-window ownership to `AppCoordinator` or falling back to the disabled standard SwiftUI Settings scene. Sharing one runtime store preserves the single-source-of-truth contract and avoids silent config reload divergence between the UI and timer logic.
+
+**Consequences:** Startup tests can now prove that the Settings view model and coordinator receive the same runtime store instance without opening production UI. The Settings menu action remains AppKit-owned and window reuse stays independent from timer logic. `MahuApp.swift` keeps the standard Settings scene disabled until a future task explicitly adds a second entry point.
+
+**Alternatives Considered:** Let `AppCoordinator` continue loading config and create the settings presenter later; rejected because it would split ownership and make the shared-runtime-store guarantee harder to prove. Re-enable the standard SwiftUI `Settings` scene now; rejected because the plan still treats the status-item menu as the primary Settings entry for the menu-bar app.
+
+## 2026-06-10 / Settings Documentation Contract
+
+**Date:** 2026-06-10
+
+**Area:** README / AGENTS / shipped feature contract
+
+**Context:** Task 7 of the settings-window integration plan closes the documentation gap after the Settings window shipped. The repository docs still described Settings UI as deferred and described the runtime-settings foundation as future work, which no longer matched the app.
+
+**Decision:** Move the Settings window into shipped behavior in README and AGENTS, document `Settings…` as the status-menu entry point, keep `config.json` as the persistence/backward-compatibility layer, and explicitly describe Launch at Login as desired state that can still fail on unsigned or unapproved builds.
+
+**Rationale:** Future agents and humans rely on these files as product invariants. The smallest safe update is to align docs with the existing runtime-first Settings implementation while preserving the no-live-reload boundary and the best-effort Launch at Login caveat.
+
+**Consequences:** Documentation now points users toward the shipped Settings window for immediate runtime changes, while manual `config.json` edits remain relaunch-only compatibility behavior. Future changes must preserve the warning that Settings-window saves rewrite JSONC comments/trailing commas as strict JSON.
+
+**Alternatives Considered:** Leave docs unchanged until a broader UX pass; rejected because it would misstate shipped behavior. Describe Launch at Login as simply on/off; rejected because it hides macOS signing and approval constraints that still affect real registration.
+
+## 2026-06-10 / Settings Review Fix Semantics
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI / Runtime synchronization
+
+**Context:** External review found three real gaps in the shipped Settings window: UI-only clamping of legacy config values could leave runtime/file state different from what the user saw until the matching field was edited, `SettingsViewModel` used a stale local snapshot instead of observing the shared runtime store, and the live `TextField` binding normalized whitespace-only break messages back to the default text on every keystroke.
+
+**Decision:** Canonicalize the view-model's UI-backed `AppConfig` snapshot to the Settings control ranges before using it as the base for later saves, subscribe `SettingsViewModel` to `RuntimeSettingsStore` updates so later edits build on the latest shared settings, and change the break-message field to keep a draft string during editing and commit normalization only when editing ends.
+
+**Rationale:** This keeps the Settings UI and later saves aligned with the control contract without rewriting legacy config values just from opening the window, preserves the single in-process source-of-truth promise for future runtime writers, and removes the user-visible fight where clearing the text field immediately reinserted the default message.
+
+**Consequences:** The next Settings-window save now rounds or clamps any legacy out-of-range UI-backed values that are still present in memory, external runtime changes refresh the open Settings window, and break-message persistence shifts from every keystroke to edit-completion boundaries such as submit, focus loss, or window close. Full runtime immediacy still applies to the other toggle and stepper controls.
+
+**Alternatives Considered:** Preserve raw legacy values on unrelated saves; rejected because it leaves the UI showing values that are not actually what the next save will keep. Keep live normalization in the `TextField`; rejected because it makes ordinary text replacement frustrating and unpredictable. Rewrite runtime settings immediately when the window opens; rejected because simply opening Settings should not restart timers or change behavior without a user edit.
+
+## 2026-06-10 / Settings Review Fix Semantics V2
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI / Runtime synchronization
+
+**Context:** The next review pass confirmed two remaining shipped-contract bugs in the Settings window. First, storing a canonicalized `AppConfig` snapshot inside `SettingsViewModel` still let unrelated edits rewrite manual `config.json` values that the UI could not express exactly. Second, moving the break-overlay message to a draft-only commit path fixed the whitespace-editing UX but broke the stated requirement that Settings changes apply and persist immediately.
+
+**Decision:** Keep the raw runtime `AppConfig` as the base for all later saves, derive clamped UI display values from that raw config without rewriting untouched fields, and make `updateBreakOverlayMessageDraft(_:)` push normalized message changes through the runtime-first save path immediately while still preserving the user's typed draft text locally until edit completion. Also relax the save-failure warning so it does not falsely promise that every change disappears on quit when a system-integrated setting like Launch at Login may already have been synchronized.
+
+**Rationale:** This is the smallest change that restores the published backward-compatibility contract for manual config edits and the immediate-apply contract for the shipped Settings window without reintroducing the old text-field fight where clearing the message instantly reinserted the default title into the control.
+
+**Consequences:** Unrelated Settings toggles no longer restart timers or rewrite legacy duration values just because the UI shows a clamped representation. Break-overlay message changes now reach `RuntimeSettingsStore` and `config.json` as the user types, but whitespace-only drafts can still stay visible in the field until focus leaves or the window closes. Save-failure copy is more honest about the Launch-at-Login side effect boundary.
+
+**Alternatives Considered:** Keep canonicalized settings as the save base; rejected because it still mutates untouched manual config fields on unrelated edits. Keep draft-only break-message commits; rejected because it violates the feature's immediate runtime/persistence requirement. Revert to direct live binding without draft preservation; rejected because whitespace replacement becomes frustrating and unpredictable again.
+
+## 2026-06-10 / Settings Review Fix Semantics v3
+
+**Date:** 2026-06-10
+
+**Area:** Settings review fixes
+
+**Context:** A second external review pass found three real risks in the shipped Settings flow: out-of-range manual timer values could stay active behind a clamped UI and survive unrelated saves, save-failure warnings were not guaranteed to remain reachable after the window opened, and per-edit `ConfigStore.save(_:)` calls were still running synchronously on `@MainActor`.
+
+**Decision:** Keep the UI display clamped to supported ranges, but use that clamped state as the base for later Settings edits, show an explicit warning when launch-loaded timer values were normalized for editing, make the Settings form/window scrollable-resizable for late warnings, and dispatch config persistence onto a background queue while preserving immediate runtime-store updates.
+
+**Rationale:** This is the smallest change that makes the Settings window truthful about legacy values without mutating timers merely by opening the window, guarantees warning access without adding brittle window-resize observation, and removes a real UI/timer hitch risk from synchronous disk writes on the main actor.
+
+**Consequences:** Manual `config.json` timer values outside the Settings ranges remain active until the user changes something in the Settings window, at which point Mahu persists supported values and removes the normalization warning. Save warnings may now appear one turn later because disk persistence completes asynchronously, but runtime behavior still updates immediately.
+
+**Alternatives Considered:** Canonicalize runtime settings as soon as the window opens; rejected because simply viewing Settings could reset an active timer. Preserve raw legacy values indefinitely while keeping the clamped UI; rejected because it leaves the window lying about actual runtime state during unrelated edits. Keep synchronous saves and only trim the break-message path; rejected because the same strict-JSON write path is shared across settings and still blocks the menu-bar app.
+
+## 2026-06-10 / Settings Normalization Warning Contract
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI documentation / Legacy config compatibility
+
+**Context:** The next review pass re-verified that `SettingsViewModel` intentionally preserves unsupported raw timer values during unrelated Settings edits, while the shipped warning copy and one README summary bullet still claimed that any next Settings change would write supported values back immediately.
+
+**Decision:** Keep the preserve-raw behavior for untouched controls, but rewrite the normalization warning and README summary so they explicitly state that the current runtime/config keep each raw value until the user edits that specific control, and only that control is then saved back using the supported UI range or step.
+
+**Rationale:** This is the smallest truthful fix: it preserves the already-documented backward-compatibility contract for manual config edits without reopening the save-base/runtime policy debate during a review-only pass, and it removes a direct user-facing contradiction between the UI, README, and tested behavior.
+
+**Consequences:** Opening Settings on a legacy config remains non-destructive, the visible warning now matches the actual runtime/persistence semantics, and future review passes can judge the preserve-raw policy on its own merits instead of through stale copy. No timer or persistence behavior changes in this patch.
+
+**Alternatives Considered:** Canonicalize all UI-backed timer values on any successful Settings save; rejected for this pass because it would reopen the deliberate backward-compatibility tradeoff and broaden the fix beyond the verified contradiction. Keep the old warning text; rejected because it is materially false for shipped behavior and already contradicted the README's detailed config section.

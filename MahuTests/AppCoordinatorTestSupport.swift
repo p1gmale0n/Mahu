@@ -365,6 +365,7 @@ final class FakeStatusItemController: StatusItemControlling {
     private(set) var renderedTimerTexts: [String] = []
     private(set) var pauseRemindersHandler: (() -> Void)?
     private(set) var resumeRemindersHandler: (() -> Void)?
+    private(set) var showSettingsHandler: (() -> Void)?
     private(set) var clearTimerDisplayBaselinesCallCount = 0
     private(set) var resetTimerDisplayBaselinesCallCount = 0
 
@@ -380,6 +381,10 @@ final class FakeStatusItemController: StatusItemControlling {
         configureReminderActionsCallCount += 1
         pauseRemindersHandler = onPause
         resumeRemindersHandler = onResume
+    }
+
+    func configureSettingsAction(_ onShowSettings: @escaping () -> Void) {
+        showSettingsHandler = onShowSettings
     }
 
     func setRemindersPaused(_ paused: Bool) {

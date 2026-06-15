@@ -50,19 +50,19 @@ final class StatusItemBehaviorRegressionTests: XCTestCase {
         let button = try XCTUnwrap(statusItem.button)
         let activeWidth = statusItem.length
         XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  05:00")
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
 
         try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
 
         let pausedWidth = statusItem.length
         XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  Paused")
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Settings…", "Quit"])
         XCTAssertEqual(pausedWidth, activeWidth, accuracy: 0.001)
 
         try invokeMenuItem(named: "Resume Reminders", in: statusItem.menu)
 
         XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  05:00")
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
         XCTAssertEqual(statusItem.length, activeWidth, accuracy: 0.001)
     }
 

@@ -28,7 +28,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(button.title, "")
         XCTAssertEqual(button.imagePosition, .imageOnly)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
     }
 
     func testIconOnlyModeIgnoresTimerStateUpdatesAfterInstall() throws {
@@ -149,7 +149,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(button.attributedTitle.attribute(.font, at: 2, effectiveRange: nil) as? NSFont, timerDisplayFont())
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertTrue(try XCTUnwrap(button.image) === providedIcon)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
     }
 
     func testTimerModeDegradesPredictablyWhenNoStatusIconIsAvailableAcrossPauseTransitions() throws {
@@ -173,7 +173,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertGreaterThan(statusItem.length, NSStatusItem.squareLength)
         XCTAssertEqual(visibleTimerTitle(from: button.attributedTitle), "  00:10")
         XCTAssertEqual(button.imagePosition, .imageLeading)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
 
         controller.setRemindersPaused(true)
 
@@ -183,7 +183,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(visibleTimerTitle(from: pausedButton.attributedTitle), "  Paused")
         XCTAssertEqual(statusItem.length, countdownWidth, accuracy: 0.001)
         XCTAssertGreaterThanOrEqual(statusItem.length, naturalPausedWidth)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Settings…", "Quit"])
     }
 
     func testTimerModeUsesStableWidthDigitPresentationAcrossCountdownChanges() throws {
@@ -263,7 +263,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertNotEqual(try XCTUnwrap(button.image?.tiffRepresentation), normalImageData)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Settings…", "Quit"])
     }
 
     func testPausedWorkStateExpandsPastNarrowCountdownWidthAndPreservesReadableMenuBarContent() throws {
@@ -287,7 +287,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         let countdownImageData = try XCTUnwrap(countdownButton.image?.tiffRepresentation)
 
         XCTAssertEqual(visibleTimerTitle(from: countdownButton.attributedTitle), "  00:10")
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
 
         controller.setRemindersPaused(true)
 
@@ -298,7 +298,7 @@ final class StatusItemTimerDisplayTests: XCTestCase {
         XCTAssertEqual(visibleTimerTitle(from: pausedButton.attributedTitle), "  Paused")
         XCTAssertEqual(pausedWidth, countdownWidth, accuracy: 0.001, "Paused should reuse the pre-reserved title slot width")
         XCTAssertGreaterThanOrEqual(pausedWidth, naturalPausedWidth)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Settings…", "Quit"])
         XCTAssertEqual(pausedButton.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertNotEqual(try XCTUnwrap(pausedButton.image?.tiffRepresentation), countdownImageData)
     }

@@ -1,5 +1,41 @@
 # Session Handoff
 
+## 2026-06-10 / Settings Window Second Review Pass Close-Path Fix
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat the only verified major finding as an AppKit lifecycle bug in the retained Settings window, and commit the break-overlay message draft from `SettingsWindowController` on window close instead of relying on SwiftUI `onDisappear`/focus hooks alone. Reject the other agent findings as documented tradeoffs or intentional behavior, not new major defects.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/SettingsWindowControllerTests -only-testing:MahuTests/SettingsViewModelTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n '(^lint:|swiftlint|make lint)' Makefile README.md docs -S` (history/docs mentions only; no repo-owned lint target).
+- Friction/CDD: The review gate still asks for lint proof, but this repo still has no tracked lint target and `swiftlint` is not installed here, so deterministic evidence remains XCTest/build/package plus diff hygiene. The retained-window close path was also under-tested compared with submit/focus-loss paths, so the bug survived until a review explicitly reasoned about AppKit reuse semantics.
+- Next Steps: Let the external review loop rerun from the next fix commit; if lint remains mandatory, add a repo-owned lint target or install `swiftlint` in the environment; keep manual menu-bar/window behavior checks explicit because this pass tightened only the deterministic close-path state sync.
+
+## 2026-06-10 / Settings Window Second Review Pass Contract Clarification
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Keep the already-tested preserve-raw legacy timer behavior for untouched Settings controls, and fix the shipped warning/README contract so they explicitly say the raw runtime/config value stays active until the matching control is edited.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n '(^lint:|swiftlint|make lint)' Makefile README.md docs -S` (no repo-owned lint target found).
+- Friction/CDD: The review gate still implies lint proof, but this repo still has neither a tracked lint target nor an installed `swiftlint`, so reproducible evidence remains XCTest plus diff hygiene. The branch-level Settings review scope also keeps reopening the same legacy-value tradeoff from different angles, so truthful UI/doc copy is carrying part of the product contract that code alone does not make obvious.
+- Next Steps: Let the external review loop rerun from the new fix commit; if lint remains mandatory, add a repo-owned lint target or install `swiftlint` in the environment; if product wants stronger legacy-value UX later, decide separately whether to canonicalize on broader saves or expose raw unsupported values more explicitly in the window.
+
+## 2026-06-10 / Settings Window Second Review Pass Follow-Up Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Restore the raw runtime `AppConfig` snapshot as the base for unrelated Settings edits so legacy manual config values survive until their own controls are edited, keep the normalization warning truthful across no-op break-message commits, and move production `config.json` persistence back onto the synchronous Settings action path so "persist immediately" stays true even if the user quits right after a change.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/SettingsViewModelTests -only-testing:MahuTests/SettingsRuntimeIntegrationTests -only-testing:MahuTests/AppDelegateCompositionTests -only-testing:MahuTests/SettingsWindowControllerTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n '(^lint:|swiftlint|make lint)' Makefile README.md docs -S` (history/docs mentions only; no repo-owned lint target).
+- Friction/CDD: The review gate still implies lint proof, but the repo still has no runnable lint target and `swiftlint` is not installed here, so deterministic evidence remains XCTest/build/package plus diff hygiene. The branch-level review scope also keeps revisiting the same Settings semantics from different angles, so durable decision notes are carrying more of the truth than the commit history alone.
+- Next Steps: Let the external review loop rerun from the next fix commit; if lint remains mandatory, add a repo-owned lint target or install `swiftlint` in the environment; keep manual menu-bar/window behavior and signed Launch-at-Login checks explicit because this pass only tightened deterministic Settings/runtime semantics.
+
+## 2026-06-10 / Settings Window Second Review Pass
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Treat the verified second-pass findings as three local fixes: canonicalize future Settings edits against the UI-supported timer snapshot while surfacing a visible normalization warning for out-of-range manual config, keep late warning content reachable by allowing a resizable/scrollable Settings window, and move strict-JSON persistence off the main thread while keeping runtime-store updates immediate. Also close the pre-existing `LiveSleepWakeObservationRegistrarTests` async-lock warning by replacing `NSLock` usage with a serial queue.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/SettingsViewModelTests -only-testing:MahuTests/SettingsRuntimeIntegrationTests -only-testing:MahuTests/SettingsWindowControllerTests -only-testing:MahuTests/AppDelegateCompositionTests -only-testing:MahuTests/StatusItemControllerTests -only-testing:MahuTests/StatusItemMenuAcceptanceTests -only-testing:MahuTests/LiveSleepWakeObservationRegistrarTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n '(^lint:|swiftlint|make lint)' Makefile README.md docs -S` (no repo-owned lint target found).
+- Friction/CDD: `docs/decisions.md` now mixes an index table with long-form entries later in the file, so appending new decisions safely requires extra care and is easy to place in the wrong structural region. The repo still lacks a tracked lint command, so the review gate can only be closed with XCTest/build proof plus explicit note of missing lint tooling.
+- Next Steps: Let the external review loop re-run from the fix commit; if lint remains mandatory, add a repo-owned lint command or provision `swiftlint` in the execution environment; keep real menu-bar/window behavior and Launch-at-Login behavior manual on signed hardware builds.
+
 ## 2026-06-03 / Sleep/Wake Plan Close-Out Task 9
 
 🏁 Session Handoff:
@@ -395,6 +431,24 @@
 - Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; attempted `command -v swiftlint` and the command is not available in this environment.
 - Friction/CDD: The review gate still implies lint evidence, but the repo still has no tracked lint command and `swiftlint` is unavailable here, so this pass can only prove build/test/package status. SwiftUI hosted inspection on macOS also remains awkward enough that truthful UI regression coverage was easier to achieve by simplifying the overlay layout than by traversing `NSHostingView` subviews that do not expose rendered text/buttons reliably.
 - Next Steps: Let the external review loop run again from this fix commit; if lint remains part of the gate, add a repo-owned lint command or provide `swiftlint` in the environment; keep manual hardware checks open for fullscreen Spaces, external-display behavior, and audible output characteristics of the bundled CAF clip.
+
+## 2026-06-10 / Settings Window Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Canonicalize UI-backed settings inside `SettingsViewModel` before later saves so legacy out-of-range config values no longer survive hidden behind unrelated edits; subscribe the view model to shared runtime-settings updates so later edits build on fresh state instead of a stale snapshot; stop normalizing the break-overlay message on every keystroke by keeping a draft string in the view and committing it on submit, focus loss, or window close; strengthen settings-focused tests for rejected runtime updates, warning recovery, external runtime updates, legacy-value canonicalization, and deminiaturized window reopen; update README so Launch at Login runtime sync and Settings-window value clamping match shipped behavior.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/SettingsViewModelTests -only-testing:MahuTests/SettingsWindowControllerTests -only-testing:MahuTests/AppDelegateCompositionTests -only-testing:MahuTests/SettingsRuntimeIntegrationTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n '(^lint:|swiftlint|make lint)' Makefile README.md docs -S` (no repo-owned lint target found).
+- Friction/CDD: The review gate still expects lint evidence, but the repo still has neither a tracked lint command nor an installed `swiftlint`, so deterministic proof remains XCTest/build/package plus diff hygiene. The full `main...HEAD` review scope also keeps surfacing branch-wide maintainability feedback that is partly subjective, so each report still needs explicit code-level confirmation before it becomes a safe fix.
+- Next Steps: Let the external review loop rerun from the new fix commit; if lint remains mandatory, add a repo-owned lint command or provision `swiftlint` in the execution environment; keep manual menu-bar and real-window behavior checks explicit because this pass only strengthened deterministic runtime/test coverage.
+
+## 2026-06-10 / Settings Window Second Review Fixes
+
+🏁 Session Handoff:
+- Status: Done
+- Key Decisions: Reverse the earlier canonicalize-on-save behavior so untouched manual config values remain the raw save base even when the Settings UI must display a clamped representation; make break-overlay message edits flow through runtime settings and `config.json` immediately on typing while still preserving a local draft so whitespace replacement does not fight the text field; soften the save-failure copy because Launch at Login may already have changed outside the app process even when config persistence fails.
+- Validation: `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO -only-testing:MahuTests/SettingsViewModelTests -only-testing:MahuTests/SettingsRuntimeIntegrationTests -only-testing:MahuTests/AppDelegateCompositionTests -only-testing:MahuTests/SettingsWindowControllerTests`; `xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `xcodebuild build -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO`; `make build`; `git diff --check`; `command -v swiftlint` (not installed); `rg -n '(^lint:|swiftlint|make lint)' Makefile README.md docs -S` (no repo-owned lint target found).
+- Friction/CDD: The branch-level review scope keeps mixing concrete shipped-contract defects with subjective maintainability feedback, so this pass intentionally narrows fixes to verified runtime/documentation mismatches only. The repo still lacks a tracked lint command, which means the "lint must pass" gate cannot be proven deterministically from repository-owned tooling.
+- Next Steps: Let the external review loop rerun from the new fix commit; if lint stays mandatory, add a repo-owned lint target or install `swiftlint` in the environment; keep manual menu-bar and real-window behavior checks explicit because this pass only tightened deterministic Settings contracts.
 
 ## 2026-06-03 / Sleep/Wake Review No-Issue Closure
 

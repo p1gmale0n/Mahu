@@ -23,7 +23,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 ## Current Behavior
 
 - Menu-bar-only app with `LSUIElement = true`.
-- Status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text, with `Paused` shown only while reminders are paused during work, `Away` shown only while session-lock suppression or enabled idle-away suppression is active, and timer-mode width pinned to the widest observed title so the icon does not drift horizontally across countdown updates or `MM:SS -> Paused/Away -> MM:SS` transitions.
+- Status item defaults to icon-only with a menu containing `Settings…`, `Pause Reminders` / `Resume Reminders`, and `Quit`; optional config can switch it to the same icon plus `MM:SS` timer text, with `Paused` shown only while reminders are paused during work, `Away` shown only while session-lock suppression or enabled idle-away suppression is active, and timer-mode width pinned to the widest observed title so the icon does not drift horizontally across countdown updates or `MM:SS -> Paused/Away -> MM:SS` transitions.
 - The status item icon uses bundled app artwork through the tray-optimized `TrayIconTemplate` asset: a transparent, glyph-only template silhouette derived from the app icon motif, with a copied/resized compiled app icon as a runtime fallback if the tray asset cannot be loaded.
 - Work timer starts automatically on launch.
 - Choosing `Pause Reminders` disables automatic work-timer progress during the work phase and prevents new break overlays from starting until reminders are resumed.
@@ -37,7 +37,7 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - `NSWorkspace` session-active notifications remain part of the lifecycle model, but they represent user-session switching or similar session-active transitions rather than the whole ordinary Lock Screen path; when they do fire, they feed the same away/active reconciliation path as screen lock.
 - While the Mac stays awake, idle-away reset is disabled by default. When `idleAwayResetEnabled` is `true`, user idle time below the configured threshold preserves the current work or break countdown, while idle time at or above `idleAwayResetThresholdSeconds` is treated as away/rest time with the same phase semantics as long sleep: active work resets to a fresh full work interval from current runtime settings, repeated ticks in the same away episode suppress elapsed consumption, optional tray-timer mode shows `Away` during that suppression, paused reminders stay paused until resumed, and active breaks close silently into a fresh work interval without playing the completion sound.
 - Config is loaded from `~/Library/Application Support/Mahu/config.json`.
-- `launchAtLoginEnabled` defaults to `false`; on the next launch, `true` requests main-app Login Item registration through `SMAppService.mainApp`, while `false` requests unregister/removal when the Login Item is currently enabled or pending approval and otherwise no-ops. If macOS still requires approval or registration/unregistration fails, Mahu logs a non-fatal warning and keeps running.
+- `launchAtLoginEnabled` defaults to `false`; on launch Mahu seeds desired state from `config.json`, and changing it in `Settings…` also triggers the same runtime sync path immediately. `true` requests main-app Login Item registration through `SMAppService.mainApp`, while `false` requests unregister/removal when the Login Item is currently enabled or pending approval and otherwise no-ops. If macOS still requires approval or registration/unregistration fails, Mahu logs a non-fatal warning and keeps running.
 - Missing config creates a default config file and continues running.
 - Invalid JSON or unsupported config durations, including values below 1 second, values that exceed one-second `TimeInterval` precision, or non-finite values, fall back to defaults and continue running.
 - On load, `config.json` also tolerates JSONC-style `//` comments, `/* ... */` block comments, and trailing commas before `}` or `]`, but Mahu still writes strict JSON when it creates or saves config files.
@@ -52,8 +52,10 @@ Mahu is a native macOS break-reminder app. It runs as a menu-bar-only app, start
 - When a visible break ends naturally, Mahu plays bundled `break-completion.caf` once through an AVFoundation-backed player so the user can return attention without watching the screen.
 - Pressing `Skip` closes the break without playing the completion sound.
 - Mahu keeps a single in-process runtime settings source of truth initialized from launch-loaded config.
+- Mahu ships a `Settings…` window opened from the status menu; it applies changes to the shared runtime settings first and then persists them immediately back to `config.json` as strict JSON.
+- If `config.json` contains timer values outside the Settings UI ranges, the window shows the nearest supported values, warns that the underlying raw values stay active until you edit the affected control, and then saves that control back using the supported UI range and step.
+- Config-save failures from the Settings window are non-fatal: Mahu keeps the new in-app runtime settings active and shows a warning in the Settings UI instead of rolling the change back, but system-integrated settings such as Launch at Login may already have taken effect.
 - Live config reload is out of scope; editing `config.json` while Mahu is running does not change timers or UI until the next launch.
-- A future Settings UI should update runtime settings first and persist through `config.json`; manual JSON edits remain the compatibility/persistence layer, not a live control surface.
 
 ## Project Structure
 
@@ -111,12 +113,14 @@ Notes:
 - Screen-lock suppression is always on and does not add a config key; ordinary Lock Screen uses an isolated best-effort observer for distributed lock/unlock notifications plus current-state/startup sampling, while `NSWorkspace` session active/inactive notifications remain the session-switch path and HID idle duration remains reserved for the optional idle-away feature.
 - `idleAwayResetThresholdSeconds` defaults to `300`; set it to any positive finite number of seconds if you enable idle-away reset and want a threshold other than 5 minutes. Mahu evaluates the threshold on its normal 1-second timer tick, so subsecond values still take effect on the next tick after the idle duration crosses the configured value.
 - `breakOverlayMessageText` defaults to `Время отвлечься`; omit it to keep backward-compatible behavior, or set it to any non-empty Unicode string to change the break title.
-- `launchAtLoginEnabled` defaults to `false`; set it to `true` to request Launch at Login for the main app on the next launch, or leave/set it to `false` to request unregister/removal on the next launch when a Login Item is currently present.
+- `launchAtLoginEnabled` defaults to `false`; set it to `true` in `config.json` or the Settings window to request Launch at Login for the main app on the next launch/runtime update, or leave/set it to `false` to request unregister/removal when a Login Item is currently present.
 - Empty or whitespace-only `breakOverlayMessageText` values normalize back to the default title, while `null` or non-string values make Mahu fall back to the full default config like other malformed config edits.
 - Non-positive, `null`, non-numeric, or non-finite `idleAwayResetThresholdSeconds` values are treated as invalid and fall back to the safe default config behavior rather than creating a partial override.
 - `config.json` is read at launch to seed Mahu's runtime settings and launch-at-login desired state. Editing the file while the app is already running does not apply changes immediately because Mahu intentionally has no file watcher or implicit reload loop; relaunch Mahu after manual config changes.
-- Manual edits may include JSONC-style comments and trailing commas on read, but Mahu-created files remain strict JSON and future app-driven saves remove those comments/trailing commas.
-- Runtime-only updates inside the app should target the shared in-process settings source first and persist back to `config.json`; this foundation exists for a future Settings UI even though no Settings window ships yet.
+- Manual edits may include JSONC-style comments and trailing commas on read, but Mahu-created files and Settings-window saves remain strict JSON and remove those comments/trailing commas on write.
+- The Settings window updates the shared in-process runtime settings source immediately; manual JSON edits remain the persistence/backward-compatibility layer, not a live control surface.
+- The Settings window edits work duration in whole minutes from `1...180`, break duration in 5-second steps from `5...600`, and idle-away threshold in whole minutes from `1...240`. If an existing config value sits outside those UI bounds or between the supported break-duration steps, the Settings window shows the nearest supported UI value for that control but preserves the raw config value until you edit that specific control; after you do, the saved value follows the supported UI range and step.
+- Launch at Login in the Settings window is still desired state only: unsigned, ad-hoc, or otherwise unapproved builds may fail to register, and Mahu surfaces that as a non-fatal warning rather than guaranteed success.
 - Config durations must be finite values from 1 second up to 9,007,199,254,740,992 seconds; zero, negative, subsecond, larger, or non-finite values are treated as invalid and fall back to defaults so the timer keeps one-second precision.
 - Mahu reads `config.json` only when the managed `~/Library/Application Support/Mahu` path itself is a real directory and the configured `config.json` path is a regular file or a symlink resolving to one. Directories, pipes, broken symlinks, symlinked `Mahu` directories, unreadable targets, and files larger than 64 KiB are ignored, and Mahu falls back to the default schedule.
 - Use shorter values locally if you want to manually exercise the overlay flow faster.
@@ -153,7 +157,6 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 
 ## Deferred Features
 
-- Settings UI.
 - Manual start-break menu action.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
 - Multi-display and fullscreen Spaces hardening.
@@ -161,7 +164,11 @@ The shared `Mahu` test scheme sets `MAHU_DISABLE_APP_COORDINATOR_STARTUP=1`. If 
 ## Manual Checks
 
 - Confirm the app has no Dock icon.
-- With default or missing `showStatusItemTimerState`, confirm the status item stays icon-only and initially shows `Pause Reminders` plus `Quit`.
+- Confirm the status menu contains `Settings…`, `Pause Reminders` or `Resume Reminders`, and `Quit`.
+- Open `Settings…` and confirm the window layout roughly matches `source-assets/settings.png` while using the shipped controls and copy.
+- Change a setting in the Settings window and confirm it applies immediately without relaunch.
+- Force or simulate a config-save failure only if practical and confirm Mahu keeps the changed runtime behavior while the Settings window shows a non-fatal warning.
+- With default or missing `showStatusItemTimerState`, confirm the status item stays icon-only.
 - With `"showStatusItemTimerState": true`, confirm the menu bar shows the same tray icon plus `MM:SS` during work and break countdowns.
 - With `"showStatusItemTimerState": true`, confirm native `NSStatusItem` width, truncation, and spacing remain acceptable in live menu-bar rendering, including countdown digit-boundary changes such as `100:00 -> 99:59` and work-phase `MM:SS -> Paused -> MM:SS` transitions; XCTest verifies controller state but not the real system layout.
 - Choose `Pause Reminders`, then confirm the menu changes to `Resume Reminders`, the tray icon visibly dims without looking disabled, and no break overlay appears once the previously running work interval would have elapsed.

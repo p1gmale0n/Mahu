@@ -92,6 +92,15 @@
 			A000000000000000000000EA /* AppCoordinatorScreenLockAwayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000EB /* AppCoordinatorScreenLockAwayTests.swift */; };
 			A000000000000000000000EC /* AppCoordinatorScreenLockBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000ED /* AppCoordinatorScreenLockBoundaryTests.swift */; };
 			A000000000000000000000EE /* UserAwayActivityObservationStartupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000EF /* UserAwayActivityObservationStartupTests.swift */; };
+			A000000000000000000000F1 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F0 /* SettingsViewModel.swift */; };
+			A000000000000000000000F3 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F2 /* SettingsViewModelTests.swift */; };
+			A000000000000000000000F5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F4 /* SettingsView.swift */; };
+			A000000000000000000000F7 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F6 /* SettingsWindowController.swift */; };
+			A000000000000000000000F9 /* SettingsWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F8 /* SettingsWindowControllerTests.swift */; };
+			A000000000000000000000FE /* AppDelegateCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000FD /* AppDelegateCompositionTests.swift */; };
+			A000000000000000000000FC /* StatusItemMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000FB /* StatusItemMenu.swift */; };
+			A00000000000000000000111 /* SettingsRuntimeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000110 /* SettingsRuntimeIntegrationTests.swift */; };
+			A00000000000000000000112 /* AppConfig+SettingsEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000113 /* AppConfig+SettingsEditing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -193,6 +202,15 @@
 			A000000000000000000000EB /* AppCoordinatorScreenLockAwayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorScreenLockAwayTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000ED /* AppCoordinatorScreenLockBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorScreenLockBoundaryTests.swift; sourceTree = "<group>"; };
 			A000000000000000000000EF /* UserAwayActivityObservationStartupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAwayActivityObservationStartupTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000F0 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+			A000000000000000000000F2 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000F4 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+			A000000000000000000000F6 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+			A000000000000000000000F8 /* SettingsWindowControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowControllerTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000FD /* AppDelegateCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateCompositionTests.swift; sourceTree = "<group>"; };
+			A000000000000000000000FB /* StatusItemMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemMenu.swift; sourceTree = "<group>"; };
+			A00000000000000000000110 /* SettingsRuntimeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRuntimeIntegrationTests.swift; sourceTree = "<group>"; };
+			A00000000000000000000113 /* AppConfig+SettingsEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppConfig+SettingsEditing.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -243,7 +261,12 @@
 				A000000000000000000000C9 /* UserIdleTimeProvider.swift */,
 				A00000000000000000000056 /* BreakCompletionSoundPlayer.swift */,
 				A00000000000000000000008 /* AppConfig.swift */,
+				A00000000000000000000113 /* AppConfig+SettingsEditing.swift */,
 				A00000000000000000000009 /* ConfigStore.swift */,
+				A000000000000000000000F0 /* SettingsViewModel.swift */,
+				A000000000000000000000F4 /* SettingsView.swift */,
+				A000000000000000000000F6 /* SettingsWindowController.swift */,
+				A000000000000000000000FB /* StatusItemMenu.swift */,
 				A000000000000000000000BD /* ConfigJSONPreprocessor.swift */,
 				A00000000000000000000095 /* StatusDisplayFormatter.swift */,
 				A0000000000000000000000B /* BreakTimer.swift */,
@@ -290,9 +313,13 @@
 					A000000000000000000000BB /* ConfigStoreJSONCTests.swift */,
 					A000000000000000000000BF /* ConfigStoreJSONCEdgeCaseTests.swift */,
 					A0000000000000000000005E /* ConfigStoreSizeLimitTests.swift */,
-					A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
-					A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
-				A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */,
+				A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
+				A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
+				A000000000000000000000F2 /* SettingsViewModelTests.swift */,
+				A00000000000000000000110 /* SettingsRuntimeIntegrationTests.swift */,
+				A000000000000000000000F8 /* SettingsWindowControllerTests.swift */,
+				A000000000000000000000FD /* AppDelegateCompositionTests.swift */,
+			A000000000000000000000B6 /* LaunchAtLoginControllerTests.swift */,
 				A000000000000000000000B2 /* LaunchAtLoginSettingsStoreTests.swift */,
 				A000000000000000000000B8 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift */,
 					A000000000000000000000A8 /* FakeSleepWakeObserverRegistrarTests.swift */,
@@ -466,7 +493,12 @@
 				A000000000000000000000C8 /* UserIdleTimeProvider.swift in Sources */,
 				A00000000000000000000055 /* BreakCompletionSoundPlayer.swift in Sources */,
 				A00000000000000000000024 /* AppConfig.swift in Sources */,
+				A00000000000000000000112 /* AppConfig+SettingsEditing.swift in Sources */,
 				A00000000000000000000025 /* ConfigStore.swift in Sources */,
+				A000000000000000000000F1 /* SettingsViewModel.swift in Sources */,
+				A000000000000000000000F5 /* SettingsView.swift in Sources */,
+				A000000000000000000000F7 /* SettingsWindowController.swift in Sources */,
+				A000000000000000000000FC /* StatusItemMenu.swift in Sources */,
 				A000000000000000000000BC /* ConfigJSONPreprocessor.swift in Sources */,
 				A00000000000000000000094 /* StatusDisplayFormatter.swift in Sources */,
 				A00000000000000000000027 /* BreakTimer.swift in Sources */,
@@ -501,9 +533,13 @@
 					A000000000000000000000BA /* ConfigStoreJSONCTests.swift in Sources */,
 					A000000000000000000000BE /* ConfigStoreJSONCEdgeCaseTests.swift in Sources */,
 					A0000000000000000000005D /* ConfigStoreSizeLimitTests.swift in Sources */,
-					A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
-					A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
-				A000000000000000000000B7 /* LaunchAtLoginControllerTests.swift in Sources */,
+				A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
+				A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
+				A000000000000000000000F3 /* SettingsViewModelTests.swift in Sources */,
+				A00000000000000000000111 /* SettingsRuntimeIntegrationTests.swift in Sources */,
+				A000000000000000000000F9 /* SettingsWindowControllerTests.swift in Sources */,
+				A000000000000000000000FE /* AppDelegateCompositionTests.swift in Sources */,
+			A000000000000000000000B7 /* LaunchAtLoginControllerTests.swift in Sources */,
 				A000000000000000000000B3 /* LaunchAtLoginSettingsStoreTests.swift in Sources */,
 				A000000000000000000000B9 /* AppCoordinatorLaunchAtLoginRuntimeSettingsTests.swift in Sources */,
 					A000000000000000000000A9 /* FakeSleepWakeObserverRegistrarTests.swift in Sources */,

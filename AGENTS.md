@@ -18,7 +18,7 @@
 - Run as a menu-bar app with no Dock icon: set `LSUIElement = true` and control it through an `NSStatusItem`.
 - Prefer a standard modern Xcode macOS app target with SwiftUI app lifecycle; use AppKit interop for status-item and overlay-window behavior.
 - MVP default schedule is 20-20-20: 20 minutes of work, then a 20-second break.
-- MVP status item defaults to icon-only with a menu containing `Pause Reminders` / `Resume Reminders` and `Quit`; optional config may show the same icon plus `MM:SS` for active work/rest timers, `Paused` while reminders are paused, or `Away` while session-lock suppression or enabled idle-away suppression is active.
+- MVP status item defaults to icon-only with a menu containing `Settings…`, `Pause Reminders` / `Resume Reminders`, and `Quit`; optional config may show the same icon plus `MM:SS` for active work/rest timers, `Paused` while reminders are paused, or `Away` while session-lock suppression or enabled idle-away suppression is active.
 - In optional tray timer mode, keep spacing between the icon and text readable and use stable-width digit presentation so the tray icon does not drift horizontally during countdown.
 - `Away` must not require more tray text width than `Paused`; keep the controlled title slot bounded by the existing paused-state requirement.
 - While reminders are paused, keep the same status icon asset but dim it visually without disabling the menu-bar control.
@@ -32,10 +32,11 @@
 - Break screen should use the bundled background image with a dark readability layer so title, countdown, and `Skip` remain legible across displays.
 - Break screen foreground centering must be bounded by the actual overlay window size: keep `BreakOverlayView` using `GeometryReader` (or an equivalent explicit-size container) so `scaledToFill()` background imagery cannot expand layout and shift content on the built-in laptop display.
 - When a visible break ends naturally, play bundled `break-completion.caf` once; pressing `Skip` must not play the completion sound.
-- MVP settings should use a manually editable config file at `~/Library/Application Support/Mahu/config.json`; do not add a settings UI yet.
+- MVP settings use a manually editable config file at `~/Library/Application Support/Mahu/config.json`, and the shipped `Settings…` window must treat that file as the persistence/backward-compatibility layer rather than a second runtime source of truth.
 - Config reads should tolerate JSONC-style comments and trailing commas, while app-created or app-saved config files remain strict JSON.
-- Treat launch-loaded `config.json` as the persistence/backward-compatibility layer and keep a single in-process runtime settings source of truth for coordinator and future Settings UI updates.
-- `launchAtLoginEnabled` in launch-loaded `config.json` is the shipped desired-state control for Launch at Login; reconcile it once at startup through `SMAppService.mainApp`, treat approval/registration/unregistration problems as non-fatal warnings, request unregister/no-op when the desired state is `false`, and do not add a status-menu toggle before the future Settings UI.
+- The shipped `Settings…` window should remain an AppKit-owned window hosting SwiftUI content, opened from the status menu, applying changes to the shared in-process runtime settings source first and persisting immediately through strict-JSON `config.json` saves.
+- Treat launch-loaded `config.json` as the persistence/backward-compatibility layer and keep a single in-process runtime settings source of truth for coordinator and Settings UI updates.
+- `launchAtLoginEnabled` in launch-loaded `config.json` and the shipped Settings window is the desired-state control for Launch at Login; reconcile it through the existing runtime sync path, treat approval/registration/unregistration problems as non-fatal warnings, and do not document or assume guaranteed registration on unsigned builds.
 - Live config reload remains out of scope; runtime settings changes should not be coupled to display hot-plug handling.
 - Manual config edits still apply only on relaunch; do not add live config reload or file-watcher behavior.
 - Short sleep/wake cycles must preserve the current work/rest phase and countdown while refreshing the awake-time baseline so sleep time is not consumed on the next tick.
@@ -47,7 +48,6 @@
 - Treat possible App Store release as a constraint: avoid private APIs and invasive input capture.
 
 ## Deferred Features
-- Settings UI.
 - Manual start-break menu action.
 - App Store sandbox, entitlements, signing, notarization, and release workflow.
 - Multi-display/fullscreen Spaces hardening.

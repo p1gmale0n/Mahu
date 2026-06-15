@@ -15,6 +15,7 @@ protocol BreakTimerControlling: AnyObject {
 protocol StatusItemControlling: AnyObject {
     func install()
     func configureReminderActions(onPause: @escaping () -> Void, onResume: @escaping () -> Void)
+    func configureSettingsAction(_ onShowSettings: @escaping () -> Void)
     func setRemindersPaused(_ paused: Bool)
     func setShowsTimerState(_ showsTimerState: Bool)
     func clearTimerDisplayBaselines()

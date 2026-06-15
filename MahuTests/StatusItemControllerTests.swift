@@ -43,6 +43,7 @@ final class StatusItemControllerTests: XCTestCase {
         XCTAssertNotNil(statusItem.button?.image)
         XCTAssertEqual(statusItem.length, NSStatusItem.squareLength)
         XCTAssertNotNil(statusItem.menu)
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
         XCTAssertEqual(statusItem.menu?.items.last?.keyEquivalent, "q")
     }
 
@@ -61,7 +62,7 @@ final class StatusItemControllerTests: XCTestCase {
 
         XCTAssertNil(statusItem.button?.image)
         XCTAssertEqual(statusItem.button?.imagePosition, .imageOnly)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
     }
 
     func testInstallDisablesReminderToggleUntilActionsAreConfigured() throws {
@@ -117,7 +118,7 @@ final class StatusItemControllerTests: XCTestCase {
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertNotEqual(try XCTUnwrap(button.image?.tiffRepresentation), normalImageData)
         XCTAssertTrue(button.isEnabled)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Settings…", "Quit"])
     }
 
     func testSetRemindersPausedFalseRestoresNormalStatusButtonOpacity() throws {
@@ -141,7 +142,51 @@ final class StatusItemControllerTests: XCTestCase {
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(button.image?.tiffRepresentation), normalImageData)
         XCTAssertTrue(button.isEnabled)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
+    }
+
+    func testInstallKeepsSettingsMenuItemDisabledUntilActionIsConfigured() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+
+        controller.install()
+
+        let settingsItem = try pauseResumeMenuItem(in: statusItem.menu, named: "Settings…")
+        XCTAssertFalse(settingsItem.isEnabled)
+    }
+
+    func testConfiguringSettingsActionAfterInstallEnablesSettingsMenuItemAndInvokesHandlerOnce() throws {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        var showSettingsInvocationCount = 0
+        let controller = StatusItemController(
+            statusItem: statusItem,
+            applicationTerminator: {},
+            statusIconProvider: { NSImage(size: NSSize(width: 18, height: 18)) }
+        )
+
+        controller.install()
+        XCTAssertFalse(try pauseResumeMenuItem(in: statusItem.menu, named: "Settings…").isEnabled)
+
+        controller.configureSettingsAction {
+            showSettingsInvocationCount += 1
+        }
+
+        let settingsItem = try pauseResumeMenuItem(in: statusItem.menu, named: "Settings…")
+        XCTAssertTrue(settingsItem.isEnabled)
+
+        let target = try XCTUnwrap(settingsItem.target as AnyObject?)
+        let action = try XCTUnwrap(settingsItem.action)
+        _ = target.perform(action, with: settingsItem)
+
+        XCTAssertEqual(showSettingsInvocationCount, 1)
     }
 
     func testTrayTemplateStatusIconProviderLoadsBundledAsset() throws {

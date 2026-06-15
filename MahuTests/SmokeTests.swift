@@ -106,7 +106,7 @@ final class SmokeTests: XCTestCase {
         appDelegate.environmentProvider = {
             [AppRuntime.disableCoordinatorStartupEnvironmentKey: "1"]
         }
-        appDelegate.coordinatorStarter = { _, _ in
+        appDelegate.coordinatorStarter = { _, _, _, _ in
             startCallCount += 1
             return NSObject()
         }
@@ -125,7 +125,7 @@ final class SmokeTests: XCTestCase {
         weak var coordinatorReference: NSObject?
         let appDelegate = AppDelegate()
         appDelegate.environmentProvider = { [:] }
-        appDelegate.coordinatorStarter = { startsUserAway, _ in
+        appDelegate.coordinatorStarter = { startsUserAway, _, _, _ in
             startCallCount += 1
             startedInactiveValues.append(startsUserAway)
             let coordinator = NSObject()
@@ -148,7 +148,7 @@ final class SmokeTests: XCTestCase {
         let appDelegate = AppDelegate()
         appDelegate.environmentProvider = { [:] }
         appDelegate.screenLockStateProvider = FakeScreenLockStateProvider(isLockedOrOffConsole: true)
-        appDelegate.coordinatorStarter = { startsUserAway, _ in
+        appDelegate.coordinatorStarter = { startsUserAway, _, _, _ in
             startedInactiveValues.append(startsUserAway)
             return NSObject()
         }
@@ -175,7 +175,7 @@ final class SmokeTests: XCTestCase {
                 didBecomeActive: didBecomeActive
             )
         }
-        appDelegate.coordinatorStarter = { startsUserAway, _ in
+        appDelegate.coordinatorStarter = { startsUserAway, _, _, _ in
             startedInactiveValues.append(startsUserAway)
             return NSObject()
         }
@@ -206,7 +206,7 @@ final class SmokeTests: XCTestCase {
                 didBecomeActive: didBecomeActive
             )
         }
-        appDelegate.coordinatorStarter = { startsUserAway, _ in
+        appDelegate.coordinatorStarter = { startsUserAway, _, _, _ in
             startedInactiveValues.append(startsUserAway)
             return NSObject()
         }
@@ -242,7 +242,7 @@ final class SmokeTests: XCTestCase {
                 XCTAssertTrue(didRegisterObserver)
             }
         )
-        appDelegate.coordinatorStarter = { startsUserAway, _ in
+        appDelegate.coordinatorStarter = { startsUserAway, _, _, _ in
             startedInactiveValues.append(startsUserAway)
             return NSObject()
         }

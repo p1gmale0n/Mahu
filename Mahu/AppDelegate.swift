@@ -32,18 +32,34 @@ enum AppRuntime {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    typealias CoordinatorStarter = @MainActor (
+        _ startsUserAway: Bool,
+        _ userAwayActivityRegistrar: @escaping UserAwayActivityObservationRegistrar,
+        _ statusItemController: StatusItemControlling,
+        _ runtimeSettingsStore: RuntimeSettingsStoring
+    ) -> AnyObject
+
     var environmentProvider: () -> [String: String] = { ProcessInfo.processInfo.environment }
     var screenLockStateProvider: ScreenLockStateProviding = ScreenLockStateProvider()
     var userAwayActivityRegistrar: UserAwayActivityObservationRegistrar?
-    var coordinatorStarter: @MainActor (
-        _ startsUserAway: Bool,
-        _ userAwayActivityRegistrar: @escaping UserAwayActivityObservationRegistrar
-    ) -> AnyObject = { startsUserAway, userAwayActivityRegistrar in
-        let appCoordinator = AppCoordinator(userAwayActivityRegistrar: userAwayActivityRegistrar)
+    var makeConfigStore: () -> ConfigStore = { ConfigStore() }
+    var makeRuntimeSettingsStore: (AppConfig) -> RuntimeSettingsStoring = { RuntimeSettingsStore(initialSettings: $0) }
+    var makeSettingsViewModel: (RuntimeSettingsStoring, @escaping SettingsViewModel.ConfigSaver) -> SettingsViewModel = {
+        SettingsViewModel(runtimeSettingsStore: $0, saveConfig: $1)
+    }
+    var makeSettingsWindowController: (SettingsViewModel) -> SettingsWindowController = { SettingsWindowController(viewModel: $0) }
+    var makeStatusItemController: () -> StatusItemControlling = { StatusItemController() }
+    var coordinatorStarter: CoordinatorStarter = { startsUserAway, userAwayActivityRegistrar, statusItemController, runtimeSettingsStore in
+        let appCoordinator = AppCoordinator(
+            statusItemController: statusItemController,
+            runtimeSettingsStore: runtimeSettingsStore,
+            userAwayActivityRegistrar: userAwayActivityRegistrar
+        )
         appCoordinator.start(initialUserIsActive: startsUserAway == false)
         return appCoordinator
     }
     private var coordinatorLifetime: AnyObject?
+    private var settingsWindowController: SettingsWindowController?
     private var cancelInitialUserAwayObservation: UserAwayActivityObservationCancellation?
     private let startupUserAwayAggregationState = UserAwaySourceAggregationState()
     private var startsUserAway = false
@@ -82,7 +98,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        coordinatorLifetime = coordinatorStarter(startsUserAway, makeSharedUserAwayActivityRegistrar())
+        let configStore = makeConfigStore()
+        let startupConfig = configStore.load()
+        let runtimeSettingsStore = makeRuntimeSettingsStore(startupConfig)
+        let settingsViewModel = makeSettingsViewModel(runtimeSettingsStore, configStore.save(_:))
+        let settingsWindowController = makeSettingsWindowController(settingsViewModel)
+        let statusItemController = makeStatusItemController()
+
+        self.settingsWindowController = settingsWindowController
+        statusItemController.configureSettingsAction { [weak self] in
+            self?.settingsWindowController?.showSettingsWindow()
+        }
+
+        coordinatorLifetime = coordinatorStarter(
+            startsUserAway,
+            makeSharedUserAwayActivityRegistrar(),
+            statusItemController,
+            runtimeSettingsStore
+        )
         cancelInitialUserAwayObservation?()
         cancelInitialUserAwayObservation = nil
     }

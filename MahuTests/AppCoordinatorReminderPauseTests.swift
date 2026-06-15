@@ -398,18 +398,18 @@ final class AppCoordinatorReminderPauseTests: XCTestCase {
         XCTAssertTrue(initialImage.isTemplate)
         let initialImageData = try XCTUnwrap(initialImage.tiffRepresentation)
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
 
         try invokeMenuItem(named: "Pause Reminders", in: statusItem.menu)
 
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Resume Reminders", "Settings…", "Quit"])
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertNotEqual(try XCTUnwrap(button.image?.tiffRepresentation), initialImageData)
         XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)
 
         try invokeMenuItem(named: "Resume Reminders", in: statusItem.menu)
 
-        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Quit"])
+        XCTAssertEqual(statusItem.menu?.items.map(\.title), ["Pause Reminders", "Settings…", "Quit"])
         XCTAssertEqual(button.alphaValue, 1.0, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(button.image?.tiffRepresentation), initialImageData)
         XCTAssertFalse(statusItem.menu?.items.contains(where: { $0.title == "Start Break" }) == true)

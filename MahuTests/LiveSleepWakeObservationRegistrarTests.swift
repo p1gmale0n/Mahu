@@ -28,13 +28,13 @@ final class LiveSleepWakeObservationRegistrarTests: XCTestCase {
     }
 
     func testBackgroundPostedNotificationsSynchronouslyHopToMainActorBeforeReturning() async {
-        let orderLock = NSLock()
+        let orderQueue = DispatchQueue(label: "LiveSleepWakeObservationRegistrarTests.event-order")
         var eventOrder: [String] = []
         let context = makeRegistrarContext(
             willSleep: {
-                orderLock.lock()
-                eventOrder.append("handler")
-                orderLock.unlock()
+                orderQueue.sync {
+                    eventOrder.append("handler")
+                }
             },
             didWake: {}
         )
@@ -44,17 +44,16 @@ final class LiveSleepWakeObservationRegistrarTests: XCTestCase {
 
         DispatchQueue.global(qos: .userInitiated).async {
             context.notificationCenter.post(name: NSWorkspace.willSleepNotification, object: nil)
-            orderLock.lock()
-            eventOrder.append("post-returned")
-            orderLock.unlock()
+            orderQueue.sync {
+                eventOrder.append("post-returned")
+            }
             completion.fulfill()
         }
 
         await fulfillment(of: [completion], timeout: 1.0)
 
-        orderLock.lock()
-        defer { orderLock.unlock() }
-        XCTAssertEqual(eventOrder, ["handler", "post-returned"])
+        let finalEventOrder = orderQueue.sync { eventOrder }
+        XCTAssertEqual(finalEventOrder, ["handler", "post-returned"])
         XCTAssertEqual(context.willSleepCallCount(), 1)
         XCTAssertEqual(context.didWakeCallCount(), 0)
     }

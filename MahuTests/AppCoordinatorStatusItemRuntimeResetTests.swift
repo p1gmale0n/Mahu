@@ -219,6 +219,8 @@ final class SequencingStatusItemControllerSpy: StatusItemControlling {
         resumeRemindersHandler = onResume
     }
 
+    func configureSettingsAction(_ onShowSettings: @escaping () -> Void) {}
+
     func setRemindersPaused(_ paused: Bool) {
         remindersPaused = paused
         events.append(.setRemindersPaused(paused))
