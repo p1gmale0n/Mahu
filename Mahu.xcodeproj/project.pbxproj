@@ -101,6 +101,13 @@
 			A000000000000000000000FC /* StatusItemMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000FB /* StatusItemMenu.swift */; };
 			A00000000000000000000111 /* SettingsRuntimeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000110 /* SettingsRuntimeIntegrationTests.swift */; };
 			A00000000000000000000112 /* AppConfig+SettingsEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000113 /* AppConfig+SettingsEditing.swift */; };
+			A00000000000000000000114 /* SettingsNumericStepperField.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000115 /* SettingsNumericStepperField.swift */; };
+			A00000000000000000000116 /* SettingsNumericStepperFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000117 /* SettingsNumericStepperFieldTests.swift */; };
+			A00000000000000000000118 /* SettingsBreakOverlayMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000119 /* SettingsBreakOverlayMessageTests.swift */; };
+			A0000000000000000000011A /* SettingsWarningTextComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011B /* SettingsWarningTextComposer.swift */; };
+			A0000000000000000000011C /* SettingsPersistenceWarningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011D /* SettingsPersistenceWarningTests.swift */; };
+			A0000000000000000000011E /* SettingsValueMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000011F /* SettingsValueMapper.swift */; };
+			A00000000000000000000120 /* SettingsLegacyDisplayMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000121 /* SettingsLegacyDisplayMappingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -211,6 +218,13 @@
 			A000000000000000000000FB /* StatusItemMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemMenu.swift; sourceTree = "<group>"; };
 			A00000000000000000000110 /* SettingsRuntimeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRuntimeIntegrationTests.swift; sourceTree = "<group>"; };
 			A00000000000000000000113 /* AppConfig+SettingsEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppConfig+SettingsEditing.swift"; sourceTree = "<group>"; };
+			A00000000000000000000115 /* SettingsNumericStepperField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNumericStepperField.swift; sourceTree = "<group>"; };
+			A00000000000000000000117 /* SettingsNumericStepperFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNumericStepperFieldTests.swift; sourceTree = "<group>"; };
+			A00000000000000000000119 /* SettingsBreakOverlayMessageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBreakOverlayMessageTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000011B /* SettingsWarningTextComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWarningTextComposer.swift; sourceTree = "<group>"; };
+			A0000000000000000000011D /* SettingsPersistenceWarningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPersistenceWarningTests.swift; sourceTree = "<group>"; };
+			A0000000000000000000011F /* SettingsValueMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsValueMapper.swift; sourceTree = "<group>"; };
+			A00000000000000000000121 /* SettingsLegacyDisplayMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLegacyDisplayMappingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -264,6 +278,9 @@
 				A00000000000000000000113 /* AppConfig+SettingsEditing.swift */,
 				A00000000000000000000009 /* ConfigStore.swift */,
 				A000000000000000000000F0 /* SettingsViewModel.swift */,
+				A0000000000000000000011B /* SettingsWarningTextComposer.swift */,
+				A00000000000000000000115 /* SettingsNumericStepperField.swift */,
+				A0000000000000000000011F /* SettingsValueMapper.swift */,
 				A000000000000000000000F4 /* SettingsView.swift */,
 				A000000000000000000000F6 /* SettingsWindowController.swift */,
 				A000000000000000000000FB /* StatusItemMenu.swift */,
@@ -316,6 +333,10 @@
 				A0000000000000000000009E /* ConfigStorePersistenceTests.swift */,
 				A000000000000000000000A4 /* RuntimeSettingsStoreTests.swift */,
 				A000000000000000000000F2 /* SettingsViewModelTests.swift */,
+				A00000000000000000000117 /* SettingsNumericStepperFieldTests.swift */,
+				A00000000000000000000121 /* SettingsLegacyDisplayMappingTests.swift */,
+				A00000000000000000000119 /* SettingsBreakOverlayMessageTests.swift */,
+				A0000000000000000000011D /* SettingsPersistenceWarningTests.swift */,
 				A00000000000000000000110 /* SettingsRuntimeIntegrationTests.swift */,
 				A000000000000000000000F8 /* SettingsWindowControllerTests.swift */,
 				A000000000000000000000FD /* AppDelegateCompositionTests.swift */,
@@ -496,6 +517,9 @@
 				A00000000000000000000112 /* AppConfig+SettingsEditing.swift in Sources */,
 				A00000000000000000000025 /* ConfigStore.swift in Sources */,
 				A000000000000000000000F1 /* SettingsViewModel.swift in Sources */,
+				A0000000000000000000011A /* SettingsWarningTextComposer.swift in Sources */,
+				A00000000000000000000114 /* SettingsNumericStepperField.swift in Sources */,
+				A0000000000000000000011E /* SettingsValueMapper.swift in Sources */,
 				A000000000000000000000F5 /* SettingsView.swift in Sources */,
 				A000000000000000000000F7 /* SettingsWindowController.swift in Sources */,
 				A000000000000000000000FC /* StatusItemMenu.swift in Sources */,
@@ -536,6 +560,10 @@
 				A0000000000000000000009F /* ConfigStorePersistenceTests.swift in Sources */,
 				A000000000000000000000A5 /* RuntimeSettingsStoreTests.swift in Sources */,
 				A000000000000000000000F3 /* SettingsViewModelTests.swift in Sources */,
+				A00000000000000000000116 /* SettingsNumericStepperFieldTests.swift in Sources */,
+				A00000000000000000000120 /* SettingsLegacyDisplayMappingTests.swift in Sources */,
+				A00000000000000000000118 /* SettingsBreakOverlayMessageTests.swift in Sources */,
+				A0000000000000000000011C /* SettingsPersistenceWarningTests.swift in Sources */,
 				A00000000000000000000111 /* SettingsRuntimeIntegrationTests.swift in Sources */,
 				A000000000000000000000F9 /* SettingsWindowControllerTests.swift in Sources */,
 				A000000000000000000000FE /* AppDelegateCompositionTests.swift in Sources */,

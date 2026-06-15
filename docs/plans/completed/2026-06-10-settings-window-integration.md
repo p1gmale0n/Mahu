@@ -84,7 +84,7 @@ This changes Settings UI from a deferred feature into shipped scope while preser
 
 - [x] add `Mahu/SettingsView.swift` adapted from `source-assets/SettingsView.swift` with the same visual structure and labels from the design
 - [x] remove all `@AppStorage` usage and bind the view to `SettingsViewModel` state/actions
-- [x] keep Launch at Login enabled as a desired-state toggle, with explanatory footer text about signed-app/macOS approval limitations instead of hardcoding availability to false
+- [x] initial integration shipped Launch at Login as a desired-state toggle; superseded by the 2026-06-10 polish pass, which keeps the Settings row read-only while still reflecting runtime/config desired state
 - [x] show non-fatal config save warnings from the view model without blocking further edits
 - [x] add SwiftUI preview/test-only initializer using default or mock settings without touching disk
 - [x] write tests for Settings view-model/view-facing state needed by the UI, including footer/warning state inputs
@@ -127,7 +127,7 @@ This changes Settings UI from a deferred feature into shipped scope while preser
 - [x] verify duration changes still follow existing runtime policy: active work restarts on work-duration changes, break-duration changes apply at the next break/rest boundary as currently defined
 - [x] verify show-menu-timer changes update the status item through existing `AppCoordinator` runtime settings observation
 - [x] verify idle-away enabled/threshold changes update runtime behavior without adding config file watching
-- [x] verify launch-at-login toggle changes desired state and triggers existing runtime sync path, while keeping signing/approval failures non-fatal warnings
+- [x] verify launch-at-login desired-state changes still trigger the existing runtime sync path, while keeping signing/approval failures non-fatal warnings
 - [x] verify break overlay message changes apply to future break presentations without mutating an already visible overlay
 - [x] update or add focused coordinator/runtime tests only where existing coverage does not already prove the Settings-driven path
 - [x] run focused runtime settings and launch-at-login runtime tests - must pass before Task 7
@@ -155,7 +155,7 @@ This changes Settings UI from a deferred feature into shipped scope while preser
   - `workDurationSeconds` ↔ work duration Stepper in minutes, range `1...180`.
   - `breakDurationSeconds` ↔ break duration Stepper in seconds, range `5...600`, step `5` per source design.
   - `showStatusItemTimerState` ↔ `Show timer in menu bar` toggle.
-  - `launchAtLoginEnabled` ↔ `Launch at login` desired-state toggle.
+  - `launchAtLoginEnabled` ↔ `Launch at login` desired-state setting, shown as a read-only row in the polished shipped Settings window.
   - `idleAwayResetEnabled` ↔ `Also reset timer when inactive for` toggle.
   - `idleAwayResetThresholdSeconds` ↔ idle threshold Stepper in minutes, range `1...240`.
   - `breakOverlayMessageText` ↔ text field, normalized through `AppConfig.normalizedBreakOverlayMessageText(_:)`.
@@ -170,7 +170,7 @@ This changes Settings UI from a deferred feature into shipped scope while preser
   - `SettingsWindowController` shows/reuses one AppKit `NSWindow` containing SwiftUI `SettingsView`.
   - `AppCoordinator` remains focused on timer/status/overlay lifecycle.
 - Launch at Login flow:
-  - Settings UI changes `launchAtLoginEnabled` desired state.
+  - Initial integration changed `launchAtLoginEnabled` from Settings UI; superseded by the 2026-06-10 polish pass, where the Settings row became read-only and runtime desired-state changes now come from config/programmatic updates.
   - Existing `AppCoordinator` runtime observer propagates changes through `LaunchAtLoginSettingsStore` and `LaunchAtLoginController`.
   - UI/docs must not claim registration success on unsigned, ad-hoc, or self-signed local builds.
 

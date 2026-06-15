@@ -26,9 +26,15 @@ final class AppDelegateCompositionTests: XCTestCase {
         appDelegate.makeStatusItemController = {
             fakeStatusItemController
         }
-        appDelegate.makeSettingsViewModel = { runtimeSettingsStore, saveConfig in
+        var capturedCanPersistConfig: SettingsViewModel.ConfigPersistenceValidator?
+        appDelegate.makeSettingsViewModel = { runtimeSettingsStore, saveConfig, canPersistConfig in
             capturedSettingsViewModelRuntimeStore = runtimeSettingsStore
-            return SettingsViewModel(runtimeSettingsStore: runtimeSettingsStore, saveConfig: saveConfig)
+            capturedCanPersistConfig = canPersistConfig
+            return SettingsViewModel(
+                runtimeSettingsStore: runtimeSettingsStore,
+                saveConfig: saveConfig,
+                canPersistConfig: canPersistConfig
+            )
         }
         appDelegate.coordinatorStarter = { startsUserAway, _, _, runtimeSettingsStore in
             XCTAssertFalse(startsUserAway)
@@ -43,6 +49,12 @@ final class AppDelegateCompositionTests: XCTestCase {
         XCTAssertNotNil(fakeStatusItemController.showSettingsHandler)
         XCTAssertEqual(capturedCoordinatorRuntimeStore?.currentSettings, startupConfig)
         XCTAssertTrue(capturedCoordinatorRuntimeStore === capturedSettingsViewModelRuntimeStore)
+        XCTAssertTrue(capturedCanPersistConfig?(startupConfig) ?? false)
+        XCTAssertFalse(
+            capturedCanPersistConfig?(
+                startupConfig.updating(breakOverlayMessageText: String(repeating: "x", count: 70_000))
+            ) ?? true
+        )
     }
 
     func testAppDelegateSettingsHandlerReusesRetainedSettingsWindowController() {
@@ -88,6 +100,83 @@ final class AppDelegateCompositionTests: XCTestCase {
 
         XCTAssertEqual(windowFactoryCallCount, 1)
         XCTAssertEqual(appActivationCallCount, 2)
+    }
+
+    func testAppDelegateWiresSettingsViewModelToRealConfigStorePersistence() throws {
+        let startupConfig = AppConfig.default
+        let appDelegate = AppDelegate()
+        let configStore = Self.makeConfigStore(with: startupConfig)
+        var capturedSettingsViewModel: SettingsViewModel?
+
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.makeConfigStore = {
+            configStore
+        }
+        appDelegate.makeStatusItemController = {
+            FakeStatusItemController()
+        }
+        appDelegate.makeSettingsViewModel = { runtimeSettingsStore, saveConfig, canPersistConfig in
+            let viewModel = SettingsViewModel(
+                runtimeSettingsStore: runtimeSettingsStore,
+                saveConfig: saveConfig,
+                canPersistConfig: canPersistConfig
+            )
+            capturedSettingsViewModel = viewModel
+            return viewModel
+        }
+        appDelegate.coordinatorStarter = { _, _, _, _ in
+            NSObject()
+        }
+
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        let viewModel = try XCTUnwrap(capturedSettingsViewModel)
+        viewModel.updateShowMenuTimer(true)
+
+        XCTAssertTrue(configStore.load().showStatusItemTimerState)
+    }
+
+    func testApplicationShouldTerminateCancelsQuitWhenVisibleSettingsDraftSaveFails() throws {
+        let appDelegate = AppDelegate()
+        let fakeStatusItemController = FakeStatusItemController()
+        var capturedSettingsViewModel: SettingsViewModel?
+
+        appDelegate.environmentProvider = { [:] }
+        appDelegate.makeConfigStore = {
+            Self.makeConfigStore(with: .default)
+        }
+        appDelegate.makeStatusItemController = {
+            fakeStatusItemController
+        }
+        appDelegate.makeSettingsViewModel = { runtimeSettingsStore, _, canPersistConfig in
+            let viewModel = SettingsViewModel(
+                runtimeSettingsStore: runtimeSettingsStore,
+                saveConfig: { _ in false },
+                canPersistConfig: canPersistConfig
+            )
+            capturedSettingsViewModel = viewModel
+            return viewModel
+        }
+        appDelegate.coordinatorStarter = { _, _, _, _ in
+            NSObject()
+        }
+
+        appDelegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification)
+        )
+
+        fakeStatusItemController.showSettingsHandler?()
+        let viewModel = try XCTUnwrap(capturedSettingsViewModel)
+        viewModel.updateBreakOverlayMessageDraft("Quit-triggered draft")
+
+        let terminateReply = appDelegate.applicationShouldTerminate(NSApp)
+
+        XCTAssertEqual(terminateReply, .terminateCancel)
+        XCTAssertEqual(viewModel.breakOverlayMessageText, "Quit-triggered draft")
+        XCTAssertEqual(viewModel.breakOverlayMessageDraftText, "Quit-triggered draft")
+        XCTAssertNotNil(viewModel.saveFailureMessage)
     }
 
     private static func makeConfigStore(with config: AppConfig) -> ConfigStore {

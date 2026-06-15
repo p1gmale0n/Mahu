@@ -185,6 +185,18 @@ final class ConfigStorePersistenceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.configURL.path))
     }
 
+    func testCanPersistMatchesSaveSizeLimitForOversizedConfig() {
+        let store = makeStore()
+        let oversizedConfig = AppConfig(
+            workDurationSeconds: 300,
+            breakDurationSeconds: 20,
+            breakOverlayMessageText: String(repeating: "x", count: 70_000)
+        )
+
+        XCTAssertFalse(store.canPersist(oversizedConfig))
+        XCTAssertTrue(store.canPersist(.default))
+    }
+
     func testLoadFallbackBehaviorRemainsUnchangedAfterAddingSaveAPI() throws {
         let store = makeStore()
         try FileManager.default.createDirectory(

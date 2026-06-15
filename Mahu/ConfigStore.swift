@@ -68,6 +68,18 @@ struct ConfigStore {
             .appendingPathComponent("config.json", isDirectory: false)
     }
 
+    func canPersist(_ config: AppConfig) -> Bool {
+        guard config.hasSupportedSettings else {
+            return false
+        }
+
+        guard let data = try? JSONEncoder().encode(config) else {
+            return false
+        }
+
+        return data.count <= Self.maximumConfigFileBytes
+    }
+
     @discardableResult
     func save(_ config: AppConfig) -> Bool {
         guard config.hasSupportedSettings else {

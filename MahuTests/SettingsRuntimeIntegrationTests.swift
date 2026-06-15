@@ -130,7 +130,7 @@ final class SettingsRuntimeIntegrationTests: XCTestCase {
         XCTAssertEqual(statusItemController.statusDisplayStates.last, .away)
     }
 
-    func testSettingsViewModelLaunchAtLoginToggleUsesRuntimeSyncPathAndKeepsWarningNonFatal() {
+    func testRuntimeLaunchAtLoginUpdateUsesCoordinatorSyncPathAndKeepsWarningNonFatal() {
         let startupConfig = AppConfig(
             workDurationSeconds: 300,
             breakDurationSeconds: 20,
@@ -161,10 +161,9 @@ final class SettingsRuntimeIntegrationTests: XCTestCase {
             },
             scheduleRepeatingTick: { _, _ in {} }
         )
-        let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore)
 
         coordinator.start()
-        viewModel.updateLaunchAtLoginEnabled(true)
+        runtimeSettingsStore.update(startupConfig.updating(launchAtLoginEnabled: true))
 
         XCTAssertEqual(launchAtLoginStore.updates, [true])
         XCTAssertEqual(syncedDesiredStates, [false, true])
@@ -172,7 +171,7 @@ final class SettingsRuntimeIntegrationTests: XCTestCase {
         XCTAssertEqual(statusItemController.statusDisplayStates.last, .active(phase: .work, remainingSeconds: 300))
     }
 
-    func testSettingsViewModelBreakOverlayMessageChangeAppliesToNextBreakOnly() throws {
+    func testSettingsViewModelCommittedBreakOverlayMessageChangeAppliesToNextBreakOnly() throws {
         let startupConfig = AppConfig(
             workDurationSeconds: 1,
             breakDurationSeconds: 20,
@@ -208,6 +207,8 @@ final class SettingsRuntimeIntegrationTests: XCTestCase {
         scheduledTick?()
 
         viewModel.updateBreakOverlayMessageDraft("Next break message")
+        XCTAssertEqual(runtimeSettingsStore.currentSettings.breakOverlayMessageText, "Initial message")
+        viewModel.commitBreakOverlayMessageDraft()
         let skipBreak = try XCTUnwrap(overlayManager.skipHandler)
         skipBreak()
         scheduledTick?()
@@ -227,7 +228,6 @@ final class SettingsRuntimeIntegrationTests: XCTestCase {
 private func makeViewModel(runtimeSettingsStore: RuntimeSettingsStoring) -> SettingsViewModel {
     SettingsViewModel(
         runtimeSettingsStore: runtimeSettingsStore,
-        saveConfig: { _ in true },
-        dispatchSave: { $0() }
+        saveConfig: { _ in true }
     )
 }

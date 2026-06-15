@@ -1,15 +1,34 @@
 import SwiftUI
 
 struct SettingsView: View {
+    static let minimumContentWidth: CGFloat = 500
+    static let minimumContentHeight: CGFloat = 460
+    static let preferredContentWidth: CGFloat = 640
+    static let preferredContentHeight: CGFloat = 660
+
+    private static let formLabelColumnWidth: CGFloat = 220
+    private static let formRowSpacing: CGFloat = 12
+    private static let formRowMinHeight: CGFloat = 28
+    private static let breakOverlayMessageFieldMinWidth: CGFloat = 240
+    private static let breakOverlayMessageFieldIdealWidth: CGFloat = 300
+    private static let breakOverlayMessageFieldMaxWidth: CGFloat = 320
+
     private enum FocusedField {
         case breakOverlayMessage
     }
 
     @ObservedObject private var viewModel: SettingsViewModel
     @FocusState private var focusedField: FocusedField?
+    @State private var breakOverlayMessageDraftRegistrationID = UUID()
 
-    init(viewModel: SettingsViewModel) {
+    private let draftCommitter: SettingsDraftCommitter?
+
+    init(
+        viewModel: SettingsViewModel,
+        draftCommitter: SettingsDraftCommitter? = nil
+    ) {
         self.viewModel = viewModel
+        self.draftCommitter = draftCommitter
     }
 
     init(previewSettings: AppConfig = .default) {
@@ -24,31 +43,31 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                Stepper(
-                    value: Binding(
-                        get: { viewModel.workDurationMinutes },
-                        set: viewModel.updateWorkDurationMinutes
-                    ),
-                    in: SettingsViewModel.workDurationMinutesRange
-                ) {
-                    LabeledContent("Work Duration") {
-                        Text(viewModel.workDurationDisplayText)
-                            .monospacedDigit()
-                    }
+                settingsControlRow(title: "Work Duration") {
+                    SettingsNumericStepperField(
+                        title: "Work Duration",
+                        unitText: "min",
+                        showsTitle: false,
+                        value: viewModel.workDurationMinutes,
+                        range: SettingsViewModel.workDurationMinutesRange,
+                        draftCommitter: draftCommitter,
+                        commitValue: viewModel.commitWorkDurationInput,
+                        updateValue: viewModel.updateWorkDurationMinutes
+                    )
                 }
 
-                Stepper(
-                    value: Binding(
-                        get: { viewModel.breakDurationSeconds },
-                        set: viewModel.updateBreakDurationSeconds
-                    ),
-                    in: SettingsViewModel.breakDurationSecondsRange,
-                    step: SettingsViewModel.breakDurationStepSeconds
-                ) {
-                    LabeledContent("Break Duration") {
-                        Text(viewModel.breakDurationDisplayText)
-                            .monospacedDigit()
-                    }
+                settingsControlRow(title: "Break Duration") {
+                    SettingsNumericStepperField(
+                        title: "Break Duration",
+                        unitText: "sec",
+                        showsTitle: false,
+                        value: viewModel.breakDurationSeconds,
+                        range: SettingsViewModel.breakDurationSecondsRange,
+                        step: SettingsViewModel.breakDurationStepSeconds,
+                        draftCommitter: draftCommitter,
+                        commitValue: viewModel.commitBreakDurationInput,
+                        updateValue: viewModel.updateBreakDurationSeconds
+                    )
                 }
             } header: {
                 Text("Timers")
@@ -61,13 +80,12 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle(
-                    "Launch at login",
-                    isOn: Binding(
-                        get: { viewModel.launchAtLoginEnabled },
-                        set: viewModel.updateLaunchAtLoginEnabled
-                    )
-                )
+                settingsControlRow(title: "Launch at login") {
+                    Toggle("", isOn: .constant(viewModel.launchAtLoginEnabled))
+                        .labelsHidden()
+                        .disabled(true)
+                        .accessibilityLabel("Launch at login")
+                }
             } header: {
                 Text("General")
             } footer: {
@@ -81,29 +99,29 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle(
-                    isOn: Binding(
-                        get: { viewModel.idleAwayResetEnabled },
-                        set: viewModel.updateIdleAwayResetEnabled
-                    )
-                ) {
-                    HStack(spacing: 8) {
-                        Text("Also reset timer when inactive for")
+                settingsControlRow(title: "Also reset timer when inactive for") {
+                    HStack(spacing: Self.formRowSpacing) {
+                        SettingsNumericStepperField(
+                            title: "Idle away threshold",
+                            unitText: "min",
+                            showsTitle: false,
+                            value: viewModel.idleAwayResetMinutes,
+                            range: SettingsViewModel.idleAwayMinutesRange,
+                            draftCommitter: draftCommitter,
+                            commitValue: viewModel.commitIdleAwayResetInput,
+                            updateValue: viewModel.updateIdleAwayResetMinutes
+                        )
+                        .disabled(viewModel.isIdleAwayThresholdEditable == false)
 
-                        if viewModel.showsIdleAwayResetStepper {
-                            Stepper(
-                                value: Binding(
-                                    get: { viewModel.idleAwayResetMinutes },
-                                    set: viewModel.updateIdleAwayResetMinutes
-                                ),
-                                in: SettingsViewModel.idleAwayMinutesRange
-                            ) {
-                                Text(viewModel.idleAwayResetDisplayText)
-                                    .monospacedDigit()
-                            }
-                            .labelsHidden()
-                            .fixedSize()
-                        }
+                        Toggle(
+                            "",
+                            isOn: Binding(
+                                get: { viewModel.idleAwayResetEnabled },
+                                set: viewModel.updateIdleAwayResetEnabled
+                            )
+                        )
+                        .labelsHidden()
+                        .accessibilityLabel("Reset timer when inactive")
                     }
                 }
             } header: {
@@ -114,25 +132,36 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle(
-                    "Show timer in menu bar",
-                    isOn: Binding(
-                        get: { viewModel.showMenuTimer },
-                        set: viewModel.updateShowMenuTimer
+                settingsControlRow(title: "Show timer in menu bar") {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { viewModel.showMenuTimer },
+                            set: viewModel.updateShowMenuTimer
+                        )
                     )
-                )
+                    .labelsHidden()
+                    .accessibilityLabel("Show timer in menu bar")
+                }
 
-                LabeledContent("Break overlay message") {
+                settingsControlRow(title: "Break overlay message") {
                     TextField(
-                        viewModel.breakOverlayMessagePlaceholderText,
+                        "",
                         text: Binding(
                             get: { viewModel.breakOverlayMessageDraftText },
                             set: viewModel.updateBreakOverlayMessageDraft
                         )
                     )
+                    .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.leading)
-                    .frame(maxWidth: 220)
+                    .frame(
+                        minWidth: Self.breakOverlayMessageFieldMinWidth,
+                        idealWidth: Self.breakOverlayMessageFieldIdealWidth,
+                        maxWidth: Self.breakOverlayMessageFieldMaxWidth,
+                        alignment: .leading
+                    )
                     .focused($focusedField, equals: .breakOverlayMessage)
+                    .accessibilityLabel("Break overlay message")
                     .onSubmit {
                         viewModel.commitBreakOverlayMessageDraft()
                     }
@@ -147,18 +176,60 @@ struct SettingsView: View {
             } header: {
                 Text("Display")
             } footer: {
-                if let saveWarningText = viewModel.saveWarningText {
-                    Label(saveWarningText, systemImage: "exclamationmark.triangle.fill")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(viewModel.breakOverlayMessageFooterText)
                         .font(.callout)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
+
+                    if let saveWarningText = viewModel.saveWarningText {
+                        Label(saveWarningText, systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 460, idealWidth: 460, minHeight: 360, idealHeight: 420)
+        .frame(
+            minWidth: Self.minimumContentWidth,
+            idealWidth: Self.preferredContentWidth,
+            minHeight: Self.minimumContentHeight,
+            idealHeight: Self.preferredContentHeight
+        )
+        .onAppear(perform: registerDraftCloseCommit)
         .onDisappear {
+            unregisterDraftCloseCommit()
             viewModel.commitBreakOverlayMessageDraft()
         }
+    }
+
+    private func settingsControlRow<Control: View>(
+        title: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        HStack(alignment: .center, spacing: Self.formRowSpacing) {
+            Text(title)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: Self.formLabelColumnWidth, alignment: .leading)
+
+            Spacer(minLength: Self.formRowSpacing)
+
+            control()
+        }
+        .frame(minHeight: Self.formRowMinHeight, alignment: .center)
+    }
+
+    private func registerDraftCloseCommit() {
+        draftCommitter?.register(id: breakOverlayMessageDraftRegistrationID) {
+            let hadUncommittedDraft = viewModel.breakOverlayMessageDraftText != viewModel.breakOverlayMessageText
+            viewModel.commitBreakOverlayMessageDraft()
+            return hadUncommittedDraft ? .committedDraft : .noChange
+        }
+    }
+
+    private func unregisterDraftCloseCommit() {
+        draftCommitter?.unregister(id: breakOverlayMessageDraftRegistrationID)
     }
 }
 

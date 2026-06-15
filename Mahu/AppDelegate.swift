@@ -44,8 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var userAwayActivityRegistrar: UserAwayActivityObservationRegistrar?
     var makeConfigStore: () -> ConfigStore = { ConfigStore() }
     var makeRuntimeSettingsStore: (AppConfig) -> RuntimeSettingsStoring = { RuntimeSettingsStore(initialSettings: $0) }
-    var makeSettingsViewModel: (RuntimeSettingsStoring, @escaping SettingsViewModel.ConfigSaver) -> SettingsViewModel = {
-        SettingsViewModel(runtimeSettingsStore: $0, saveConfig: $1)
+    var makeSettingsViewModel: (
+        RuntimeSettingsStoring,
+        @escaping SettingsViewModel.ConfigSaver,
+        @escaping SettingsViewModel.ConfigPersistenceValidator
+    ) -> SettingsViewModel = {
+        SettingsViewModel(runtimeSettingsStore: $0, saveConfig: $1, canPersistConfig: $2)
     }
     var makeSettingsWindowController: (SettingsViewModel) -> SettingsWindowController = { SettingsWindowController(viewModel: $0) }
     var makeStatusItemController: () -> StatusItemControlling = { StatusItemController() }
@@ -101,7 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let configStore = makeConfigStore()
         let startupConfig = configStore.load()
         let runtimeSettingsStore = makeRuntimeSettingsStore(startupConfig)
-        let settingsViewModel = makeSettingsViewModel(runtimeSettingsStore, configStore.save(_:))
+        let settingsViewModel = makeSettingsViewModel(
+            runtimeSettingsStore,
+            configStore.save(_:),
+            configStore.canPersist(_:)
+        )
         let settingsWindowController = makeSettingsWindowController(settingsViewModel)
         let statusItemController = makeStatusItemController()
 
@@ -118,6 +126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         cancelInitialUserAwayObservation?()
         cancelInitialUserAwayObservation = nil
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard settingsWindowController?.shouldAllowApplicationTermination() ?? true else {
+            return .terminateCancel
+        }
+
+        return .terminateNow
     }
 
     private func makeSharedUserAwayActivityRegistrar() -> UserAwayActivityObservationRegistrar {

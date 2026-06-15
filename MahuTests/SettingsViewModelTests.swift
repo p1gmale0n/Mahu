@@ -28,7 +28,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.workDurationDisplayText, "20 min")
         XCTAssertEqual(viewModel.breakDurationDisplayText, "20 sec")
         XCTAssertEqual(viewModel.idleAwayResetDisplayText, "5 min")
-        XCTAssertTrue(viewModel.showsIdleAwayResetStepper)
+        XCTAssertTrue(viewModel.isIdleAwayThresholdEditable)
         XCTAssertNil(viewModel.saveFailureMessage)
     }
 
@@ -37,13 +37,12 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.launchAtLoginFooterText,
-            "Mahu treats Launch at Login as a desired state. macOS may still require a signed app and Login Items approval before registration succeeds."
+            "This row reflects the current Launch at Login desired state from config/runtime. Change it through config.json or signing-supported Login Item flows; the Settings toggle is read-only."
         )
         XCTAssertEqual(
             viewModel.awayBehaviorFooterText,
             "Mahu always resets the timer when your screen is locked or your Mac goes to sleep."
         )
-        XCTAssertEqual(viewModel.breakOverlayMessagePlaceholderText, "Time to look away")
     }
 
     func testValidUpdatesApplyRuntimeSettingsBeforeSave() {
@@ -57,7 +56,7 @@ final class SettingsViewModelTests: XCTestCase {
             idleAwayResetThresholdSeconds: 420,
             showStatusItemTimerState: true,
             breakOverlayMessageText: "New message",
-            launchAtLoginEnabled: true
+            launchAtLoginEnabled: false
         )
         let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore) { config in
             runtimeSettingsSeenBySaver.append(runtimeSettingsStore.currentSettings)
@@ -70,7 +69,6 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.updateIdleAwayResetEnabled(true)
         viewModel.updateIdleAwayResetMinutes(7)
         viewModel.updateShowMenuTimer(true)
-        viewModel.updateLaunchAtLoginEnabled(true)
         viewModel.updateBreakOverlayMessageText("New message")
 
         XCTAssertEqual(runtimeSettingsStore.currentSettings, expectedConfig)
@@ -103,13 +101,12 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.updateIdleAwayResetEnabled(false)
         viewModel.updateIdleAwayResetMinutes(5)
         viewModel.updateShowMenuTimer(false)
-        viewModel.updateLaunchAtLoginEnabled(false)
         viewModel.updateBreakOverlayMessageText(AppConfig.defaultBreakOverlayMessageText)
 
         XCTAssertTrue(runtimeSettingsStore.updates.isEmpty)
         XCTAssertEqual(saveCallCount, 0)
         XCTAssertNil(viewModel.saveFailureMessage)
-        XCTAssertFalse(viewModel.showsIdleAwayResetStepper)
+        XCTAssertFalse(viewModel.isIdleAwayThresholdEditable)
     }
 
     func testSaveFailureKeepsRuntimeSettingsAndExposesWarning() {
@@ -164,7 +161,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.saveFailureMessage)
     }
 
-    func testDefaultSaveDispatcherPersistsBeforeUpdateReturns() {
+    func testSettingsPersistenceRunsBeforeUpdateReturns() {
         let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: .default)
         var didSave = false
         let viewModel = SettingsViewModel(
@@ -178,50 +175,6 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.updateShowMenuTimer(true)
 
         XCTAssertTrue(didSave)
-    }
-
-    func testBreakOverlayMessageDraftAppliesImmediatelyForNonEmptyText() {
-        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: .default)
-        let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore)
-
-        viewModel.updateBreakOverlayMessageDraft("New message")
-
-        XCTAssertEqual(viewModel.breakOverlayMessageText, "New message")
-        XCTAssertEqual(viewModel.breakOverlayMessageDraftText, "New message")
-        XCTAssertEqual(runtimeSettingsStore.currentSettings.breakOverlayMessageText, "New message")
-    }
-
-    func testBreakOverlayMessageDraftPreservesTypedWhitespaceWhileRuntimeNormalizesImmediately() {
-        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: .default)
-        let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore)
-
-        viewModel.updateBreakOverlayMessageDraft(" \n\t ")
-
-        XCTAssertEqual(viewModel.breakOverlayMessageDraftText, " \n\t ")
-        XCTAssertEqual(viewModel.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
-        XCTAssertEqual(runtimeSettingsStore.currentSettings.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
-
-        viewModel.commitBreakOverlayMessageDraft()
-
-        XCTAssertEqual(viewModel.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
-        XCTAssertEqual(viewModel.breakOverlayMessageDraftText, AppConfig.defaultBreakOverlayMessageText)
-        XCTAssertEqual(runtimeSettingsStore.currentSettings.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
-    }
-
-    func testPreviewSettingsViewInitializerBuildsFormBody() {
-        let view = SettingsView(
-            previewSettings: AppConfig(
-                workDurationSeconds: 2_400,
-                breakDurationSeconds: 45,
-                idleAwayResetEnabled: true,
-                idleAwayResetThresholdSeconds: 600,
-                showStatusItemTimerState: true,
-                breakOverlayMessageText: "Preview message",
-                launchAtLoginEnabled: true
-            )
-        )
-
-        XCTAssertTrue(String(describing: type(of: view.body)).contains("Form"))
     }
 
     func testUnsupportedValueNormalizationClampsLoadedValuesForDisplay() {
@@ -244,6 +197,44 @@ final class SettingsViewModelTests: XCTestCase {
             viewModel.supportedValueNormalizationNoticeText,
             "Some timer values loaded from config.json are outside the Settings UI ranges. Mahu is showing the nearest supported values here, but the current runtime and config keep each raw value until you edit that specific control."
         )
+    }
+
+    func testUnsupportedValueNormalizationUsesNearestSupportedDisplayValues() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 61,
+            breakDurationSeconds: 31,
+            idleAwayResetEnabled: true,
+            idleAwayResetThresholdSeconds: 89,
+            showStatusItemTimerState: false,
+            breakOverlayMessageText: "Nearest",
+            launchAtLoginEnabled: false
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
+
+        let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore)
+
+        XCTAssertEqual(viewModel.workDurationMinutes, 1)
+        XCTAssertEqual(viewModel.breakDurationSeconds, 30)
+        XCTAssertEqual(viewModel.idleAwayResetMinutes, 1)
+        XCTAssertNotNil(viewModel.supportedValueNormalizationNoticeText)
+    }
+
+    func testHugeIdleAwayThresholdMapsSafelyIntoSupportedDisplayRange() {
+        let startupConfig = AppConfig(
+            workDurationSeconds: 1_200,
+            breakDurationSeconds: 20,
+            idleAwayResetEnabled: true,
+            idleAwayResetThresholdSeconds: .greatestFiniteMagnitude,
+            showStatusItemTimerState: false,
+            breakOverlayMessageText: "Huge threshold",
+            launchAtLoginEnabled: false
+        )
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: startupConfig)
+
+        let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore)
+
+        XCTAssertEqual(viewModel.idleAwayResetMinutes, 240)
+        XCTAssertNotNil(viewModel.supportedValueNormalizationNoticeText)
     }
 
     func testUnrelatedUpdatePreservesLegacyValuesAndNormalizationNotice() {
@@ -358,7 +349,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.breakOverlayMessageText, "External change")
         XCTAssertEqual(viewModel.breakOverlayMessageDraftText, "External change")
 
-        viewModel.updateLaunchAtLoginEnabled(true)
+        viewModel.updateShowMenuTimer(false)
 
         XCTAssertEqual(
             runtimeSettingsStore.currentSettings,
@@ -367,11 +358,60 @@ final class SettingsViewModelTests: XCTestCase {
                 breakDurationSeconds: 45,
                 idleAwayResetEnabled: true,
                 idleAwayResetThresholdSeconds: 600,
-                showStatusItemTimerState: true,
+                showStatusItemTimerState: false,
                 breakOverlayMessageText: "External change",
+                launchAtLoginEnabled: false
+            )
+        )
+    }
+
+    func testObservedRuntimeSettingsUpdateRefreshesLaunchAtLoginDisplayState() {
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: .default)
+        let viewModel = makeViewModel(runtimeSettingsStore: runtimeSettingsStore)
+
+        XCTAssertFalse(viewModel.launchAtLoginEnabled)
+
+        runtimeSettingsStore.update(
+            AppConfig(
+                workDurationSeconds: 1_200,
+                breakDurationSeconds: 20,
+                idleAwayResetEnabled: false,
+                idleAwayResetThresholdSeconds: 300,
+                showStatusItemTimerState: false,
+                breakOverlayMessageText: AppConfig.defaultBreakOverlayMessageText,
                 launchAtLoginEnabled: true
             )
         )
+
+        XCTAssertTrue(viewModel.launchAtLoginEnabled)
+    }
+
+    func testOversizedSettingsDraftKeepsPreviousSavedMessageActive() {
+        let runtimeSettingsStore = FakeRuntimeSettingsStore(currentSettings: .default)
+        var saveCallCount = 0
+        let viewModel = SettingsViewModel(
+            runtimeSettingsStore: runtimeSettingsStore,
+            saveConfig: { _ in
+                saveCallCount += 1
+                return true
+            },
+            canPersistConfig: { config in
+                config.breakOverlayMessageText.utf8.count <= 32
+            }
+        )
+
+        viewModel.updateBreakOverlayMessageDraft(String(repeating: "x", count: 64))
+        viewModel.commitBreakOverlayMessageDraft()
+
+        XCTAssertEqual(saveCallCount, 0)
+        XCTAssertEqual(viewModel.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
+        XCTAssertEqual(viewModel.breakOverlayMessageDraftText, String(repeating: "x", count: 64))
+        XCTAssertEqual(runtimeSettingsStore.currentSettings.breakOverlayMessageText, AppConfig.defaultBreakOverlayMessageText)
+        XCTAssertEqual(
+            viewModel.saveFailureMessage,
+            "This Settings value is too large to save to config.json. Mahu keeps the previous saved value active until you reduce it."
+        )
+        XCTAssertTrue(viewModel.hasSaveFailure)
     }
 
     private func makeViewModel(
@@ -380,8 +420,7 @@ final class SettingsViewModelTests: XCTestCase {
     ) -> SettingsViewModel {
         SettingsViewModel(
             runtimeSettingsStore: runtimeSettingsStore,
-            saveConfig: saveConfig,
-            dispatchSave: { $0() }
+            saveConfig: saveConfig
         )
     }
 }

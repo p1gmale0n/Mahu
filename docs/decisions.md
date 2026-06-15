@@ -2,7 +2,25 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-12 | Settings fixed-size window | Remove the resizable style from the Settings window and treat the preferred content size as the fixed user-facing window size. | Manual review of the polished Settings form showed the desired window size now fits the full form; fixed sizing prevents accidental resize states and matches the requested product behavior, accepting that small-screen/accessibility fallback is now limited to the existing scrollable form content. |
+| 2026-06-11 | Settings initial window aspect | Make the polished Settings window slightly narrower and taller while keeping the same smaller resize minimum. | Manual review showed the full form content fits horizontally with the shared row layout, but the initial height still triggers a vertical scrollbar; a narrower/taller preferred size better matches the actual form without removing small-screen fallback resizing. |
+| 2026-06-11 | Settings shared row alignment | Use one shared Settings row helper with a fixed label column and trailing controls for timer, toggle, idle-away, and break-message rows, and move break-message helper copy into the Display section footer. | Manual review showed that mixing SwiftUI `Form` default toggle rows, custom numeric rows, and an inline `VStack` helper text made the form visually uneven; a shared row shape gives predictable alignment without changing runtime settings or config persistence semantics. |
+| 2026-06-11 | Settings layout polish direct fix | Replace `LabeledContent`-based numeric settings rows with explicit single-line label + trailing numeric-control layout, and increase the initial Settings window size while keeping a smaller resize minimum. | Manual review showed the polished SwiftUI `Form` wrapped numeric row labels and still opened too small; explicit rows make the input/stepper placement deterministic without changing runtime settings, and a larger initial size fits the shipped form without removing small-screen fallback resizing. |
+| 2026-06-11 | Settings miniaturized quit guard | Treat a miniaturized retained Settings window as an active quit/close guard participant, and restore it when `Quit` is vetoed by a save warning. | A miniaturized Settings window is still an open editing session with pending drafts; letting `Quit` bypass the close guard there drops uncommitted state and hides the inline warning that explains why exit was canceled. |
+| 2026-06-11 | Settings warning aggregation and retry | Retry `config.json` persistence on repeated no-op Settings commits after a previous save failure, and aggregate oversized-draft plus generic save warnings in one footer instead of hiding one behind the other. | The next review pass found that transient save failures for non-message settings had no retry path on the same value and that an oversized break-message draft could hide a separate persistence failure for other settings, which made the Settings durability contract misleading. |
+| 2026-06-11 | Settings close warning acknowledgement | Acknowledge visible Settings save warnings one main-queue turn after they appear, and block window close only while a warning is still unacknowledged. | AppKit ends field editing before `windowShouldClose(_:)`, so blur-triggered save failures need one close-veto turn without permanently trapping the user on warnings they already saw. |
+| 2026-06-11 | Settings legacy-value display mapping | Map launch-loaded unsupported Settings timer values to the nearest supported UI value for display, and make minute rounding overflow-safe for arbitrarily large idle-away thresholds. | The review found that the UI claimed "nearest supported values" while systematically rounding upward, and that the same minute-rounding path could overflow on huge manual idle-away thresholds before the menu-bar app became usable. |
+| 2026-06-11 | Settings value mapping split | Move Settings display mapping and edit-time normalization helpers into a dedicated `SettingsValueMapper`. | The next review fix still needed to align fractional raw durations with the documented nearest-value UI contract, and `SettingsViewModel.swift` was already past the local cognitive-load threshold for safe growth. |
+| 2026-06-11 | Settings oversized draft persistence guard | Preflight Settings commits against the same strict-JSON config size limit used by `ConfigStore.save(_:)`, and reject oversized drafts before they mutate runtime settings. | The review found that break-overlay message edits could become runtime-only state that can never persist because the encoded config exceeds 64 KiB; rejecting them before the runtime update keeps the UI contract truthful and restart-safe. |
+| 2026-06-10 | Settings close-path save warning visibility | Commit pending break-message drafts before allowing the retained Settings window to close, and cancel the close only when that close-triggered commit still leaves a save warning active. | The next review pass found that committing from `windowWillClose` hides new save failures because the window disappears before the inline warning can render; pre-close gating fixes that without trapping the user on unrelated already-visible warnings. |
+| 2026-06-10 | Settings break message affordance | Remove the English break-message placeholder, render the message as a visibly editable rounded full-width field, and explain in helper text that edits affect future overlays while whitespace resets to the default message. | The existing placeholder conflicted with the real Russian default value and made the field look less authoritative than the saved text; a bordered field plus explicit helper copy is the smallest UI-only fix that clarifies editing without changing the already-shipped runtime commit/normalization behavior. |
+| 2026-06-10 | Settings idle-away threshold row | Keep the idle-away threshold control always visible in the Away Behavior row, reuse the same numeric field-plus-stepper style as timer controls, and disable editing instead of hiding the value when the feature toggle is off. | Hiding the threshold makes the current config unclear and causes clipping/layout issues; a permanently visible trailing control keeps the value legible, preserves the existing runtime toggle semantics, and is the smallest polish fix without touching idle polling behavior. |
+| 2026-06-10 | Settings numeric input polish | Implement manual timer entry through a small reusable `TextField + Stepper` helper with local draft/commit state, while keeping normalization and runtime/config updates inside `SettingsViewModel`. | Task 2 needs manual numeric input without persisting invalid intermediate strings on every keystroke, and this split is the smallest way to reuse the same control pattern for multiple settings rows without growing the runtime settings model into UI-transient state. |
+| 2026-06-10 | Settings window default sizing | Use explicit Settings content-size floors for the initial AppKit window and keep a smaller minimum size than the initial size. | SwiftUI `Form` fitting can underestimate the real polished layout, but locking `minSize` to the full-form size would remove the small-screen/accessibility fallback that the product still requires. |
+| 2026-06-10 | Settings Launch at Login affordance | Make the Settings Launch at Login row a disabled read-only reflection of runtime/config desired state instead of an editable toggle. | The local app context still cannot guarantee signed Login Item registration, so leaving the Settings control interactive overpromises capability; a read-only row keeps the shared runtime sync model while making the UI contract honest. |
+| 2026-06-10 | Settings UI polish and read-only Launch at Login | Plan a follow-up Settings polish pass that keeps the Settings architecture but makes Launch at Login read-only in the UI, adds explicit numeric inputs, fits the full form by default, and clarifies break-message editing. | Manual review of the shipped Settings window found real usability defects, and Launch at Login remains blocked by signing/approval outside the Settings UI, so the row should reflect desired state without pretending it can reliably change system registration from this unsigned local context. |
 | 2026-06-10 | Settings window close commit | Commit the break-overlay message draft from the retained AppKit settings window close path instead of relying only on SwiftUI focus/disappear hooks. | The second review pass found that a reused `NSWindow` can close without dropping the SwiftUI view hierarchy, which leaves the message draft stale on reopen even when runtime/config have already normalized it. |
+| 2026-06-10 | Settings draft close-path coordination | Track real numeric draft edits and commit all draft-based Settings controls through one shared window-close coordinator. | The next review pass found that unchanged focus churn could still rewrite legacy raw timer values and that close-triggered draft protection only covered the break-message field even though numeric controls also buffer local edits. |
 | 2026-06-10 | Settings normalization warning contract | Make the Settings normalization warning and README explicitly say that unsupported raw timer values stay active until the matching control is edited. | The shipped view model preserves untouched legacy config values, so the earlier warning copy falsely promised next-change canonicalization and misdescribed actual runtime/persistence state. |
 | 2026-06-10 | Settings review fix semantics v4 | Restore raw runtime settings as the save base for untouched controls and run strict-JSON `config.json` saves synchronously in the production Settings path. | The next review pass confirmed that the v3 canonicalized save base still violated the published backward-compatibility contract for manual config edits, and the background save queue violated the shipped `persist immediately` requirement by allowing quit-before-write races. |
 | 2026-06-10 | Settings review fix semantics v3 | Canonicalize future Settings edits against UI-supported timer values, surface a visible normalization warning for out-of-range manual config, and move config persistence off the main thread while keeping runtime updates immediate. | A follow-up review confirmed two major gaps: the window could silently lie about active legacy timer values during unrelated saves, and per-keystroke strict-JSON writes on `@MainActor` could stall the menu-bar app and its timer loop. |
@@ -117,6 +135,101 @@
 | 2026-05-29 | Coordinator-to-status timer wiring | Let `AppCoordinator` push semantic `StatusDisplayState` updates plus the config-backed timer-mode flag through `StatusItemControlling`, while keeping paused-text rendering and AppKit title/image behavior inside `StatusItemController`. | The tray timer feature needs launch/tick/pause/resume/skip/coordinator lifecycle updates without moving AppKit concerns into `AppCoordinator` or duplicating pause-display rules outside the status-item edge. |
 | 2026-05-29 | Status item timer-mode presentation | Keep `StatusItemController` in icon-only mode by default, switch to `NSStatusItem.variableLength` plus cached icon-and-text rendering only when timer display is enabled, and let paused state override timer text with `Paused`. | The optional tray-timer feature must preserve the existing menu-bar contract and icon identity in default mode while localizing AppKit-specific width/title behavior inside `StatusItemController` for later coordinator wiring. |
 | 2026-05-29 | Shared timer display formatting | Centralize `MM:SS` and `Paused` status text in a small `StatusDisplayFormatter`/`StatusDisplayState` pair and reuse it from `BreakOverlayViewModel` instead of keeping a second countdown formatter there. | The new optional tray timer feature needs deterministic, AppKit-free text formatting that can be tested once and reused across UI surfaces without adding display-string logic to `AppCoordinator` or duplicating `safeDisplayWholeSeconds` handling. |
+## 2026-06-12 / Settings fixed-size window
+
+**Date:** 2026-06-12
+
+**Area:** Settings UI / Window sizing
+
+**Context:** After the Settings row alignment and preferred-size tuning, manual review found that the window content fits at the chosen size and the product preference is to prevent user resizing.
+
+**Decision:** Remove `.resizable` from the Settings `NSWindow` style mask, keeping the existing preferred content size as the fixed user-facing size and leaving the SwiftUI form content unchanged.
+
+**Rationale:** Fixed sizing avoids accidental narrow/short resize states that made the polished form look broken, and it is the smallest AppKit-edge change that implements the requested behavior without touching runtime settings, config persistence, or SwiftUI draft/commit semantics.
+
+**Consequences:** Users cannot manually enlarge the Settings window if future content, accessibility text scaling, Display Zoom, or localization makes the form feel cramped. The existing `Form` scroll behavior remains the fallback if content exceeds the fixed size.
+
+**Alternatives Considered:** Keep resizing enabled and rely on the preferred size; rejected because the requested product behavior is explicitly non-resizable. Increase the minimum size instead; rejected because it still leaves a resize affordance and does not address accidental resized states.
+
+## 2026-06-11 / Settings initial window aspect
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Window sizing
+
+**Context:** Manual review after the shared-row alignment pass showed that the Settings content now fits horizontally, but the initial preferred height still leaves a vertical scrollbar even though only a small height increase is needed.
+
+**Decision:** Reduce the preferred Settings content width from 680 to 640 points and increase the preferred content height from 620 to 660 points, while leaving the smaller minimum content size unchanged.
+
+**Rationale:** The shared row layout no longer needs the wider preferred width, and adding vertical space is the least invasive way to avoid the initial scrollbar without changing Settings behavior, form contents, or AppKit window ownership.
+
+**Consequences:** Fresh Settings windows open slightly narrower and taller. Users can still resize down to the existing smaller minimum, where scrolling/truncation remains the intended fallback for small screens.
+
+**Alternatives Considered:** Remove helper/footer text or reduce row spacing; rejected because those changes would trade clarity/readability for a scrollbar-only issue. Raise the minimum height; rejected because it would weaken the small-screen fallback.
+
+## 2026-06-11 / Settings shared row alignment
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Layout
+
+**Context:** After the first direct Settings layout pass, manual screenshots still showed uneven row alignment because default SwiftUI `Form` toggle rows, custom numeric rows, the idle-away inline row, and the break-message `VStack` each used different label/control geometry.
+
+**Decision:** Route the visible Settings rows through one small SwiftUI row helper with a fixed label column, a trailing control slot, and bounded control widths. Keep helper text in the Display section footer instead of embedding it inside the editable break-message row.
+
+**Rationale:** A shared row shape makes the visual contract explicit while staying presentation-only. It avoids changing `RuntimeSettingsStore`, `ConfigStore`, or Settings draft/commit behavior for what is purely a layout defect.
+
+**Consequences:** Timer controls, toggle controls, idle-away controls, and break-message text field align to the same label/control columns. Very narrow resized windows may truncate long labels rather than wrapping; this is a deliberate fallback to keep controls visible.
+
+**Alternatives Considered:** Keep native `Form` toggle rows and only tune the break-message row; rejected because mixed row systems were the source of the uneven appearance. Replace the whole `Form` with custom cards; deferred because the shared helper is a smaller fix that preserves native grouped form styling.
+
+## 2026-06-11 / Settings layout polish direct fix
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Layout
+
+**Context:** Manual review of the ralphex Settings polish pass showed that numeric labels wrapped badly, the default Settings window still opened too small, and the idle-away threshold needed to remain visible at the trailing edge before the enable toggle. The underlying runtime/config architecture was already correct and should not change for a visual layout defect.
+
+**Decision:** Render reusable numeric settings rows with an explicit `HStack` containing a single-line label and fixed-size trailing `TextField + unit + Stepper` controls, add a hidden-title mode for inline rows such as idle-away threshold, and increase the initial Settings content size while preserving a smaller minimum resize size.
+
+**Rationale:** `LabeledContent` inside a grouped SwiftUI `Form` can reallocate label width unpredictably once the trailing numeric controls are fixed-size, which is what produced the visible wrapping. An explicit row keeps the numeric input close to the stepper, keeps labels from wrapping, and stays local to the SwiftUI presentation layer.
+
+**Consequences:** Timer rows should open with stable single-line labels, idle-away keeps its value visible even when disabled, and Settings opens larger by default. Very narrow manually resized windows may truncate labels instead of wrapping; that is preferable to pushing the numeric controls out of sight.
+
+**Alternatives Considered:** Increase only the window width; rejected because the `LabeledContent` allocation could still wrap under different display/accessibility conditions. Rework the Settings view model or config persistence; rejected because the defect is purely layout-side and the runtime source-of-truth contract must remain unchanged.
+
+## 2026-06-11 / Settings close warning acknowledgement
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Draft lifecycle
+
+**Context:** The latest review pass proved that AppKit ends field editing before `windowShouldClose(_:)` on a close request. That means a blur-triggered Settings save failure can happen in the same event turn before the retained window delegate gets a chance to decide whether the window may close, which reopens the earlier “warning appears with nowhere to render” bug. At the same time, the existing contract still says warnings that have already been visible in the open Settings window should not become a permanent close trap.
+
+**Decision:** Track a monotonic Settings warning revision in `SettingsViewModel`, observe it from `SettingsWindowController`, and acknowledge each visible warning asynchronously on the next main-queue turn. The retained window now blocks close only while a warning is still active and its revision has not yet been acknowledged as visible in that window session.
+
+**Rationale:** This is the smallest order-independent fix. It covers both cases: warnings produced inside `windowShouldClose(_:)` and warnings produced a moment earlier by focus-loss commits on the same close click. The next-turn acknowledgement preserves the existing non-modal contract for warnings the user has already had a chance to see.
+
+**Consequences:** A close-triggered save failure now keeps the Settings window open for at least one turn so the inline warning can render, even when AppKit committed the draft during blur before `windowShouldClose(_:)` ran. Once the warning has remained visible through the next main-queue turn, later close attempts are non-blocking again unless a new warning revision appears.
+
+**Alternatives Considered:** Block closing whenever any warning exists; rejected because it reintroduces a persistent modal trap for already-visible warnings. Remove focus-loss commits and rely only on Return plus window close; rejected because the shipped numeric-input and break-message contract explicitly includes commit-on-focus-loss behavior.
+
+## 2026-06-11 / Settings value mapping split
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Maintainability
+
+**Context:** The same review pass re-confirmed that fractional raw durations in `config.json` were still flowing through a `ceil`-based display path in `SettingsViewModel`, which violated the documented “nearest supported values” contract for Settings. Fixing that logic directly inside the existing 300+ line view model would further increase the local complexity hotspot already called out by repo policy.
+
+**Decision:** Move Settings display mapping and edit-time normalization helpers into a dedicated `SettingsValueMapper` file, and make its display-side mapping compute nearest supported UI values directly from raw fractional seconds instead of from a rounded-up whole-second surrogate.
+
+**Rationale:** This is the smallest fix that addresses both problems at once: the UI contract becomes truthful for fractional manual config values, and `SettingsViewModel` stops growing past the local readability threshold.
+
+**Consequences:** Raw values such as `89.1` seconds now display as `1 min` rather than `2 min`, fractional break durations map to the nearest 5-second step, and the view model stays below the repo’s 300-line caution limit after this review fix. Edit-time commit semantics remain unchanged: explicit numeric edits still clamp and round upward to the supported save format.
+
+**Alternatives Considered:** Keep the mapping logic inside `SettingsViewModel`; rejected because the file was already above the local growth threshold and still needed another non-trivial fix. Rewrite the warning/docs to say the UI rounds upward; rejected because the repo had already committed to a nearest-value display contract for unsupported raw config values.
 | 2026-05-29 | Status item timer config contract | Add `showStatusItemTimerState: Bool` to `AppConfig`, decode a missing key as `false`, and keep invalid non-boolean values on the existing whole-config fallback path. | The optional tray-timer feature must preserve old `config.json` files and default runtime behavior, while malformed manual edits should still fail safely through the project's established config fallback contract. |
 | 2026-05-29 | Overlay geometry-bounded centering | Restore and preserve `GeometryReader` in `BreakOverlayView`, framing the background, dark layer, and foreground to the hosting window's exact size; this supersedes the same-day `Break overlay layout composition` simplification. | Manual testing showed the simplified fullscreen `ZStack` lets `scaledToFill()` expand the SwiftUI layout and shift the foreground on the built-in laptop display while external monitors may still look centered; geometry-bounded layout prevents future agents from reintroducing this MacBook-only centering regression without using display-specific offsets. |
 | 2026-05-29 | Break overlay layout composition | Simplify `BreakOverlayView` to a full-frame `ZStack` without `GeometryReader`, while keeping centered foreground content and fullscreen background fill. | `GeometryReader` was extra layout machinery for a view that already wants to occupy the full window; the simpler composition preserves behavior and makes rendered-body assertions less fragile. |
@@ -218,6 +331,30 @@ Rationale: This is the smallest robust fix because the bug lives at the AppKit w
 Consequences: Closing the Settings window now normalizes the visible draft back to the active runtime/config value before the next reopen, so the form no longer lies about a whitespace-only break message after close. Existing immediate-apply semantics for non-empty typing stay unchanged.
 
 Alternatives Considered: Rely only on `.onDisappear`; rejected because ordinary close does not reliably tear down the hosted view for the retained window. Move the draft-commit responsibility into a custom `NSHostingController`; rejected because the presenter already owns the relevant lifecycle boundary and the extra controller layer would add indirection without improving correctness.
+
+**2026-06-10 / Settings close-path save warning visibility**
+
+Context: The next review pass found a second retained-window close bug in the same Settings presenter path. Moving the break-message draft commit into `windowWillClose(_:)` fixed stale draft text on reopen, but save failures raised by that close-triggered commit still arrived after AppKit had already accepted the close, so the inline Settings warning had nowhere to render.
+
+Decision: Move the close-path commit to `windowShouldClose(_:)` and let `SettingsWindowController` cancel the close only when there is a pending break-message draft and that close-triggered commit still leaves `SettingsViewModel.hasSaveFailure == true`. If the warning was already visible before close and no pending draft needs committing, allow the window to close normally.
+
+Rationale: This is the smallest fix that actually satisfies the shipped “save failures stay visible in the Settings UI” contract for the close path without turning every existing warning into a modal trap. The bug is at the AppKit lifecycle boundary, so the presenter is still the right ownership point.
+
+Consequences: Closing Settings after editing the break message now either saves successfully and closes, or stays open long enough for the inline warning to render when the save fails. Existing warnings from earlier control edits remain non-blocking once they have already been shown in the open window.
+
+Alternatives Considered: Keep `windowWillClose(_:)` and show a later warning on next reopen; rejected because that still hides the failure at the actual commit boundary and violates the documented UI contract. Block closing whenever any save warning exists; rejected because it traps the user even when the warning was already visible and unrelated to a pending close-path commit.
+
+**2026-06-10 / Settings polish documentation contract**
+
+Context: The final documentation pass for the settings-window polish plan needs the durable repo docs to describe the shipped visual and interaction contract, not just the completed implementation plan.
+
+Decision: Update `README.md` manual checks and `AGENTS.md` settings invariants to explicitly preserve full-window fit, manual numeric entry, visible idle-away threshold, obvious break-message editing, and the read-only Launch at Login row.
+
+Rationale: These are the settings behaviors most likely to regress in later UI refactors, and README plus AGENTS are the main long-lived contract surfaces for humans and future agents.
+
+Consequences: Future follow-up work should treat these checks as part of the shipped Settings behavior even when XCTest cannot fully prove the SwiftUI/AppKit layout details.
+
+Alternatives Considered: Leave the details only in the completed implementation plan; rejected because archived plans are a weaker long-term guardrail than the actively maintained docs.
 | 2026-05-21 | Break transition integrity | Stop delayed work ticks at the work-to-break boundary so Mahu never spends unseen break time before the overlay is visible. | A large main-run-loop delay could otherwise consume some or all of the rest phase before the user ever sees it, including the worst case where the break is skipped entirely. |
 | 2026-05-21 | Local build artifact | Add `make build` to produce `build/Mahu.app` while keeping Xcode intermediate files under ignored `build/DerivedData`. | Users need a predictable app path, but keeping Xcode cache/artifacts out of source control avoids polluting the repo and preserves standard `xcodebuild` behavior. |
 | 2026-05-21 | Overlay focus hardening plan | Plan focus retention as public-API bounce-back while the break overlay is active, not as global keyboard shortcut blocking. | This addresses accidental hidden-app input after `Cmd+Tab` without introducing Accessibility/Input Monitoring permissions or App Store-hostile input capture. |
@@ -3296,3 +3433,147 @@ Alternatives Considered: Document session lock as just another `Away` source wit
 **Consequences:** Opening Settings on a legacy config remains non-destructive, the visible warning now matches the actual runtime/persistence semantics, and future review passes can judge the preserve-raw policy on its own merits instead of through stale copy. No timer or persistence behavior changes in this patch.
 
 **Alternatives Considered:** Canonicalize all UI-backed timer values on any successful Settings save; rejected for this pass because it would reopen the deliberate backward-compatibility tradeoff and broaden the fix beyond the verified contradiction. Keep the old warning text; rejected because it is materially false for shipped behavior and already contradicted the README's detailed config section.
+
+## 2026-06-10 / Settings UI Polish and Read-Only Launch at Login
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI / Launch at Login
+
+**Context:** Manual review after the initial Settings integration found that the window opens too small, numeric settings are only steppable and not manually editable, idle-away threshold is clipped, and the break overlay message field looks like static text with a confusing English placeholder. The same review also clarified the product expectation for Launch at Login: Settings should reflect the current desired state but should not let users toggle it while local signing/macOS approval limitations make the control misleading.
+
+**Decision:** Plan a focused Settings polish pass that keeps the AppKit-owned Settings window and `RuntimeSettingsStore`/`ConfigStore` architecture, but fixes the visible layout defects. Launch at Login becomes read-only/disabled in the Settings UI while still reflecting `launchAtLoginEnabled`; config/runtime sync logic remains intact for launch-loaded and programmatic desired-state changes.
+
+**Rationale:** The initial implementation proved the plumbing but left usability issues that are obvious in the real window. Numeric text fields reduce friction compared with stepper-only controls, a default fit-to-content window prevents hidden settings, and a visibly bordered message field makes editing discoverable. Read-only Launch at Login avoids presenting a control that appears actionable while the actual system behavior still depends on Apple-issued signing and macOS Login Items approval.
+
+**Consequences:** README and AGENTS must no longer describe the Settings window as a writable Launch at Login control. Tests should lock the model/control contracts where possible, but final layout acceptance remains manual because SwiftUI `Form` sizing cannot be fully proven by unit tests.
+
+**Alternatives Considered:** Keep Launch at Login editable and only improve footer copy; rejected because the user explicitly wants the row disabled/read-only. Hide Launch at Login entirely; rejected because reflecting the config value is still useful. Use a fixed non-resizable Settings window; rejected because smaller screens and accessibility scaling need a fallback.
+
+## 2026-06-10 / Settings Break Message Commit Boundaries
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI / Persistence / Window sizing
+
+**Context:** Review of the shipped Settings polish pass found that the break-overlay message field was updating runtime state and writing strict JSON on every keystroke from the main actor. Because `ConfigStore.save(_:)` performs real encode/write/sync work, long or slow writes could stall the menu-bar app during typing. The same review also found that `SettingsWindowController` was feeding content dimensions into `window.minSize`, which constrains frame size rather than content size and weakens the promised minimum-form contract.
+
+**Decision:** Keep the break-overlay message as a local draft while typing, and only apply/persist it on explicit commit boundaries: submit, focus loss, or window close. If a previous save failed, re-committing the unchanged normalized message retries persistence so the warning can clear without forcing another text edit. For the Settings window sizing contract, set the minimum via `contentMinSize` instead of frame `minSize`.
+
+**Rationale:** This is the smallest fix that removes synchronous disk churn from the hot typing path without reintroducing the previously rejected async-save durability race, and it restores truthful minimum-size semantics for the AppKit window.
+
+**Consequences:** Break-message edits no longer affect runtime/config until they are committed, but once committed they still update runtime first and persist immediately. An already visible break still keeps its current text, and only future breaks pick up the committed message. The Settings window can no longer be shrunk below the documented content floor just because title-bar chrome consumed part of the frame constraint.
+
+**Alternatives Considered:** Keep per-keystroke persistence and accept occasional UI stalls; rejected because review identified a real main-thread hitch path. Move config saves back off-main; rejected because the project already documented and re-validated immediate durable persistence on committed Settings edits. Keep using `window.minSize` with content dimensions; rejected because that API constrains the frame, not the content rect.
+
+## 2026-06-10 / Settings draft close-path coordination
+
+**Date:** 2026-06-10
+
+**Area:** Settings UI / Draft lifecycle
+
+**Context:** Another review pass found two remaining major defects in the polished Settings window. Numeric duration fields now keep a local text draft, but a plain focus/blur cycle on a legacy raw value still committed the clamped UI number back into runtime/config even when the user never changed the field. The same pass also found that `windowShouldClose(_:)` only protected the break-message draft, so an active numeric text edit could still be dropped on close or close without surfacing a save warning.
+
+**Decision:** Track whether a numeric field draft was actually edited before treating blur or submit as a commit, and run every draft-based Settings control through one shared close-path committer before the retained AppKit Settings window decides whether it may close.
+
+**Rationale:** This is the smallest fix that preserves the published "raw value stays active until you edit that specific control" contract while extending the existing close-path warning protection to the new numeric draft controls without moving all transient text state into `SettingsViewModel`.
+
+**Consequences:** Simply tabbing through a clamped legacy duration no longer rewrites runtime/config behind the user's back, but intentional numeric text edits still commit on submit, blur, or close. If a pending draft commit triggered by window close fails to persist, the Settings window now stays open long enough to show the warning for both numeric and break-message drafts.
+
+**Alternatives Considered:** Compare only parsed numeric values to the current committed display value; rejected because that would treat an explicit textual edit like `01` -> `1` as a no-op even though the user did edit the control. Move every numeric draft string into `SettingsViewModel`; rejected because it broadens the view-model surface with UI-transient state just to solve one close-path coordination problem.
+
+## 2026-06-11 / Settings legacy display mapping and overflow safety
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Legacy config compatibility
+
+**Context:** The next review pass rechecked how the shipped Settings window represents manual `config.json` values that the UI cannot edit exactly. The README and warning text both promised the "nearest supported values", but the implementation always rounded upward for minute and 5-second display mapping. The same code path also added `59` seconds in `Int` space, which can overflow when a manually edited idle-away threshold is extremely large but still finite.
+
+**Decision:** Separate legacy-value display mapping from edit-time normalization. Launch-loaded unsupported timer values now map to the nearest representable UI value for display, while explicit numeric edits keep the existing clamp-and-round commit behavior. The minute rounding helper also switches to quotient/remainder math so huge positive idle-away thresholds stay overflow-safe.
+
+**Rationale:** This is the smallest truthful fix. It makes the displayed surrogate values match the documented contract without reopening the already-shipped save semantics for explicit user edits, and it removes a launch-time crash path from malformed-but-decodable manual config values.
+
+**Consequences:** A raw `61`-second work duration now displays as `1 min` rather than `2 min`, a raw `31`-second break displays as `30 sec` rather than `35 sec`, and extreme finite idle-away thresholds clamp safely to the existing UI ceiling instead of overflowing before Mahu finishes launch.
+
+**Alternatives Considered:** Rewrite the README and warning text to say the UI always rounds upward; rejected because that would preserve a misleading display contract instead of fixing it. Reject every large-but-finite idle-away threshold at decode time; rejected because the wider config contract still allows any positive finite threshold and only the Settings display path was unsafe.
+
+## 2026-06-11 / Settings oversized draft persistence guard
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Persistence
+
+**Context:** Review also found that the break-overlay message field could accept arbitrarily large drafts, update the shared runtime settings, and only then fail persistence because `ConfigStore.save(_:)` rejects strict-JSON payloads larger than 64 KiB. That leaves Mahu in a runtime-only state that disappears on restart even though the Settings field looked committed.
+
+**Decision:** Preflight Settings commits against the same `ConfigStore` size limit before mutating runtime settings, and reject oversized drafts in place with a warning while keeping the previous saved value active.
+
+**Rationale:** The project already treats `config.json` as the persistence and backward-compatibility layer for Settings. A draft that can never fit inside the supported strict-JSON config should fail before runtime mutation, not after it, otherwise the UI overpromises durability.
+
+**Consequences:** Oversized break-message drafts now stay visible as local draft text with a warning, but they do not replace the committed runtime/config value until the user shortens them. Ordinary save failures after an accepted runtime update still keep the runtime value active as before.
+
+**Alternatives Considered:** Add an arbitrary character limit disconnected from the actual encoded config size; rejected because the real persistence boundary is the 64 KiB strict-JSON file, not an unrelated UI-only guess. Keep accepting oversized drafts and rely on the existing generic save failure warning; rejected because that preserves a restart-loss trap the review already proved.
+
+## 2026-06-11 / Settings rejected draft warning isolation
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Draft lifecycle
+
+**Context:** A follow-up review found a confirmed data-loss path in the polished Settings window: after an oversized break-overlay message draft was rejected in place, any later successful save of an unrelated setting refreshed `SettingsViewModel` from committed runtime state, wiped the rejected draft text, and cleared the warning. On the retained AppKit close path, that meant a numeric draft could commit first and silently erase the still-rejected message draft before close finished.
+
+**Decision:** Keep the rejected break-message warning separate from the generic config-save warning, and preserve the rejected draft text across unrelated `refreshPublishedState(...)` calls until the user either edits it back into a persistable range or cancels back to the committed value.
+
+**Rationale:** This is the smallest fix that removes the confirmed silent-loss path without reopening the broader close-heuristic design or moving every transient field draft into `SettingsViewModel`.
+
+**Consequences:** Successful saves of other Settings controls no longer clear an oversized break-message draft or its warning out from under the user. The shared warning footer still shows generic persistence failures when they are the active issue, but field-level oversized-draft feedback now survives unrelated saves until the draft is resolved.
+
+**Alternatives Considered:** Rework the entire close-path committer to use richer per-field result types in the same pass; rejected because that broadens the patch beyond the only newly verified major defect. Keep one shared warning slot and special-case successful unrelated saves; rejected because it still couples field-local rejected-draft state to generic persistence outcomes.
+
+## 2026-06-11 / Settings warning aggregation and retry
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / Persistence warnings
+
+**Context:** The next review pass rechecked the polished Settings persistence path and found two confirmed major defects. First, non-message Settings controls could leave runtime state updated but disk persistence failed, and then a second commit of the same value became a no-op with no retry path. Second, when an oversized break-message draft warning was already active, the shared footer hid any later generic `config.json` save failure from unrelated settings behind that draft-local warning.
+
+**Decision:** Retry `persistAcceptedSettings(currentSettings)` when a repeated no-op Settings commit happens while a generic config-save failure is still active, and compose the draft-size warning plus the generic save-failure warning into one footer message instead of choosing only one.
+
+**Rationale:** This is the smallest fix that preserves the shipped runtime-first Settings contract while making durability failures truthful again. It avoids a broader Settings retry UI or close-path redesign, but still gives users a deterministic way to resave the accepted runtime state and see every active persistence warning at once.
+
+**Consequences:** Repeating the same toggle or numeric value after a transient save failure now retries the strict-JSON write instead of silently staying runtime-only until restart. If an oversized break-message draft coexists with a separate save failure from another control, the Settings footer now shows both warnings together so the user can resolve both issues deliberately.
+
+**Alternatives Considered:** Add an explicit Retry button or more stateful retry affordances; rejected because that broadens the Settings UI for a narrow review fix. Keep one warning slot and prioritize the draft-local warning; rejected because it hides a real persistence-loss risk for other settings and breaks the non-fatal-but-visible save-failure contract.
+
+## 2026-06-11 / Settings close and quit persistence guard
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / App termination
+
+**Context:** The second review pass found two linked lifecycle defects in the retained AppKit Settings window. First, `windowShouldClose(_:)` only vetoed closing when `saveWarningRevision` advanced, so a draft committed during close could fail persistence again under an already-visible warning and still let the window disappear. Second, the status-menu `Quit` path still called `NSApp.terminate(nil)` directly, and Apple's termination flow does not automatically invoke each window's `windowShouldClose:` delegate, so pending Settings drafts could bypass the same close guard entirely.
+
+**Decision:** Treat any close-triggered Settings draft commit that leaves a save warning active as an immediate close veto independent of warning revision changes, and route application termination through `AppDelegate.applicationShouldTerminate(_:)` so a visible Settings window reuses the same draft-commit and veto logic before Mahu exits.
+
+**Rationale:** This is the smallest fix that preserves the existing retained-window architecture and inline warning contract without redesigning Settings state. The close path now reasons about "did a draft commit happen?" instead of only "did the warning text change?", and the quit path stops relying on implicit AppKit behavior that never promised `windowShouldClose:` during termination.
+
+**Consequences:** A visible Settings window now stays open whenever closing or quitting commits a pending draft but persistence still fails, even if the same warning was already on screen. Plain closing with an old warning and no pending draft still behaves as before, and hidden/non-visible Settings windows do not block app termination.
+
+**Alternatives Considered:** Replace the draft committer with a richer per-field result graph in the same pass; rejected because the verified bug only required distinguishing real close-triggered commits from no-op/invalid drafts. Let quit continue to rely on `NSApp.terminate(nil)` implicitly closing windows; rejected because AppKit documents termination and window-close delegation as separate flows.
+
+## 2026-06-11 / Settings miniaturized quit guard
+
+**Date:** 2026-06-11
+
+**Area:** Settings UI / App termination
+
+**Context:** A follow-up review found one remaining lifecycle hole in the retained Settings presenter. `applicationShouldTerminate(_:)` already reused `SettingsWindowController.shouldAllowApplicationTermination()`, but that helper only guarded windows that were currently visible. A miniaturized Settings window reports `isVisible == false` while still carrying live draft state, so `Quit` could bypass the close-path draft commit and warning flow entirely.
+
+**Decision:** Treat a miniaturized Settings window as an active termination guard participant. When `Quit` is vetoed because a miniaturized window's close-triggered draft commit still leaves a save warning active, immediately restore and foreground the Settings window so the inline warning is visible.
+
+**Rationale:** This is the smallest truthful fix. A miniaturized window is not the same as a closed retained window; it still represents an open editing session. Reusing the existing `showSettingsWindow()` restoration path keeps the presenter behavior consistent without inventing a second warning surface for quit failures.
+
+**Consequences:** `Quit` no longer drops pending Settings drafts just because the window was miniaturized. Closed or otherwise non-visible retained Settings windows still do not block termination, but miniaturized windows now re-enter the same warning/acknowledgement flow as ordinary visible windows.
+
+**Alternatives Considered:** Guard every retained Settings window object regardless of visibility; rejected because a previously closed retained window should not block termination with stale presenter state. Ignore the miniaturized case as another non-visible trade-off; rejected because unlike a closed window it still contains an active user editing session and can lose drafts silently.
