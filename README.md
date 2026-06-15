@@ -40,7 +40,7 @@ You start it, it lives in the menu bar, and it reminds you when it is time to st
 
 Mahu is an early native macOS app. It already includes the core reminder flow, break overlay, menu-bar controls, tests, and local build workflow.
 
-Some release tasks are still future work: signing, notarization, App Store packaging, and additional fullscreen Spaces hardening.
+Some release tasks are still future work: signing, notarization, App Store packaging, and more testing around fullscreen apps and multi-Space setups.
 
 ## Build from source
 
