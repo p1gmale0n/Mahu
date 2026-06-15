@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-15 | Documentation split | Make `README.md` a user-facing product page, move developer setup into `DEVELOPMENT.md`, and keep exhaustive coding-agent/manual-QA context in `llm.md`. | The repository landing page should make users want to try Mahu, while developer commands and agent invariants still need durable homes without overwhelming the README. |
 | 2026-06-12 | Settings fixed-size window | Remove the resizable style from the Settings window and treat the preferred content size as the fixed user-facing window size. | Manual review of the polished Settings form showed the desired window size now fits the full form; fixed sizing prevents accidental resize states and matches the requested product behavior, accepting that small-screen/accessibility fallback is now limited to the existing scrollable form content. |
 | 2026-06-11 | Settings initial window aspect | Make the polished Settings window slightly narrower and taller while keeping the same smaller resize minimum. | Manual review showed the full form content fits horizontally with the shared row layout, but the initial height still triggers a vertical scrollbar; a narrower/taller preferred size better matches the actual form without removing small-screen fallback resizing. |
 | 2026-06-11 | Settings shared row alignment | Use one shared Settings row helper with a fixed label column and trailing controls for timer, toggle, idle-away, and break-message rows, and move break-message helper copy into the Display section footer. | Manual review showed that mixing SwiftUI `Form` default toggle rows, custom numeric rows, and an inline `VStack` helper text made the form visually uneven; a shared row shape gives predictable alignment without changing runtime settings or config persistence semantics. |
@@ -3577,3 +3578,19 @@ Alternatives Considered: Document session lock as just another `Away` source wit
 **Consequences:** `Quit` no longer drops pending Settings drafts just because the window was miniaturized. Closed or otherwise non-visible retained Settings windows still do not block termination, but miniaturized windows now re-enter the same warning/acknowledgement flow as ordinary visible windows.
 
 **Alternatives Considered:** Guard every retained Settings window object regardless of visibility; rejected because a previously closed retained window should not block termination with stale presenter state. Ignore the miniaturized case as another non-visible trade-off; rejected because unlike a closed window it still contains an active user editing session and can lose drafts silently.
+
+## 2026-06-15 / Documentation split
+
+**Date:** 2026-06-15
+
+**Area:** Documentation split
+
+**Context:** `README.md` had drifted into a technical/developer document even though it is the repository landing page for potential users.
+
+**Decision:** Make `README.md` a user-facing product page, move developer setup/configuration/verification notes into `DEVELOPMENT.md`, and keep exhaustive coding-agent context plus manual QA details in `llm.md`.
+
+**Rationale:** Users should quickly understand why Mahu is useful and want to try it; developers and agents still need detailed durable context, but not in the first page people read.
+
+**Consequences:** Product positioning and high-level status belong in `README.md`; build/test/config/project-structure notes belong in `DEVELOPMENT.md`; implementation invariants and exhaustive manual checks belong in `llm.md`.
+
+**Alternatives Considered:** Keep a developer README with a separate marketing page, but GitHub defaults to README as the landing page, so that would optimize for the wrong audience.

@@ -6,7 +6,9 @@
 
 ## Current Repo State
 - The repo now contains a checked-in Xcode macOS app project at `Mahu.xcodeproj`, app sources under `Mahu/`, unit tests under `MahuTests/`, and MVP implementation docs under `docs/`.
-- Keep `README.md` current when app behavior, project structure, setup steps, or verification commands change.
+- Keep `README.md` focused on user-facing product value and high-level status.
+- Keep `DEVELOPMENT.md` current for developer setup, project structure, configuration, and verification commands.
+- Keep `llm.md` as the detailed coding-agent context and exhaustive manual QA checklist when development-level details become too noisy.
 
 ## Development Workflow
 - Default mode for this chat/repo is discussion and planning only; implementation is executed separately with `ralphex` (`https://github.com/umputun/ralphex`).
