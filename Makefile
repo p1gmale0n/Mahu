@@ -26,3 +26,11 @@ build:
 	test -f "$(APP_BACKGROUND_RESOURCE)"
 	test -f "$(APP_SOUND_RESOURCE)"
 	@printf 'Built %s\n' "$(APP_BUNDLE)"
+
+.PHONY: lint
+lint:
+	@command -v swiftlint >/dev/null 2>&1 || { \
+		printf 'SwiftLint is not installed. Install it with: brew install swiftlint\n' >&2; \
+		exit 127; \
+	}
+	swiftlint lint --config .swiftlint.yml

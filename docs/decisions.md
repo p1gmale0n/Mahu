@@ -2,6 +2,7 @@
 
 | Date | Area | Decision | Rationale |
 | --- | --- | --- | --- |
+| 2026-06-15 | SwiftLint configuration | Add a repo-local `.swiftlint.yml` and `make lint` target scoped initially to app sources under `Mahu/` with relaxed current-codebase thresholds. | The project needs deterministic lint configuration without turning the initial adoption into a large unrelated refactor; scoped linting avoids local/build artifacts and gives future changes a stable quality gate. |
 | 2026-06-15 | Documentation split | Make `README.md` a user-facing product page, move developer setup into `DEVELOPMENT.md`, and keep exhaustive coding-agent/manual-QA context in `llm.md`. | The repository landing page should make users want to try Mahu, while developer commands and agent invariants still need durable homes without overwhelming the README. |
 | 2026-06-12 | Settings fixed-size window | Remove the resizable style from the Settings window and treat the preferred content size as the fixed user-facing window size. | Manual review of the polished Settings form showed the desired window size now fits the full form; fixed sizing prevents accidental resize states and matches the requested product behavior, accepting that small-screen/accessibility fallback is now limited to the existing scrollable form content. |
 | 2026-06-11 | Settings initial window aspect | Make the polished Settings window slightly narrower and taller while keeping the same smaller resize minimum. | Manual review showed the full form content fits horizontally with the shared row layout, but the initial height still triggers a vertical scrollbar; a narrower/taller preferred size better matches the actual form without removing small-screen fallback resizing. |
@@ -3594,3 +3595,18 @@ Alternatives Considered: Document session lock as just another `Away` source wit
 **Consequences:** Product positioning and high-level status belong in `README.md`; build/test/config/project-structure notes belong in `DEVELOPMENT.md`; implementation invariants and exhaustive manual checks belong in `llm.md`.
 
 **Alternatives Considered:** Keep a developer README with a separate marketing page, but GitHub defaults to README as the landing page, so that would optimize for the wrong audience.
+## 2026-06-15 / SwiftLint configuration
+
+**Date:** 2026-06-15
+
+**Area:** SwiftLint configuration
+
+**Context:** The project had build and test commands but no committed lint configuration or standard lint entry point.
+
+**Decision:** Add `.swiftlint.yml` scoped initially to app sources under `Mahu/`, exclude generated/local artifacts, and expose linting through `make lint`.
+
+**Rationale:** A repo-local config makes lint behavior deterministic for humans and agents. Thresholds are intentionally relaxed for existing large files so adoption does not become an unrelated refactor, while still warning on future readability drift. `MahuTests/` is left out of the default lint gate until a focused test-formatting pass can remove legacy noise.
+
+**Consequences:** Developers need SwiftLint installed locally to run `make lint`; future tightening and adding `MahuTests/` should happen alongside focused refactors rather than by raising noise on the whole existing codebase.
+
+**Alternatives Considered:** Add SwiftLint to the Xcode build phase immediately, but that would make local builds depend on an optional tool and could block users who only want to build the app from source.

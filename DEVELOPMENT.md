@@ -50,6 +50,18 @@ Run tests:
 xcodebuild test -project "Mahu.xcodeproj" -scheme "Mahu" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO
 ```
 
+Run lint:
+
+```sh
+make lint
+```
+
+`make lint` requires SwiftLint. Install it locally with:
+
+```sh
+brew install swiftlint
+```
+
 Raw Xcode build:
 
 ```sh
@@ -116,6 +128,7 @@ MahuTests/                XCTest suite
 Mahu.xcodeproj/           Xcode project and shared scheme
 source-assets/            Source/staging design assets
 build/                    Local build output, ignored by git
+.swiftlint.yml            SwiftLint rules for app and test sources
 docs/decisions.md         Architectural and process decisions
 docs/plans/               Implementation plans and completed plan archive
 DEVELOPMENT.md            Developer setup, config, and verification notes
@@ -136,6 +149,14 @@ After building/running the app, verify at least:
 - Lock/sleep/long-idle behavior does not trigger hidden stale overlays or sounds.
 
 The complete coding-agent and manual QA checklist lives in [`llm.md`](llm.md).
+
+## Linting
+
+SwiftLint is configured through `.swiftlint.yml` and intentionally starts with app sources under `Mahu/` only while excluding generated/local artifacts such as `build/` and `.ralphex/`.
+
+The test suite currently has many legacy style violations, so `MahuTests/` is not part of the default lint gate yet. Add tests to the lint scope after a focused formatting/refactor pass.
+
+The configuration keeps file/type length thresholds relaxed enough for the current codebase, but still warns on new readability drift. Prefer refactoring files that approach the thresholds instead of raising limits further.
 
 ## Documentation
 
